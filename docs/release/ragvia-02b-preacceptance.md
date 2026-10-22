@@ -132,6 +132,12 @@ interface HTTP live/cópia, roles, migração, sigilo e publicação inválida. 
 primeiro run de integração teve 24 PASS/1 FAIL (tenant sem correlação durável);
 a correção e a reprodução estão descritas acima e nos logs. Não se mudou a
 expectativa de autorização para obter aprovação.
+A primeira CI (`39735945207`, SHA `81655eb`) teve 169 PASS/2 FAIL na integração:
+dois testes antigos compactados de resiliência mockavam `_generate`, mas ainda
+construíam a fábrica de rede. O guard bloqueou antes de qualquer chamada. Os
+testes agora explicitam o cliente simulado, sem alterar asserções de publicação
+ou retry; o arquivo foi validado separadamente (3 testes). A aprovação final
+depende da nova CI do SHA corrigido, registrada no PR/`qualification.json`.
 
 ## Migração, recuperação e rollback
 
