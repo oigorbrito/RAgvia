@@ -16,4 +16,8 @@ The inclusion of a project in this notice does not imply that its entire reposit
 
 Where a source project carries its own license, that license remains applicable to material originating from that project. Where use is based on direct permission rather than a published repository license, this notice records the provenance basis confirmed by the Rpy project owner without disclosing private communications.
 
+Additional parser provenance:
+
+- oigorbrito/rag_resumo, resumo/parser.py at 0d0f8cbb495292a3f3d61fba75428f3136059ea8: deterministic parser rules adapted for the explicitly requested RAGVIA-M01 migration. The pinned donor snapshot has no standalone LICENSE file; this notice does not invent an upstream license grant. See docs/migrations/ragvia-m01-parser-parity.md for scope, attribution, compatibility differences and release-review limitations.
+
 Rpy is licensed under the MIT License. See the repository root LICENSE file for the project-wide terms.

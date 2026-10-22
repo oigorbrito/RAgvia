@@ -83,13 +83,13 @@ MEDIUM_SUMMARY_STEP_MAX = 60
 MAX_TOKENS = 4000
 PROMPT_VERSION = "process-summary-v6"
 _RENDER_ONLY_HEADER_FIELDS = frozenset(
-    {"phase", "status", "distribution_date", "judge", "court_unit"}
+    {"phase", "status", "distribution_date", "judge", "court_unit", "source_parser"}
 )
 _HEARING_DESIGNATION_RE = re.compile(
     r"\bAUDI[ÊE]NCIA\b.{0,240}?\bDESIGNAD[AO]\b", re.IGNORECASE
 )
 _DATE_TIME_RE = re.compile(
-    r"(?P<date>\d{2}/\d{2}/\d{4})(?:\s+(?:às|as)\s+(?P<time>\d{2}:\d{2}))?",
+    r"(?P<date>\d{2}/\d{2}/\d{4})(?:\s+(?:(?:às|as)\s+)?(?P<time>\d{2}:\d{2}))?",
     re.IGNORECASE,
 )
 _NEGATED_HEARING_RE = re.compile(
@@ -231,6 +231,8 @@ def _serialize_steps(ranked: list[Any]) -> list[dict[str, Any]]:
         {
             "evidence_ref": movement_evidence_ref(item.step.id),
             "step_number": item.step.step_number,
+            **({"source_step_number": item.step.source_step_number}
+               if getattr(item.step, "source_step_number", None) is not None else {}),
             "occurred_at": _provider_datetime(item.step.occurred_at),
             "title": (
                 model_view_text(str(item.step.title)).text

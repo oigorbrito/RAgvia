@@ -1,0 +1,217 @@
+{
+  "cnj": "0000000-00.0000.0.00.0401",
+  "instancia": 1,
+  "tribunal_sigla": "TJPR",
+  "tribunal_nome": "Tribunal de Justiça do Paraná",
+  "comarca": "Cidade Sintética",
+  "uf": "PR",
+  "orgao_julgador": "JUÍZO DO JUIZADO ESPECIAL CÍVEL DE CIDADE SINTÉTICA",
+  "juiz": "Magistrado Sintético",
+  "fase": "inicial",
+  "status": "ativa",
+  "valor_causa": "R$ 30.000,00",
+  "data_distribuicao": "01/09/2026",
+  "juizo_100_digital": true,
+  "citacao_registrada": false,
+  "segredo_justica": false,
+  "partes": [
+    {
+      "id": "p1",
+      "nome": "Pessoa Sintética Alfa",
+      "tipo": "AUTOR",
+      "polo": "ativo",
+      "documento": "CPF: ***.666.666-**",
+      "advogados": [
+        "Pessoa Sintética Beta"
+      ]
+    },
+    {
+      "id": "p2",
+      "nome": "Pessoa Sintética Gama",
+      "tipo": "AUTOR",
+      "polo": "ativo",
+      "documento": "CPF: ***.000.000-**",
+      "advogados": [
+        "Pessoa Sintética Beta"
+      ]
+    },
+    {
+      "id": "p3",
+      "nome": "Pessoa Sintética Beta",
+      "tipo": "ADVOGADO",
+      "polo": "ativo",
+      "documento": "OAB/PR 0000000",
+      "advogados": []
+    },
+    {
+      "id": "p4",
+      "nome": "Pessoa Sintética Delta",
+      "tipo": "RÉU",
+      "polo": "passivo",
+      "documento": "CNPJ: **.111.111/1111-**",
+      "advogados": []
+    }
+  ],
+  "classes": [
+    {
+      "id": "c1",
+      "codigo": "436",
+      "nome": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+      "suspeito": false,
+      "motivo": null
+    },
+    {
+      "id": "c2",
+      "codigo": "169",
+      "nome": "EMBARGOS",
+      "suspeito": true,
+      "motivo": "classe incidental/recursal numa ação em fase inicial, sem decisão registrada; provável erro de captura do cadastro"
+    }
+  ],
+  "assuntos": [
+    {
+      "id": "a1",
+      "codigo": "14033",
+      "nome": "INDENIZAÇÃO POR DANO MORAL",
+      "suspeito": false,
+      "motivo": null
+    },
+    {
+      "id": "a2",
+      "codigo": "10431",
+      "nome": "RESPONSABILIDADE CIVIL",
+      "suspeito": false,
+      "motivo": null
+    },
+    {
+      "id": "a3",
+      "codigo": "899",
+      "nome": "DIREITO CIVIL",
+      "suspeito": false,
+      "motivo": null
+    }
+  ],
+  "movimentos": [
+    {
+      "numero": 1,
+      "data": "01/09/2026",
+      "texto": "DISTRIBUÍDO POR SORTEIO (UNIDADE-A)",
+      "tipo": "distribuicao",
+      "detalhes": {
+        "forma": "sorteio"
+      }
+    },
+    {
+      "numero": 2,
+      "data": "01/09/2026",
+      "texto": "AUTOS INCLUÍDOS NO JUÍZO 100% DIGITAL",
+      "tipo": "juizo_100_digital",
+      "detalhes": {}
+    },
+    {
+      "numero": 3,
+      "data": "01/09/2026",
+      "texto": "REMETIDOS OS AUTOS - UNIDADE-A -> UNIDADE-B",
+      "tipo": "remessa_interna",
+      "detalhes": {}
+    },
+    {
+      "numero": 4,
+      "data": "01/09/2026",
+      "texto": "AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA - LOCAL CONCILIAÇÃO JUIZADO CÍVEL - 03/03/2027 15:00",
+      "tipo": "audiencia_designada",
+      "detalhes": {
+        "modalidade": "conciliação",
+        "data_agendada": "03/03/2027 às 15:00"
+      }
+    },
+    {
+      "numero": 5,
+      "data": "01/09/2026",
+      "texto": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA - AUDIÊNCIAREFER. AO EVENTO 4(AUTOR - Pessoa Sintética Alfa) PRAZO: 1 DIA STATUS:AGUARD. ABERTURA",
+      "tipo": "intimacao",
+      "detalhes": {
+        "prazo_dias": 1,
+        "destinatario": "PESSOA SINTÉTICA ALFA (autor)",
+        "finalidade": "comunicar audiência",
+        "referente_evento": 4
+      }
+    },
+    {
+      "numero": 6,
+      "data": "01/09/2026",
+      "texto": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA - AUDIÊNCIAREFER. AO EVENTO 4(AUTOR - Pessoa Sintética Gama) PRAZO: 1 DIA STATUS:AGUARD. ABERTURA",
+      "tipo": "intimacao",
+      "detalhes": {
+        "prazo_dias": 1,
+        "destinatario": "PESSOA SINTÉTICA GAMA (autor)",
+        "finalidade": "comunicar audiência",
+        "referente_evento": 4
+      }
+    },
+    {
+      "numero": 7,
+      "data": "01/09/2026",
+      "texto": "ATO ORDINATÓRIO PRATICADO DOCUMENTO ENCAMINHADO À DISPONIBILIZAÇÃO NO DIÁRIO ELETRÔNICO - NO DIA 02/09/2026 - REFER. AOS EVENTOS: 5, 6",
+      "tipo": "ato_ordinatorio",
+      "detalhes": {}
+    },
+    {
+      "numero": 8,
+      "data": "02/09/2026",
+      "texto": "DISPONIBILIZADO NO DJEN - NO DIA 02/09/2026 - REFER. AOS EVENTOS: 5, 6",
+      "tipo": "publicacao_diario",
+      "detalhes": {}
+    },
+    {
+      "numero": 9,
+      "data": "02/09/2026",
+      "texto": "JUNTADA DE CERTIDÃO",
+      "tipo": "juntada",
+      "detalhes": {}
+    },
+    {
+      "numero": 10,
+      "data": "02/09/2026",
+      "texto": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICAREFER. AO EVENTO 9(AUTOR - Pessoa Sintética Alfa) PRAZO: 15 DIAS STATUS:AGUARD. ABERTURADIÁRIO DE JUSTIÇA ELETRÔNICO NACIONAL: ENVIADO EM 02/09/2026 PARA DISPONIBILIZAÇÃO EM 03/09/2026",
+      "tipo": "intimacao",
+      "detalhes": {
+        "prazo_dias": 15,
+        "destinatario": "PESSOA SINTÉTICA ALFA (autor)",
+        "referente_evento": 9,
+        "disponibilizacao_diario": "03/09/2026"
+      }
+    },
+    {
+      "numero": 11,
+      "data": "02/09/2026",
+      "texto": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICAREFER. AO EVENTO 9(AUTOR - Pessoa Sintética Gama) PRAZO: 15 DIAS STATUS:AGUARD. ABERTURADIÁRIO DE JUSTIÇA ELETRÔNICO NACIONAL: ENVIADO EM 02/09/2026 PARA DISPONIBILIZAÇÃO EM 03/09/2026",
+      "tipo": "intimacao",
+      "detalhes": {
+        "prazo_dias": 15,
+        "destinatario": "PESSOA SINTÉTICA GAMA (autor)",
+        "referente_evento": 9,
+        "disponibilizacao_diario": "03/09/2026"
+      }
+    },
+    {
+      "numero": 12,
+      "data": "02/09/2026",
+      "texto": "ATO ORDINATÓRIO PRATICADO DOCUMENTO ENCAMINHADO À DISPONIBILIZAÇÃO NO DIÁRIO ELETRÔNICO - NO DIA 03/09/2026 - REFER. AOS EVENTOS: 10, 11",
+      "tipo": "ato_ordinatorio",
+      "detalhes": {}
+    },
+    {
+      "numero": 13,
+      "data": "02/09/2026",
+      "texto": "REMETIDOS OS AUTOS - UNIDADE-B -> UNIDADE-A",
+      "tipo": "remessa_interna",
+      "detalhes": {}
+    }
+  ],
+  "alertas": [
+    "Classe 'EMBARGOS' provavelmente é erro de cadastro: classe incidental/recursal numa ação em fase inicial, sem decisão registrada; provável erro de captura do cadastro.",
+    "Área cadastrada 'DIREITO DO TRABALHO' não condiz com os assuntos (INDENIZAÇÃO POR DANO MORAL, RESPONSABILIDADE CIVIL, DIREITO CIVIL) nem com a Justiça (JUSTIÇA ESTADUAL). Ignore a área.",
+    "O campo de comarca/vara menciona 'Vara da Fazenda Pública', mas o órgão julgador é um Juizado Especial Cível. Use o órgão julgador."
+  ]
+}
