@@ -19,6 +19,7 @@ Esta matriz liga cada contrato a uma verificação existente. Os comandos devem 
 | `JUDIT-BOUNDARY-001` | Testes de autorização/frontend; nenhum smoke pago sem autorização específica. | Unitário + frontend; real somente autorizado | Coberto por testes; consulta real não executada neste bloco. |
 | `ENV-ISOLATION-001` | `python -m pytest -q tests/test_windows_homologation.py`; smoke Windows verifica projeto, volume, porta loopback e ausência de checkout habitual. | Static + Windows real | Cobertura existente; não executar limpeza Docker global. |
 | `GENERATION-SPEND-001` | `python -m pytest -q tests/test_generation_authorization.py tests/test_anthropic_schema_compatibility.py`; integração `test_generation_authorization_postgres.py`, `test_legal_delivery_acceptance.py` e roles, em PostgreSQL descartável. | Provider simulado + PostgreSQL; browser live opcional com `RAGV_02B_LIVE_BROWSER=true` | Comprova guard e contrato sintético, não conta/modelo/custo real. |
+| `JUDIT-PARSER-PARITY-001` | `python -m pytest -q tests/test_parser_parity.py tests/test_judit.py tests/test_judit_normalization.py tests/test_rag_temporal_facts.py`; integração `test_parser_parity_postgres.py`, finalização/idempotência, proveniência, tenant e sigilo. | Unitário + PostgreSQL/worker/API com SDK simulado | Paridade coberta pelo oracle do SHA fixado; não prova qualidade de modelo real. |
 
 ## Comandos de mudança
 

@@ -91,7 +91,10 @@ def test_public_header_retains_source_phase_status_and_court_unit() -> None:
         }
     )
 
-    assert fields["header"] == {  # nosec B101 - pytest assertion
+    header = dict(fields["header"])
+    annotations = header.pop("source_parser")
+    assert annotations["semantics"] == "lexical_annotations_not_verified_facts"
+    assert header == {  # unchanged source fields; additive derived annotations
         "area": "Cível",
         "justice_description": "Justiça Estadual",
         "phase": "INICIAL",

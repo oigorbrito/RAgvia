@@ -1,0 +1,201 @@
+{
+  "page_data": [
+    {
+      "request_id": "m01-synthetic-request",
+      "response_id": "m01-synthetic-response",
+      "response_type": "lawsuit",
+      "response_data": {
+        "code": "0000000-00.0000.0.00.0401",
+        "instance": 1,
+        "secrecy_level": 0,
+        "tribunal_acronym": "TJPR",
+        "justice": "8",
+        "justice_description": "JUSTIÇA ESTADUAL",
+        "county": "CIDADE SINTÉTICA - VARA DA FAZENDA PÚBLICA",
+        "state": "PR",
+        "city": "CIDADE SINTÉTICA",
+        "area": "DIREITO DO TRABALHO",
+        "amount": 30000,
+        "distribution_date": "2026-09-01T20:33:37.000Z",
+        "classifications": [
+          {
+            "code": "436",
+            "name": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL"
+          },
+          {
+            "code": "169",
+            "name": "EMBARGOS"
+          }
+        ],
+        "subjects": [
+          {
+            "code": "14033",
+            "name": "INDENIZAÇÃO POR DANO MORAL"
+          },
+          {
+            "code": "10431",
+            "name": "RESPONSABILIDADE CIVIL"
+          },
+          {
+            "code": "899",
+            "name": "DIREITO CIVIL"
+          }
+        ],
+        "courts": [
+          {
+            "name": "JUÍZO DO JUIZADO ESPECIAL CÍVEL DE CIDADE SINTÉTICA"
+          }
+        ],
+        "parties": [
+          {
+            "main_document": "66666666666",
+            "name": "Pessoa Sintética Alfa",
+            "side": "Active",
+            "person_type": "AUTOR",
+            "documents": [],
+            "lawyers": [
+              {
+                "name": "Pessoa Sintética Beta",
+                "documents": [
+                  {
+                    "document": "PR0000000",
+                    "document_type": "oab"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "main_document": "00000000000",
+            "name": "Pessoa Sintética Gama",
+            "side": "Active",
+            "person_type": "AUTOR",
+            "documents": [],
+            "lawyers": [
+              {
+                "name": "Pessoa Sintética Beta",
+                "documents": [
+                  {
+                    "document": "PR0000000",
+                    "document_type": "oab"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Pessoa Sintética Beta",
+            "side": "Active",
+            "person_type": "ADVOGADO",
+            "documents": [
+              {
+                "document": "PR0000000",
+                "document_type": "oab"
+              }
+            ],
+            "lawyers": []
+          },
+          {
+            "main_document": "11111111111111",
+            "name": "Pessoa Sintética Delta",
+            "side": "Passive",
+            "person_type": "RÉU",
+            "documents": [],
+            "lawyers": []
+          }
+        ],
+        "status": "ATIVO",
+        "judge": "Magistrado Sintético",
+        "phase": "INICIAL",
+        "steps": [
+          {
+            "step_id": "m01-step-01",
+            "step_date": "2026-09-02T16:09:16.000Z",
+            "content": "13 - REMETIDOS OS AUTOS - UNIDADE-B -> UNIDADE-A",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-02",
+            "step_date": "2026-09-02T15:56:04.000Z",
+            "content": "12 - ATO ORDINATÓRIO PRATICADO   DOCUMENTO ENCAMINHADO À DISPONIBILIZAÇÃO NO DIÁRIO ELETRÔNICO - NO DIA 03/09/2026 - REFER. AOS EVENTOS: 10, 11",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-03",
+            "step_date": "2026-09-02T15:38:46.000Z",
+            "content": "11 - EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICAREFER.  AO EVENTO 9(AUTOR -  Pessoa Sintética Gama) PRAZO: 15 DIAS STATUS:AGUARD. ABERTURADIÁRIO DE JUSTIÇA ELETRÔNICO NACIONAL: ENVIADO EM 02/09/2026 PARA DISPONIBILIZAÇÃO EM 03/09/2026",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-04",
+            "step_date": "2026-09-02T15:38:46.000Z",
+            "content": "10 - EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICAREFER.  AO EVENTO 9(AUTOR -  Pessoa Sintética Alfa) PRAZO: 15 DIAS STATUS:AGUARD. ABERTURADIÁRIO DE JUSTIÇA ELETRÔNICO NACIONAL: ENVIADO EM 02/09/2026 PARA DISPONIBILIZAÇÃO EM 03/09/2026",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-05",
+            "step_date": "2026-09-02T15:38:46.000Z",
+            "content": "9 - JUNTADA DE CERTIDÃO",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-06",
+            "step_date": "2026-09-02T05:00:56.000Z",
+            "content": "8 - DISPONIBILIZADO NO DJEN - NO DIA 02/09/2026 - REFER. AOS EVENTOS: 5, 6",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-07",
+            "step_date": "2026-09-01T21:04:02.000Z",
+            "content": "7 - ATO ORDINATÓRIO PRATICADO   DOCUMENTO ENCAMINHADO À DISPONIBILIZAÇÃO NO DIÁRIO ELETRÔNICO - NO DIA 02/09/2026 - REFER. AOS EVENTOS: 5, 6",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-08",
+            "step_date": "2026-09-01T20:33:46.000Z",
+            "content": "6 - EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA - AUDIÊNCIAREFER.  AO EVENTO 4(AUTOR -  Pessoa Sintética Gama) PRAZO: 1 DIA STATUS:AGUARD. ABERTURA",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-09",
+            "step_date": "2026-09-01T20:33:46.000Z",
+            "content": "5 - EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA - AUDIÊNCIAREFER.  AO EVENTO 4(AUTOR -  Pessoa Sintética Alfa) PRAZO: 1 DIA STATUS:AGUARD. ABERTURA",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-10",
+            "step_date": "2026-09-01T20:33:39.000Z",
+            "content": "4 - AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA - LOCAL CONCILIAÇÃO JUIZADO CÍVEL - 03/03/2027 15:00",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-11",
+            "step_date": "2026-09-01T20:33:38.000Z",
+            "content": "3 - REMETIDOS OS AUTOS - UNIDADE-A -> UNIDADE-B",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-12",
+            "step_date": "2026-09-01T20:33:38.000Z",
+            "content": "2 - AUTOS INCLUÍDOS NO JUÍZO 100% DIGITAL",
+            "private": false
+          },
+          {
+            "step_id": "m01-step-13",
+            "step_date": "2026-09-01T20:33:37.000Z",
+            "content": "1 - DISTRIBUÍDO POR SORTEIO (UNIDADE-A)",
+            "private": false
+          }
+        ]
+      }
+    },
+    {
+      "response_type": "summary",
+      "response_data": {
+        "data": [
+          "EXTERNAL SUMMARY MUST BE IGNORED"
+        ]
+      }
+    }
+  ]
+}
