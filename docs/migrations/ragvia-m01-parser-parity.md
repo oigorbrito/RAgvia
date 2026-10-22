@@ -81,7 +81,11 @@ Os labels de cadastro/moeda/data e a projeção plana de partes ficam disponíve
 no header da API autorizada; não reescrevem o layout/JSON schema-v2/v3 existentes.
 Representantes são relações no modelo canônico: o mesmo advogado pode ter duas
 linhas para dois clientes, sem virar parte processual duplicada. Compartilhar
-polo não basta para inferir cliente. IDs pN/cN/aN são locais à projeção/version,
+polo não basta para inferir cliente. A separação canônica usa os tipos explícitos
+já reconhecidos pelo RAgvia, não a substring ampla `ADVOGAD` do doador (por
+exemplo, “TESTEMUNHA DO ADVOGADO” não vira representante). A visão literal
+permanece na projeção anotada, sem sobrepor esse contrato de identidade.
+IDs pN/cN/aN são locais à projeção/version,
 não chaves duráveis ou identificadores pessoais.
 
 ## Equivalência, privacidade e limites preservados
@@ -135,7 +139,7 @@ $env:RAGV_M01_ARTIFACT_DIR = "$env:TEMP/ragvia-m01-new/document"
 python scripts/validate_candidate_postgres.py --output "$env:TEMP/ragvia-m01-new/postgres" --test-path tests/integration/test_parser_parity_postgres.py
 ```
 
-Execução local proporcional: **162 testes unitários direcionados aprovados**
+Execução local proporcional: **163 testes unitários direcionados aprovados**
 na imagem Linux fixa (SDK/runtime pinados) e **53 integrações PostgreSQL
 selecionadas aprovadas, zero skips**. Ruff e project harness aprovados. Isso
 qualifica os contratos executados, não qualidade jurídica de um modelo real.

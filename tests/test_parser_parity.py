@@ -176,6 +176,14 @@ def test_movement_alias_provenance_and_noncontiguous_source_numbers(field):
     assert steps[0]["metadata"]["source_parser"]["source_ref"] == f"{field}/1"
 
 
+def test_lexical_advogado_substring_does_not_override_canonical_role_contract():
+    raw = {"parties": [{"name": "Pessoa Sintética", "person_type": "TESTEMUNHA DO ADVOGADO", "side": "Active"}]}
+    fields = extract_promotable_fields(raw)
+    assert len(fields["parties"]) == 1
+    assert fields["representatives"] == []
+    assert fields["header"]["source_parser"]["parties"][0]["type"] == "TESTEMUNHA DO ADVOGADO"
+
+
 def test_explicit_number_priority_preserves_mixed_and_legacy_order_contracts():
     mixed = {"steps": [{"step_number": 10, "content": "10   Distribuído"}, {"step_number": 20, "content": "20 - Juntada"}]}
     steps = extract_promotable_fields(mixed)["steps"]

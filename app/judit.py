@@ -355,7 +355,7 @@ def _safe_parties_and_representatives(
         if normalized is None or normalize_text(normalized["name"]) in seen:
             continue
         seen.add(normalize_text(normalized["name"]))
-        if _is_representative(party) or "ADVOGAD" in normalize_text(str(party.get("person_type") or "")):
+        if _is_representative(party):
             represented_party = _represented_party_name(party)
             if represented_party:
                 normalized["represents"] = _redact_source_text(represented_party)
