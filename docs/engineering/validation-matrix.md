@@ -18,6 +18,7 @@ Esta matriz liga cada contrato a uma verificação existente. Os comandos devem 
 | `DATAJUD-E2E-001` | Com autorização específica e CNJ fornecido, executar uma consulta real DataJud, verificar persistência e Histórico; não executar como parte de testes comuns. | Provedor externo + PostgreSQL + Windows | **Pendente**; nenhum acesso externo é permitido nesta baseline. |
 | `JUDIT-BOUNDARY-001` | Testes de autorização/frontend; nenhum smoke pago sem autorização específica. | Unitário + frontend; real somente autorizado | Coberto por testes; consulta real não executada neste bloco. |
 | `ENV-ISOLATION-001` | `python -m pytest -q tests/test_windows_homologation.py`; smoke Windows verifica projeto, volume, porta loopback e ausência de checkout habitual. | Static + Windows real | Cobertura existente; não executar limpeza Docker global. |
+| `GENERATION-SPEND-001` | `python -m pytest -q tests/test_generation_authorization.py tests/test_anthropic_schema_compatibility.py`; integração `test_generation_authorization_postgres.py`, `test_legal_delivery_acceptance.py` e roles, em PostgreSQL descartável. | Provider simulado + PostgreSQL; browser live opcional com `RAGV_02B_LIVE_BROWSER=true` | Comprova guard e contrato sintético, não conta/modelo/custo real. |
 
 ## Comandos de mudança
 

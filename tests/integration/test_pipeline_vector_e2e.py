@@ -151,7 +151,7 @@ Nenhuma divergência objetiva identificada.
     monkeypatch.setattr(rag, "embed_query", fake_embed_query)
     monkeypatch.setattr(rag, "vector_search", recording_vector_search)
     monkeypatch.setattr(rag, "_generate", fake_generate)
-    monkeypatch.setattr(rag, "anthropic_client", lambda api_key: object())
+    monkeypatch.setattr(rag, "anthropic_client", lambda api_key, **kwargs: object())
 
     steps = []
     for index in range(1, 46):

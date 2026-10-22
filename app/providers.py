@@ -6,10 +6,14 @@ import os
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TypeVar, Any
+from uuid import UUID
+from types import SimpleNamespace
 
 import anthropic
 import openai
+
+from app.generation_authorization import load_generation_permit
 
 T = TypeVar("T")
 
@@ -86,13 +90,24 @@ def embedding_settings() -> ProviderSettings:
     return ProviderSettings.from_env(timeout_env="EMBEDDING_TIMEOUT_SECONDS")
 
 
-def anthropic_client(api_key: str) -> anthropic.AsyncAnthropic:
+def anthropic_client(
+    api_key: str, *, authorization_scope: tuple[UUID, UUID, UUID | None] | None = None
+) -> Any:
+    permit = load_generation_permit(authorization_scope)
     settings = anthropic_settings()
-    return anthropic.AsyncAnthropic(
+    client = anthropic.AsyncAnthropic(
         api_key=api_key,
+        base_url="https://api.anthropic.com",
         timeout=settings.timeout_seconds,
         max_retries=0,
     )
+
+    async def create(**request: Any) -> Any:
+        await permit.reserve_message(request)
+        return await client.messages.create(**request)
+
+    # Only expose the bounded Messages operation, not raw SDK HTTP/tools methods.
+    return SimpleNamespace(messages=SimpleNamespace(create=create), close=client.close)
 
 
 def openai_client(api_key: str) -> openai.AsyncOpenAI:

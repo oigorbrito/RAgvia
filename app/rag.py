@@ -10,6 +10,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import asyncpg
+from anthropic import transform_schema
 
 from app.attachment_context import load_attachment_context, resolve_generation_tenant
 from app.attachment_signals import attachment_status_warnings
@@ -740,7 +741,7 @@ async def _generate(
         "output_config": {
             "format": {
                 "type": "json_schema",
-                "schema": SUMMARY_OUTPUT_SCHEMA,
+                "schema": transform_schema(SUMMARY_OUTPUT_SCHEMA),
             }
         },
     }
@@ -1091,14 +1092,19 @@ async def generate_summary(
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise RuntimeError("ANTHROPIC_API_KEY is required")
-        client = anthropic_client(api_key)
+        client = anthropic_client(api_key, authorization_scope=(process_id, version_id, tenant_id))
         model = _generation_model(context)
 
-        text = await _generate(client, context)
-        result = _validate_provider_summary(text, context)
-        if not result.passed:
-            text = await _generate(client, context, result.errors)
+        try:
+            text = await _generate(client, context)
             result = _validate_provider_summary(text, context)
+            if not result.passed:
+                text = await _generate(client, context, result.errors)
+                result = _validate_provider_summary(text, context)
+        finally:
+            close = getattr(client, "close", None)
+            if close is not None:
+                await close()
 
         telemetry = context.get("_generation_telemetry", {})
         if isinstance(telemetry, dict):

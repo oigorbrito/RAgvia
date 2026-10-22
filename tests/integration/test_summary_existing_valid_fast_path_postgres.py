@@ -190,7 +190,7 @@ Nenhuma divergência objetiva identificada."""
 
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setattr("app.rag._load_context", fake_context)
-        monkeypatch.setattr("app.rag.anthropic_client", lambda api_key: object())
+        monkeypatch.setattr("app.rag.anthropic_client", lambda api_key, **kwargs: object())
         monkeypatch.setattr("app.rag._generate", fake_generate)
 
         result = await generate_summary(pool, process_id, version_id)
@@ -296,7 +296,7 @@ Nenhuma divergência objetiva identificada."""
 
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setattr("app.rag._load_context", fake_context)
-        monkeypatch.setattr("app.rag.anthropic_client", lambda api_key: object())
+        monkeypatch.setattr("app.rag.anthropic_client", lambda api_key, **kwargs: object())
         monkeypatch.setattr("app.rag._generate", fake_generate)
 
         result = await generate_summary(pool, process_id, version_id)

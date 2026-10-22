@@ -110,6 +110,7 @@ async def test_paginated_request_uses_only_lawsuit_for_rag_context(
         return rag.render_structured_summary(context["_parsed_summary"], context)
 
     monkeypatch.setattr(rag, "_generate", fake_generate)
+    monkeypatch.setattr(rag, "anthropic_client", lambda *args, **kwargs: object())
 
     lawsuit_body = {
         "callback_id": lawsuit_callback_id,

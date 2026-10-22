@@ -118,6 +118,8 @@ async def provision(database_url: str) -> None:
 
             worker = _quote_ident("rpy_worker")
             await conn.execute(f"GRANT SELECT, INSERT, UPDATE ON jobs TO {worker}")
+            await conn.execute(f"GRANT SELECT, INSERT ON anthropic_generation_reservations TO {worker}")
+            await conn.execute(f"GRANT UPDATE (messages_reserved) ON anthropic_generation_reservations TO {worker}")
             await conn.execute(f"GRANT SELECT, UPDATE ON processes, process_versions TO {worker}")
             await conn.execute(
                 f"GRANT SELECT, UPDATE ON tenant_judit_requests, public_summary_requests TO {worker}"
