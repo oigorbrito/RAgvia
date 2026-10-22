@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 import os
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TypeVar
@@ -65,6 +66,16 @@ class ProviderSettings:
                 )
             ),
         ).validate()
+
+
+def anthropic_model(default: str) -> str:
+    """Optional worker-only override; preserve volume routing when unset."""
+    value = os.getenv("ANTHROPIC_MODEL")
+    if value is None or value == "":
+        return default
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", value):
+        raise ValueError("ANTHROPIC_MODEL must be a bounded model identifier")
+    return value
 
 
 def anthropic_settings() -> ProviderSettings:

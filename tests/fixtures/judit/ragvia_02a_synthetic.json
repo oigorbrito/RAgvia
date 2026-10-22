@@ -1,0 +1,38 @@
+{
+  "code": "0000000-00.0000.0.00.0202",
+  "secrecy_level": 0,
+  "classifications": [{"name": "Procedimento Comum Cível"}],
+  "courts": [{"name": "Tribunal Sintético"}],
+  "area": "Cível",
+  "parties": [
+    {"name": "Parte Autora Sintética", "side": "Active", "person_type": "Natural"},
+    {"name": "Parte Ré Sintética", "side": "Passive", "person_type": "Legal"}
+  ],
+  "subjects": [{"code": "SYN-02A", "name": "Cobrança — demonstração sintética"}],
+  "steps": [
+    {
+      "step_id": "synthetic-distribution",
+      "step_date": "2026-01-10T12:00:00Z",
+      "step_type": "DISTRIBUIÇÃO",
+      "content": "Em 10/01/2026, distribuída ação de cobrança. Dados exclusivamente sintéticos para demonstração."
+    },
+    {
+      "step_id": "synthetic-service",
+      "step_date": "2026-01-20T12:00:00Z",
+      "step_type": "CITAÇÃO",
+      "content": "Em 20/01/2026, registrada a citação da parte ré."
+    },
+    {
+      "step_id": "synthetic-defense",
+      "step_date": "2026-02-10T12:00:00Z",
+      "step_type": "CONTESTAÇÃO",
+      "content": "Em 10/02/2026, apresentada contestação ao pedido de cobrança."
+    },
+    {
+      "step_id": "synthetic-judgment",
+      "step_date": "2026-04-10T12:00:00Z",
+      "step_type": "SENTENÇA",
+      "content": "Em 10/04/2026, sentença julgou parcialmente procedente o pedido de cobrança. O recorte fornecido não informa trânsito em julgado nem prazo recursal."
+    }
+  ]
+}

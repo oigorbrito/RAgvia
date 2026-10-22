@@ -40,6 +40,7 @@ from app.json_utils import decode_json_list, decode_json_object
 from app.prompts import PROCESS_SUMMARY_SYSTEM_PROMPT
 from app.providers import (
     anthropic_client,
+    anthropic_model,
     anthropic_settings,
     call_with_retries,
     is_retryable_anthropic_error,
@@ -627,7 +628,7 @@ def summary_volume_instruction(step_count: int) -> str:
 
 
 def _generation_model(context: dict[str, Any]) -> str:
-    return (
+    return anthropic_model(
         OPUS_MODEL
         if int(context.get("step_count") or 0) > OPUS_STEP_THRESHOLD
         else SONNET_MODEL
