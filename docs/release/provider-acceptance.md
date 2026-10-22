@@ -357,7 +357,12 @@ A DataJud auth failure or service outage is supplementary-enrichment failure, no
 
 ## 2. Anthropic generation
 
-Use one explicitly authorized, non-secret process.
+Use one explicitly authorized, non-secret process. For the bounded RAGVIA-02A
+preparation and the reserved real-run procedure, see
+[Claude legal delivery](ragvia-02a-claude-delivery.md). `ANTHROPIC_MODEL` is an
+optional worker-only exact-ID override; when unset, the volume routing below
+remains unchanged. A configured ID is not evidence of live compatibility or
+authorization to incur cost.
 
 Acceptance must prove:
 
