@@ -36,6 +36,7 @@ async def test_second_invalid_generation_is_persisted_as_failed_validation(
         return f"Processo {code}. Recomendo que a parte tome providências."
 
     monkeypatch.setattr(rag, "_generate", always_invalid)
+    monkeypatch.setattr(rag, "anthropic_client", lambda *args, **kwargs: object())
 
     try:
         async with pool.acquire() as conn:

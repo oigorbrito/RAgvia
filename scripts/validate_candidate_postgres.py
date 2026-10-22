@@ -54,7 +54,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True,
                         help="New evidence directory; existing directories are rejected")
+    parser.add_argument("--test-path", action="append", default=[],
+                        help="Repeatable integration file/directory selection; default: all integration tests")
     args = parser.parse_args()
+    targets = args.test_path or ["tests/integration"]
+    for target in targets:
+        resolved = (ROOT / target).resolve()
+        if not resolved.is_relative_to(ROOT / "tests/integration") or not resolved.exists():
+            parser.error("--test-path must select an existing path under tests/integration")
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     name = f"ragvia-qualification-{uuid4().hex[:12]}"
@@ -62,7 +69,7 @@ def main() -> int:
         "run_id": name, "image": IMAGE,
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "started_at_epoch": time.time(),
-        "command": [sys.executable, "-m", "pytest", "tests/integration", "-ra", "--tb=long"],
+        "command": [sys.executable, "-m", "pytest", *targets, "-ra", "--tb=long"],
         "scope": "Synthetic integration evidence; not live-provider quality or performance",
     }
     created = False

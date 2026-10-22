@@ -340,6 +340,7 @@ Nenhuma divergência objetiva identificada.
 """
 
         monkeypatch.setattr(rag, "_generate", fake_generate)
+        monkeypatch.setattr(rag, "anthropic_client", lambda *args, **kwargs: object())
         assert await worker.process_one() is True
         assert await worker.process_one() is False
 

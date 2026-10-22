@@ -226,6 +226,13 @@ async def test_runtime_database_roles_are_least_privilege(monkeypatch: pytest.Mo
         assert await admin.fetchval(
             "SELECT has_table_privilege('rpy_backup', 'backup_runs', 'INSERT')"
         )
+        for role in ("rpy_api", "rpy_scheduler"):
+            assert not await admin.fetchval("SELECT has_table_privilege($1, 'anthropic_generation_reservations', 'INSERT')", role)
+        assert await admin.fetchval("SELECT has_table_privilege('rpy_worker', 'anthropic_generation_reservations', 'SELECT,INSERT')")
+        assert await admin.fetchval("SELECT has_column_privilege('rpy_worker', 'anthropic_generation_reservations', 'messages_reserved', 'UPDATE')")
+        assert not await admin.fetchval("SELECT has_column_privilege('rpy_worker', 'anthropic_generation_reservations', 'reserved_usd', 'UPDATE')")
+        assert not await admin.fetchval("SELECT has_table_privilege('rpy_worker', 'anthropic_generation_reservations', 'DELETE')")
+        assert await admin.fetchval("SELECT has_table_privilege('rpy_backup', 'anthropic_generation_reservations', 'SELECT')")
         assert not await admin.fetchval(
             "SELECT has_table_privilege('rpy_backup', 'processes', 'UPDATE')"
         )

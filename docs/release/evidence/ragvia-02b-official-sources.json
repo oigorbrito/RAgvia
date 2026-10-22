@@ -1,0 +1,49 @@
+{
+  "retrieval_method": "Public HTTPS GET without credentials; no generation/account API",
+  "sources": [
+    {
+      "name": "models",
+      "url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "final_url": "https://platform.claude.com/docs/en/models/overview",
+      "sha256": "5201c0a9093c23c1af839563e1e8f3d90ae8966f644ea8bf17055f96e6177ae5",
+      "bytes": 410194,
+      "retrieved_at": "2026-10-22T06:06:30.345235+00:00"
+    },
+    {
+      "name": "pricing",
+      "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "final_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "sha256": "a70ce529e4b884d114296426336db3fec2effc91870e7bc3677b362efcbedf9f",
+      "bytes": 891489,
+      "retrieved_at": "2026-10-22T06:06:31.559190+00:00"
+    },
+    {
+      "name": "structured",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "final_url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "sha256": "444cb7d4b516cc2a6277ab5ba77e11152eac24f553eba95a2fa5ee290caddf6f",
+      "bytes": 2506184,
+      "retrieved_at": "2026-10-22T06:06:33.315084+00:00"
+    },
+    {
+      "name": "python-sdk",
+      "url": "https://platform.claude.com/docs/en/api/sdks/python",
+      "final_url": "https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python",
+      "sha256": "fa286bb8ad34ee77ad11242749436ee34a87999df60b5387a8ee1aa3037a8e71",
+      "retrieved_at": "2026-10-22T06:10:31.456097+00:00"
+    },
+    {
+      "name": "limits",
+      "url": "https://platform.claude.com/docs/en/api/rate-limits",
+      "final_url": "https://platform.claude.com/docs/en/api/rate-limits",
+      "sha256": "c71b5225a8a4964e0f68de442f34fc2a00a7b456aac6d7f9e8d21c8563a581a0",
+      "retrieved_at": "2026-10-22T06:10:33.112202+00:00"
+    },
+    {
+      "name": "sonnet46-correct",
+      "url": "https://platform.claude.com/docs/en/models/sonnet-4-6/overview",
+      "sha256": "c119b72cf7c7db0a6a9fde380d23ed546d18c6172b0d718629ff0883df4bb04d",
+      "retrieved_at": "2026-10-22T06:12:07.865788+00:00"
+    }
+  ]
+}

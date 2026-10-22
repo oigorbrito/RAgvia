@@ -1,5 +1,10 @@
 # RAGVIA-02A — entrega jurídica preparada, Claude real ainda NÃO aceito
 
+> Histórico da PR #11. Nesta branch, o procedimento financeiro/modelo abaixo
+> foi substituído pela [pré-aceitação 02B](ragvia-02b-preacceptance.md).
+> Chave, modelo e referência de aprovação isolados já não habilitam geração:
+> a política 02B bloqueia por padrão e exige reserva durável antes da rede.
+
 Branch: `work/ragvia-02a-claude-preparation`, derivada de
 `1dc180306a2f34e3d3f6a43ea8f47f0662a9a60f`. A branch original não foi alterada.
 

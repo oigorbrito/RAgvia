@@ -210,7 +210,7 @@ async def test_empty_steps_warning_is_sent_to_single_correction_attempt(monkeypa
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(rag, "_load_publishable_summary", fake_existing)
     monkeypatch.setattr(rag, "_load_context", fake_context)
-    monkeypatch.setattr(rag, "anthropic_client", lambda api_key: object())
+    monkeypatch.setattr(rag, "anthropic_client", lambda api_key, **kwargs: object())
     monkeypatch.setattr(rag, "_generate", fake_generate)
     monkeypatch.setattr(rag, "_persist_summary", fake_persist)
 

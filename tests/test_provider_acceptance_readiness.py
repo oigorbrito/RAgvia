@@ -25,7 +25,7 @@ def test_repository_provider_acceptance_is_armed_without_credentials() -> None:
 
     expected_states = {
         "judit": "ready_to_provision",
-        "anthropic": "ready_to_provision",
+        "anthropic": "blocked_pending_financial_approval",
         "datajud": "disabled_pending_authorization",
         "cohere": "disabled_pending_authorization",
         "bge": "artifact_evidence_pending",
