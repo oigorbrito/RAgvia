@@ -1,0 +1,42 @@
+name: adversarial-live
+
+on:
+  schedule:
+    - cron: "41 7 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adversarial-live
+  cancel-in-progress: false
+
+jobs:
+  summary-red-team:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+          cache: pip
+          cache-dependency-path: requirements/constraints.txt
+
+      - name: Install bounded acceptance dependencies
+        run: |
+          python -m pip install pip==26.2.1
+          python -m pip install --constraint requirements/constraints.txt -e '.[dev]'
+          python -m pip check
+
+      - name: Run bounded live adversarial suite when credential is provisioned
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY is not provisioned; scheduled live adversarial acceptance is armed but not executed."
+            exit 0
+          fi
+          python scripts/evaluate_prompt_injection_live.py

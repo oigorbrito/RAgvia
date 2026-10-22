@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "deployed_image": "ghcr.io/oigorbrito/rpy@sha256:REPLACE_WITH_64_HEX_DIGEST",
+  "rollback_image": "ghcr.io/oigorbrito/rpy@sha256:REPLACE_WITH_64_HEX_DIGEST",
+  "migration_succeeded": false,
+  "public_health_ok": false,
+  "public_ready_ok": false,
+  "browser_api_request_succeeded": false,
+  "callback_reached_ingress": false,
+  "callback_staged_version": false,
+  "tenant_access_granted": false,
+  "terminal_completion_observed": false,
+  "finalization_completed": false,
+  "summary_validated": false,
+  "backup_off_host": false,
+  "restore_succeeded": false,
+  "attachments_enabled": false,
+  "datajud_enabled": false,
+  "judit_paid_request_count": 1,
+  "evidence_references": [
+    "REPLACE_WITH_NON_SECRET_EVIDENCE_REFERENCE"
+  ]
+}

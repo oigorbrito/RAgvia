@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "tpu_version": "2026-09-12",
+  "publisher": "Conselho Nacional de Justiça (CNJ)",
+  "source": "Sistema de Gestão de Tabelas Processuais Unificadas",
+  "source_version_label": "12/09/2026",
+  "entries": [
+    {
+      "kind": "class",
+      "code": "7",
+      "name": "Procedimento Comum Cível",
+      "definition": "Procedimento comum conforme a nomenclatura do CPC 2015, com referência ao art. 318 do CPC 2015.",
+      "source_ref": "CNJ SGT, sugestão 635 e consulta pública de classes"
+    },
+    {
+      "kind": "subject",
+      "code": "5804",
+      "name": "Investigação de Paternidade",
+      "definition": "Assunto TPU identificado pelo CNJ como Investigação de Paternidade.",
+      "source_ref": "CNJ SGT, sugestão 1328"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+name: Windows homologation installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/block196b-windows-homologation]
+    paths:
+      - 'RagVDesktop.spec'
+      - 'packaging/windows/**'
+      - 'scripts/package_windows_homologation.ps1'
+      - 'compose.homologacao.yaml'
+      - '.github/workflows/windows-homologation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-homologation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12.10'
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --version=6.7.3 --yes --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          APP_SHA: a414b2a1d478ccfbf33611a7c40437dd3f90f3b7
+          PACKAGE_SHA: ${{ github.sha }}
+        run: ./scripts/package_windows_homologation.ps1 -AppSha $env:APP_SHA -PackageSha $env:PACKAGE_SHA
+
+      - name: Install smoke and verify package contents
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist-installer/*-Setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'Installer missing.' }
+          $target = Join-Path $env:RUNNER_TEMP 'RagV-Homologacao-Smoke'
+          Start-Process -FilePath $installer.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$target`"") -Wait -PassThru | ForEach-Object { if ($_.ExitCode -ne 0) { throw "Inno Setup exit code $($_.ExitCode)" } }
+          foreach ($path in @('RagVDesktop.exe','start-homologacao.ps1','homologacao-common.ps1','configurar-datajud.ps1')) { if (-not (Test-Path (Join-Path $target $path))) { throw "Missing installed file: $path" } }
+          foreach ($path in @('compose.yaml','compose.homologacao.yaml','Dockerfile','app/api.py','sql/034_acquisition_authorizations.sql')) { if (-not (Test-Path (Join-Path $target "runtime/$path"))) { throw "Missing isolated runtime file: $path" } }
+          Write-Host 'Installed package file smoke passed. Docker/Linux runtime smoke is performed separately on Windows with Docker Desktop; this job does not qualify runtime behavior.'
+
+      - name: Publish downloadable artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: RagVDesktop-Homologacao-${{ github.sha }}
+          path: |
+            dist-installer/*-Setup.exe
+            dist-installer/SHA256SUMS.txt
+            dist-installer/HOMOLOGACAO.md
+          if-no-files-found: error
+          retention-days: 30

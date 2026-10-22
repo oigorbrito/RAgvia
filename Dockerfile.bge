@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1.7
+
+# Build only from an already-published immutable Rpy application image.
+# Example:
+#   docker buildx build -f Dockerfile.bge \
+#     --build-arg RPY_BASE_IMAGE=ghcr.io/oigorbrito/rpy@sha256:<digest> \
+#     --build-context bge_wheels=/secure/artifacts/bge-wheelhouse \
+#     --build-context bge_model=/secure/artifacts/bge-m3 \
+#     -t rpy-bge:local .
+ARG RPY_BASE_IMAGE
+FROM ${RPY_BASE_IMAGE}
+
+USER root
+
+# These contexts are deliberately external to the repository. The wheelhouse must
+# contain every wheel referenced by requirements.lock, and that lock must use hashes.
+# The model context must contain the complete pre-provisioned BAAI/bge-m3 artifact.
+COPY --from=bge_wheels / /opt/rpy/bge-wheels/
+COPY --from=bge_model / /opt/rpy/models/bge-m3/
+COPY scripts/verify_bge_image_runtime.py /tmp/verify_bge_image_runtime.py
+
+ENV PIP_NO_INDEX=1 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_DATASETS_OFFLINE=1 \
+    BGE_EMBEDDING_PATH=/opt/rpy/models/bge-m3
+
+RUN test -s /opt/rpy/bge-wheels/requirements.lock \
+    && grep -q -- '--hash=sha256:' /opt/rpy/bge-wheels/requirements.lock \
+    && python -m pip install \
+      --no-index \
+      --find-links=/opt/rpy/bge-wheels \
+      --require-hashes \
+      --requirement /opt/rpy/bge-wheels/requirements.lock \
+    && python -m pip check \
+    && python /tmp/verify_bge_image_runtime.py --model-dir /opt/rpy/models/bge-m3 \
+    && rm -rf /opt/rpy/bge-wheels /tmp/verify_bge_image_runtime.py
+
+USER 10001

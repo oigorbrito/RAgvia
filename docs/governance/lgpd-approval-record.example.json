@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "mass_indexing_approved": false,
+  "approved_at": "REPLACE_WITH_TIMEZONE_AWARE_ISO8601",
+  "approver_role": "REPLACE_WITH_APPROVER_ROLE",
+  "approved_purposes": [
+    "REPLACE_WITH_APPROVED_PROCESSING_PURPOSE"
+  ],
+  "legal_basis_reference": "REPLACE_WITH_EXTERNAL_REFERENCE",
+  "provider_roles_reference": "REPLACE_WITH_EXTERNAL_REFERENCE",
+  "retention_policy_reference": "REPLACE_WITH_EXTERNAL_REFERENCE",
+  "authorization_policy_reference": "REPLACE_WITH_EXTERNAL_REFERENCE",
+  "incident_response_reference": "REPLACE_WITH_EXTERNAL_REFERENCE",
+  "data_subject_request_reference": "REPLACE_WITH_EXTERNAL_REFERENCE",
+  "provider_authorizations": {
+    "judit": "disabled",
+    "datajud": "disabled",
+    "anthropic": "disabled",
+    "cohere": "disabled",
+    "infrastructure": "disabled"
+  }
+}

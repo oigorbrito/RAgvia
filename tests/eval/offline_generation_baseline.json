@@ -1,0 +1,10 @@
+{
+  "baseline_version": 1,
+  "metrics": {
+    "final_validation_pass_rate": {"direction": "min", "value": 1.0},
+    "anchored_milestone_presence_rate": {"direction": "min", "value": 1.0},
+    "corrective_retry_recovery_rate": {"direction": "min", "value": 1.0},
+    "secret_provider_call_rate": {"direction": "max", "value": 0.0},
+    "structural_unsupported_claim_rate": {"direction": "max", "value": 0.0}
+  }
+}

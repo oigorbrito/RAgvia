@@ -1,0 +1,31 @@
+# Overlay de homologação: projeto e volume nomeados são definidos pelo launcher.
+services:
+  postgres:
+    ports: !reset []
+    image: pgvector/pgvector:pg16
+  migrate:
+    image: ragv-homologacao:a414b2a1
+  api:
+    image: ragv-homologacao:a414b2a1
+    environment:
+      RPY_HOMOLOGATION_MODE: "true"
+      RPY_HOMOLOGATION_BIND_ADDRESS: "127.0.0.1"
+    ports: !override
+      - "127.0.0.1:${RPY_API_PORT:-18080}:8000"
+  worker-1:
+    image: ragv-homologacao:a414b2a1
+    environment:
+      RPY_HOMOLOGATION_MODE: "true"
+      RPY_HOMOLOGATION_BIND_ADDRESS: "127.0.0.1"
+  worker-2:
+    image: ragv-homologacao:a414b2a1
+    environment:
+      RPY_HOMOLOGATION_MODE: "true"
+      RPY_HOMOLOGATION_BIND_ADDRESS: "127.0.0.1"
+  scheduler:
+    image: ragv-homologacao:a414b2a1
+    environment:
+      RPY_HOMOLOGATION_MODE: "true"
+      RPY_HOMOLOGATION_BIND_ADDRESS: "127.0.0.1"
+  demo-seed:
+    image: ragv-homologacao:a414b2a1

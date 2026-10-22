@@ -1,0 +1,82 @@
+name: pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/pages.yml
+      - app/frontend/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build static Pages artifact
+        env:
+          PAGES_API_BASE_URL: ${{ vars.PAGES_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/rpy-pages
+          mkdir -p /tmp/rpy-pages
+          cp app/frontend/index.html app/frontend/app.css app/frontend/app.js /tmp/rpy-pages/
+          touch /tmp/rpy-pages/.nojekyll
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urlsplit
+
+          raw = os.environ.get("PAGES_API_BASE_URL", "").strip().rstrip("/")
+          if raw:
+              parsed = urlsplit(raw)
+              if (
+                  parsed.scheme != "https"
+                  or not parsed.hostname
+                  or parsed.username is not None
+                  or parsed.password is not None
+                  or parsed.query
+                  or parsed.fragment
+                  or parsed.path not in {"", "/"}
+                  or parsed.port not in {None, 443}
+              ):
+                  raise SystemExit("PAGES_API_BASE_URL must be a bare HTTPS origin")
+              api_base = f"https://{parsed.hostname.rstrip('.').casefold()}"
+          else:
+              api_base = None
+
+          rendered = (
+              "window.RPY_PUBLIC_CONFIG=Object.freeze("
+              + json.dumps({"apiBase": api_base}, separators=(",", ":"))
+              + ");\n"
+          )
+          Path("/tmp/rpy-pages/config.js").write_text(rendered, encoding="utf-8")
+          print("pages artifact: backend configured" if api_base else "pages artifact: backend not configured")
+          PY
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: /tmp/rpy-pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

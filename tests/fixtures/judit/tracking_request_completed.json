@@ -1,0 +1,18 @@
+{
+  "callback_id": "cb-tracking-complete-001",
+  "event_type": "response_created",
+  "reference_type": "tracking",
+  "reference_id": "tracking-123",
+  "payload": {
+    "request_id": "request-abc",
+    "response_id": "response-info-001",
+    "response_type": "application_info",
+    "response_data": {
+      "code": 600,
+      "message": "REQUEST_COMPLETED"
+    },
+    "tags": {
+      "cached_response": false
+    }
+  }
+}

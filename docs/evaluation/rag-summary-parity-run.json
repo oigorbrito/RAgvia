@@ -1,0 +1,82 @@
+{
+  "evidence_type": "synthetic_and_postgres_validation_bundle",
+  "base_commit": "02be9c9174ff518260962331e8181a3779ea96ea",
+  "tested_commit": "0f3ef7fade67fece6af1ee24e55e4a43a1e4745c",
+  "changed_path_content_sha256": "77e142d6da9f7af9c4673f5be49f7739a85990355020a180f7c25ef765b17e2c",
+  "changed_path_count": 30,
+  "hash_scope": "SHA-256 over the 30 sorted paths changed between base_commit and tested_commit, excluding this evidence record and the unrelated pre-existing untracked file NUL. For each path, hash UTF-8 path + NUL + file bytes at tested_commit + NUL.",
+  "synthetic_rag": {
+    "command": "PYTHONPATH=. python -m scripts.evaluate_synthetic_rag --check-baseline --output D:/temp/ragv-summary-parity-eval-finalhead.json",
+    "run_id": null,
+    "environment": {
+      "platform": "Windows-11-10.0.26300-SP0",
+      "python": "3.12.10"
+    },
+    "dataset": {
+      "path": "tests/eval/synthetic_cases.json",
+      "version": "synthetic-30-v1",
+      "git_blob_sha": "78c31e818fa8dd78f7b1468aab8f34fdb3a98ad8",
+      "sha256": "b7b47fb9d22e4803867d2fae296bee4e54b247a281bdd5515faad5e6fd95731f"
+    },
+    "result_artifact": {
+      "local_path": "D:/temp/ragv-summary-parity-eval-finalhead.json",
+      "sha256": "f302f79b29fc5eb93cd6a32eb9b51c8c4ae85ea4a0775f9fd2b43226d18720e4"
+    },
+    "result": {
+      "baseline_version": 3,
+      "baseline_check_passed": true,
+      "cases": 30,
+      "metrics": {
+        "unsupported_assertion_rate": 0.05,
+        "milestone_recall": 0.9,
+        "inconsistency_detection_recall": 0.9444444444444444,
+        "attention_false_positive_rate": 0.05263157894736842
+      }
+    },
+    "scope_limit": "Synthetic/fake-provider evidence for orchestration, encoded invariants and deterministic quality checks only; not live-provider quality, latency, cost or production performance evidence."
+  },
+  "supplied_fixture_inspection": {
+    "command": "python scripts/evaluate_rag_summary_parity_fixture.py --archive C:/Users/igorb/Downloads/rag_resumo.zip",
+    "run_id": null,
+    "environment": {
+      "platform": "Windows-11-10.0.26300-SP0",
+      "python": "3.12.10"
+    },
+    "archive_sha256": "08e9abbac3f46330c95a4529b17a034303b9dba12e17839d676a79921e5fb445",
+    "fixture_member": "rag_resumo/tests/fixtures/judit_exemplo.json",
+    "provider_calls": 0,
+    "aggregate_result": {
+      "input_cases": 1,
+      "party_count": 3,
+      "representative_count": 1,
+      "subject_count": 3,
+      "movement_count": 13,
+      "scheduled_hearing_annotation_count": 1,
+      "explicit_period_annotation_count": 4
+    },
+    "scope_limit": "Local parsing/annotation counts from the supplied fixture only; does not establish live Judit precision or legal quality. Case text and personal data are not included."
+  },
+  "postgres_integration": {
+    "command": "python -m pytest -q tests/integration --junitxml=D:/temp/ragv-block01-postgres-final.xml",
+    "tested_commit": "0f3ef7fade67fece6af1ee24e55e4a43a1e4745c",
+    "run_id": "ragv-block01-pg-2524016f5ac0",
+    "environment": {
+      "platform": "Windows-11-10.0.26300-SP0",
+      "python": "3.12.10"
+    },
+    "database_image": "pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b",
+    "isolation": "New disposable Docker container with tmpfs database storage and loopback-only dynamic port; no connection to existing databases; removed after the run.",
+    "provider_calls": 0,
+    "result_artifact": {
+      "local_path": "D:/temp/ragv-block01-postgres-final.xml",
+      "sha256": "7b939f21f762681389f2bb5f883350865ba706b0b049d1c419a4136bc25a0ded"
+    },
+    "result": {
+      "tests": 167,
+      "passed": 167,
+      "failed": 0,
+      "skipped": 0
+    },
+    "scope_limit": "Database integration evidence on the disposable pinned PostgreSQL/pgvector image; fake/local providers only, not production recovery or live-provider evidence."
+  }
+}

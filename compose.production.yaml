@@ -1,0 +1,303 @@
+x-rpy-image: &rpy-image ${RPY_IMAGE:?RPY_IMAGE immutable digest is required}
+
+x-app-runtime: &app-runtime
+  read_only: true
+  user: "10001:10001"
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=64m
+
+x-api-env: &api-env
+  DATABASE_URL: ${API_DATABASE_URL:?API_DATABASE_URL is required}
+  JUDIT_WEBHOOK_TOKEN: ${JUDIT_WEBHOOK_TOKEN:?JUDIT_WEBHOOK_TOKEN is required}
+  JUDIT_WEBHOOK_MAX_BODY_BYTES: ${JUDIT_WEBHOOK_MAX_BODY_BYTES:-5242880}
+  JUDIT_WEBHOOK_TENANT_ID: ${JUDIT_WEBHOOK_TENANT_ID:-}
+  RPY_TENANT_PROCESSES: ${RPY_TENANT_PROCESSES:-{}}
+  RPY_BEARER_TOKENS: ${RPY_BEARER_TOKENS:?RPY_BEARER_TOKENS is required}
+  RPY_OPS_TOKEN: ${RPY_OPS_TOKEN:?RPY_OPS_TOKEN is required}
+  RPY_BROWSER_ORIGINS: ${RPY_BROWSER_ORIGINS:-}
+  DATAJUD_ENABLED: ${DATAJUD_ENABLED:-false}
+  DATAJUD_AUTHORIZED_USE: ${DATAJUD_AUTHORIZED_USE:-false}
+  OPS_BACKUP_MAX_AGE_SECONDS: ${OPS_BACKUP_MAX_AGE_SECONDS:-93600}
+  OPS_QUEUE_WARN_SECONDS: ${OPS_QUEUE_WARN_SECONDS:-300}
+  OPS_QUEUE_CRITICAL_SECONDS: ${OPS_QUEUE_CRITICAL_SECONDS:-1800}
+  OPS_STALE_PROCESSING_SECONDS: ${OPS_STALE_PROCESSING_SECONDS:-60}
+  OPS_DEAD_JOBS_WARN_24H: ${OPS_DEAD_JOBS_WARN_24H:-1}
+  OPS_DEAD_JOBS_CRITICAL_24H: ${OPS_DEAD_JOBS_CRITICAL_24H:-5}
+  OPS_GENERATION_P95_WARN_MS: ${OPS_GENERATION_P95_WARN_MS:-60000}
+  OPS_GENERATION_P95_CRITICAL_MS: ${OPS_GENERATION_P95_CRITICAL_MS:-120000}
+
+x-worker-env: &worker-env
+  DATABASE_URL: ${WORKER_DATABASE_URL:?WORKER_DATABASE_URL is required}
+  JUDIT_API_KEY: ${JUDIT_API_KEY:?JUDIT_API_KEY is required}
+  JUDIT_CALLBACK_URL: ${JUDIT_CALLBACK_URL:?JUDIT_CALLBACK_URL is required}
+  JUDIT_TIMEOUT_SECONDS: ${JUDIT_TIMEOUT_SECONDS:-15}
+  JUDIT_ATTACHMENTS_ENABLED: ${JUDIT_ATTACHMENTS_ENABLED:-false}
+  JUDIT_ATTACHMENT_DOWNLOAD_MODE: ${JUDIT_ATTACHMENT_DOWNLOAD_MODE:-}
+  DATAJUD_ENABLED: ${DATAJUD_ENABLED:-false}
+  DATAJUD_AUTHORIZED_USE: ${DATAJUD_AUTHORIZED_USE:-false}
+  DATAJUD_API_KEY: ${DATAJUD_API_KEY:-}
+  DATAJUD_BASE_URL: ${DATAJUD_BASE_URL:-https://api-publica.datajud.cnj.jus.br}
+  DATAJUD_TIMEOUT_SECONDS: ${DATAJUD_TIMEOUT_SECONDS:-20}
+  LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+  LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-production}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+  EMBEDDING_SPACE_RUNTIME_ENABLED: ${EMBEDDING_SPACE_RUNTIME_ENABLED:-false}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-bge}
+  BGE_EMBEDDING_MODEL: ${BGE_EMBEDDING_MODEL:-BAAI/bge-m3}
+  BGE_EMBEDDING_PATH: ${BGE_EMBEDDING_PATH:-}
+  BGE_EMBEDDING_DEVICE: ${BGE_EMBEDDING_DEVICE:-}
+  BGE_EMBEDDING_USE_FP16: ${BGE_EMBEDDING_USE_FP16:-false}
+  ALLOW_EXTERNAL_EMBEDDINGS: ${ALLOW_EXTERNAL_EMBEDDINGS:-false}
+  COHERE_API_KEY: ${COHERE_API_KEY:-}
+  COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-v4.0}
+  RERANKER_ENABLED: ${RERANKER_ENABLED:-false}
+  RERANKER_PROVIDER: ${RERANKER_PROVIDER:-bge}
+  RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+  BGE_RERANKER_PATH: ${BGE_RERANKER_PATH:-}
+  RERANKER_USE_FP16: ${RERANKER_USE_FP16:-false}
+  ALLOW_EXTERNAL_RERANKER: ${ALLOW_EXTERNAL_RERANKER:-false}
+  COHERE_RERANKER_MODEL: ${COHERE_RERANKER_MODEL:-rerank-v4.0-pro}
+  RERANKER_TIMEOUT_SECONDS: ${RERANKER_TIMEOUT_SECONDS:-15}
+  ANTHROPIC_TIMEOUT_SECONDS: ${ANTHROPIC_TIMEOUT_SECONDS:-15}
+  EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-15}
+  PROVIDER_MAX_ATTEMPTS: ${PROVIDER_MAX_ATTEMPTS:-2}
+  PROVIDER_RETRY_BACKOFF_SECONDS: ${PROVIDER_RETRY_BACKOFF_SECONDS:-0.25}
+  PROVIDER_PROMPT_MAX_CHARS: ${PROVIDER_PROMPT_MAX_CHARS:-120000}
+  PROVIDER_STEP_TEXT_MAX_CHARS: ${PROVIDER_STEP_TEXT_MAX_CHARS:-12000}
+  PROVIDER_STEPS_TEXT_MAX_CHARS: ${PROVIDER_STEPS_TEXT_MAX_CHARS:-80000}
+  WORKER_TASK_TIMEOUT_SECONDS: ${WORKER_TASK_TIMEOUT_SECONDS:-120}
+  WORKER_SHUTDOWN_GRACE_SECONDS: ${WORKER_SHUTDOWN_GRACE_SECONDS:-30}
+  HTTPS_PROXY: http://egress-proxy:3128
+  https_proxy: http://egress-proxy:3128
+  NO_PROXY: postgres,localhost,127.0.0.1
+  no_proxy: postgres,localhost,127.0.0.1
+  HF_HOME: /tmp/huggingface
+  XDG_CACHE_HOME: /tmp/.cache
+  ATTACHMENT_PARSER_SOCKET: /run/rpy-parser/parser.sock
+  ATTACHMENT_PARSER_TIMEOUT_SECONDS: ${ATTACHMENT_PARSER_TIMEOUT_SECONDS:-45}
+
+x-parser-env: &parser-env
+  ATTACHMENT_PARSER_SOCKET: /run/rpy-parser/parser.sock
+  ATTACHMENT_PARSER_REQUEST_TIMEOUT_SECONDS: ${ATTACHMENT_PARSER_REQUEST_TIMEOUT_SECONDS:-45}
+  ATTACHMENT_MAX_BYTES: ${ATTACHMENT_MAX_BYTES:-10485760}
+  ATTACHMENT_CHUNK_CHARS: ${ATTACHMENT_CHUNK_CHARS:-4000}
+  ATTACHMENT_OCR_ENABLED: ${ATTACHMENT_OCR_ENABLED:-false}
+  ATTACHMENT_OCR_BINARY: tesseract
+  ATTACHMENT_OCR_LANGUAGE: ${ATTACHMENT_OCR_LANGUAGE:-por}
+  ATTACHMENT_OCR_TIMEOUT_SECONDS: ${ATTACHMENT_OCR_TIMEOUT_SECONDS:-30}
+  ATTACHMENT_PDF_OCR_SCALE: ${ATTACHMENT_PDF_OCR_SCALE:-2.0}
+  ATTACHMENT_PDF_OCR_MAX_PAGES: ${ATTACHMENT_PDF_OCR_MAX_PAGES:-100}
+
+x-scheduler-env: &scheduler-env
+  DATABASE_URL: ${SCHEDULER_DATABASE_URL:?SCHEDULER_DATABASE_URL is required}
+  RETENTION_DAYS: ${RETENTION_DAYS:-365}
+  JOB_RETENTION_DAYS: ${JOB_RETENTION_DAYS:-30}
+  EXPUNGE_INTERVAL_SECONDS: ${EXPUNGE_INTERVAL_SECONDS:-86400}
+  TRACKING_STALE_HOURS: ${TRACKING_STALE_HOURS:-36}
+  TRACKING_RECONCILE_BATCH: ${TRACKING_RECONCILE_BATCH:-25}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rpy}
+      POSTGRES_USER: ${POSTGRES_USER:-rpy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rpy} -d ${POSTGRES_DB:-rpy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - rpy_pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    restart: unless-stopped
+
+  migrate:
+    <<: *app-runtime
+    image: *rpy-image
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    command:
+      - sh
+      - -c
+      - >-
+        python scripts/migrate.py --database-url "$$MIGRATION_DATABASE_URL" &&
+        python scripts/provision_db_roles.py
+    environment:
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?MIGRATION_DATABASE_URL is required}
+      API_DATABASE_URL: ${API_DATABASE_URL:?API_DATABASE_URL is required}
+      WORKER_DATABASE_URL: ${WORKER_DATABASE_URL:?WORKER_DATABASE_URL is required}
+      SCHEDULER_DATABASE_URL: ${SCHEDULER_DATABASE_URL:?SCHEDULER_DATABASE_URL is required}
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:?BACKUP_DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: "no"
+
+  api:
+    <<: *app-runtime
+    image: *rpy-image
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    command: ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    environment: *api-env
+    ports:
+      - "${RPY_API_BIND_ADDRESS:-127.0.0.1}:${RPY_API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2).read()"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    networks:
+      - backend
+    restart: unless-stopped
+
+  egress-proxy:
+    <<: *app-runtime
+    image: *rpy-image
+    command: ["python", "-m", "app.egress_proxy"]
+    environment:
+      EGRESS_PROXY_BIND_HOST: 0.0.0.0
+      EGRESS_PROXY_ALLOWED_HOSTS: ${EGRESS_PROXY_ALLOWED_HOSTS:?EGRESS_PROXY_ALLOWED_HOSTS is required}
+      EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS: ${EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS:-10}
+    cpus: 0.5
+    mem_limit: 256m
+    pids_limit: 128
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; s=socket.create_connection(('127.0.0.1',3128),2); s.close()"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 3s
+    networks:
+      - provider-gateway
+      - egress
+    restart: unless-stopped
+
+  attachment-parser:
+    <<: *app-runtime
+    image: *rpy-image
+    cpus: 0.75
+    mem_limit: 768m
+    pids_limit: 64
+    command: ["python", "-m", "app.attachment_sandbox"]
+    environment: *parser-env
+    network_mode: "none"
+    volumes:
+      - parser_socket:/run/rpy-parser
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os; raise SystemExit(0 if os.path.exists('/run/rpy-parser/parser.sock') else 1)"
+      interval: 5s
+      timeout: 2s
+      retries: 12
+      start_period: 2s
+    restart: unless-stopped
+
+  worker-1:
+    <<: *app-runtime
+    image: *rpy-image
+    cpus: 2.0
+    mem_limit: 8g
+    pids_limit: 256
+    command: ["python", "-m", "app.worker"]
+    environment: *worker-env
+    volumes:
+      - parser_socket:/run/rpy-parser
+    stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-40s}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      egress-proxy:
+        condition: service_healthy
+      attachment-parser:
+        condition: service_healthy
+    networks:
+      - backend
+      - provider-gateway
+    restart: unless-stopped
+
+  worker-2:
+    <<: *app-runtime
+    image: *rpy-image
+    cpus: 2.0
+    mem_limit: 8g
+    pids_limit: 256
+    command: ["python", "-m", "app.worker"]
+    environment: *worker-env
+    volumes:
+      - parser_socket:/run/rpy-parser
+    stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-40s}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      egress-proxy:
+        condition: service_healthy
+      attachment-parser:
+        condition: service_healthy
+    networks:
+      - backend
+      - provider-gateway
+    restart: unless-stopped
+
+  scheduler:
+    <<: *app-runtime
+    image: *rpy-image
+    cpus: 0.5
+    mem_limit: 256m
+    pids_limit: 64
+    command: ["python", "-m", "app.scheduler"]
+    environment: *scheduler-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    restart: unless-stopped
+
+networks:
+  backend:
+    internal: true
+  provider-gateway:
+    internal: true
+  egress: {}
+
+volumes:
+  rpy_pgdata:
+  parser_socket:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "uid=10001,gid=10001,mode=0770,size=1m"

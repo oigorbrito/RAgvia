@@ -1,0 +1,19 @@
+Rpy third-party provenance notice
+
+This repository includes code and implementation patterns informed by external open-source projects and by code used with direct permission from the respective authors.
+
+Projects with published permissive licenses:
+
+- Azure-Samples/rag-postgres-openai-python — MIT License.
+- link178/legal-rag-engine — MIT License.
+
+Projects used with direct author permission:
+
+- ALAN-PSUDO/HydraTask — the Rpy project owner has confirmed direct, explicit authorization from the author to use the relevant code and implementation patterns.
+- Iank314/task-queue — the Rpy project owner has confirmed direct, explicit authorization from the author to use the relevant code and implementation patterns.
+
+The inclusion of a project in this notice does not imply that its entire repository was copied into Rpy. Rpy retains only the components or patterns documented in its migration records and adapts them to Rpy's own architecture and invariants.
+
+Where a source project carries its own license, that license remains applicable to material originating from that project. Where use is based on direct permission rather than a published repository license, this notice records the provenance basis confirmed by the Rpy project owner without disclosing private communications.
+
+Rpy is licensed under the MIT License. See the repository root LICENSE file for the project-wide terms.

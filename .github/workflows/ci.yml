@@ -1,0 +1,141 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rpy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rpy_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rpy_test
+      TEST_ADMIN_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      TEST_RESTORE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rpy_restore_test
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+          cache: pip
+          cache-dependency-path: requirements/constraints.txt
+
+      - name: Install
+        run: |
+          python -m pip install pip==26.2.1
+          python -m pip install --constraint requirements/constraints.txt -e '.[dev]'
+          python -m pip check
+
+      - name: Production compose contract
+        env:
+          RPY_IMAGE: ghcr.io/oigorbrito/rpy@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          POSTGRES_PASSWORD: ci-production-password
+          MIGRATION_DATABASE_URL: postgresql://rpy:ci-production-password@postgres:5432/rpy
+          API_DATABASE_URL: postgresql://rpy_api:ci-api-password@postgres:5432/rpy
+          WORKER_DATABASE_URL: postgresql://rpy_worker:ci-worker-password@postgres:5432/rpy
+          SCHEDULER_DATABASE_URL: postgresql://rpy_scheduler:ci-scheduler-password@postgres:5432/rpy
+          BACKUP_DATABASE_URL: postgresql://rpy_backup:ci-backup-password@postgres:5432/rpy
+          ANTHROPIC_API_KEY: ci-anthropic-key
+          OPENAI_API_KEY: ci-openai-key
+          JUDIT_API_KEY: ci-judit-api-key
+          JUDIT_CALLBACK_URL: https://rpy-ci.test/webhooks/judit/ci-judit-token
+          JUDIT_WEBHOOK_TOKEN: ci-judit-token
+          RPY_BEARER_TOKENS: '{"ci-bearer-token":"00000000-0000-0000-0000-000000000001"}'
+          RPY_OPS_TOKEN: ci-ops-token
+          EGRESS_PROXY_ALLOWED_HOSTS: api.anthropic.com,api.openai.com,requests.prod.judit.io,tracking.production.judit.io
+        run: |
+          python scripts/validate_deploy_env.py
+          docker compose -f compose.production.yaml config --format json > /tmp/rpy-production-compose.json
+          python scripts/validate_production_compose.py /tmp/rpy-production-compose.json
+
+      - name: Project harness
+        run: python scripts/project_harness.py
+
+      - name: Credential-free provider readiness
+        run: python scripts/provider_acceptance_readiness.py --json
+
+      - name: Static Python quality
+        run: ruff check app scripts tests
+
+      - name: Unit tests
+        run: pytest -q tests --ignore=tests/integration --hypothesis-seed=20260918
+
+      - name: Synthetic RAG eval gate
+        env:
+          ANTHROPIC_API_KEY: ""
+          OPENAI_API_KEY: ""
+          JUDIT_API_KEY: ""
+          GEMINI_API_KEY: ""
+        run: python scripts/evaluate_synthetic_rag.py --check-baseline --output /tmp/synthetic-rag-eval.json
+
+      - name: Offline pipeline eval gate
+        env:
+          ANTHROPIC_API_KEY: ""
+          OPENAI_API_KEY: ""
+          JUDIT_API_KEY: ""
+          GEMINI_API_KEY: ""
+        run: python scripts/evaluate_offline_pipeline.py --check-baseline
+
+      - name: Offline generation eval gate
+        env:
+          ANTHROPIC_API_KEY: ""
+          OPENAI_API_KEY: ""
+          JUDIT_API_KEY: ""
+          GEMINI_API_KEY: ""
+        run: python scripts/evaluate_offline_generation.py --check-baseline
+
+      - name: Frontend behavior tests
+        run: node tests/frontend_behavior_test.mjs
+
+      - name: Install browser smoke tooling
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+
+      - name: Frontend browser smoke
+        run: python tests/frontend_browser_smoke.py
+
+      - name: Container image smoke
+        run: |
+          docker build -t "rpy-ci:${GITHUB_SHA}" .
+          sh scripts/verify_image_runtime.sh "rpy-ci:${GITHUB_SHA}"
+
+      - name: PostgreSQL backup restore drill
+        run: sh scripts/verify_backup_restore.sh
+
+      - name: PostgreSQL integration tests
+        run: pytest -q tests/integration
+
+      - name: Offline release smoke
+        timeout-minutes: 10
+        env:
+          ANTHROPIC_API_KEY: ""
+          OPENAI_API_KEY: ""
+          JUDIT_API_KEY: ""
+          GEMINI_API_KEY: ""
+        run: ./scripts/smoke_offline.sh

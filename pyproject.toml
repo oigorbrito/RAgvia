@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpy"
+version = "0.1.1"
+description = "RAG de resumo processual com FastAPI, PostgreSQL e pgvector"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.54.0,<1",
+  "asyncpg>=0.30,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "anthropic>=1.11.0,<2",
+  "openai>=3.24.0,<4",
+  "pgvector>=0.4,<1",
+  "pypdf>=6.19,<7",
+  "tzdata>=2026.5; platform_system == 'Windows'",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.3,<10",
+  "pytest-asyncio>=1.1,<2",
+  "hypothesis>=6.168.1,<7",
+  "httpx>=0.28,<1",
+  "ruff>=0.16,<0.17",
+  "pypdfium2>=5.13,<6",
+  "Pillow>=12.3,<13",
+]
+ocr = [
+  "pypdfium2>=5.13,<6",
+  "Pillow>=12.3,<13",
+]
+reranker = [
+  "FlagEmbedding>=1.4.2,<1.5",
+]
+embeddings = [
+  "FlagEmbedding>=1.4.2,<1.5",
+]
+observability = [
+  "langfuse>=4.7,<5",
+]
+
+[project.urls]
+Repository = "https://github.com/oigorbrito/rpy"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["tests*", "scripts*", "sql*", "docs*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Keep the pre-v0 gate high-signal: syntax/runtime-invalid constructs,
+# undefined names, and invalid control-flow/import semantics. Style cleanup
+# remains intentionally out of scope for the release hardening pass.
+select = ["E9", "F63", "F7", "F82"]

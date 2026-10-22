@@ -1,0 +1,236 @@
+name: staging-readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+  attestations: read
+
+concurrency:
+  group: staging-readiness
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      RPY_IMAGE: ${{ vars.RPY_IMAGE }}
+      STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL }}
+      RPY_BROWSER_ORIGINS: ${{ vars.RPY_BROWSER_ORIGINS }}
+
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+      API_DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+      WORKER_DATABASE_URL: ${{ secrets.WORKER_DATABASE_URL }}
+      SCHEDULER_DATABASE_URL: ${{ secrets.SCHEDULER_DATABASE_URL }}
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+
+      JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+      JUDIT_CALLBACK_URL: ${{ secrets.JUDIT_CALLBACK_URL }}
+      JUDIT_WEBHOOK_TOKEN: ${{ secrets.JUDIT_WEBHOOK_TOKEN }}
+      RPY_BEARER_TOKENS: ${{ secrets.RPY_BEARER_TOKENS }}
+      RPY_OPS_TOKEN: ${{ secrets.RPY_OPS_TOKEN }}
+
+      DATAJUD_API_KEY: ${{ secrets.DATAJUD_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+
+      EGRESS_PROXY_ALLOWED_HOSTS: ${{ vars.EGRESS_PROXY_ALLOWED_HOSTS }}
+      EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS: ${{ vars.EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS || '10' }}
+
+      EMBEDDING_SPACE_RUNTIME_ENABLED: ${{ vars.EMBEDDING_SPACE_RUNTIME_ENABLED || 'false' }}
+      EMBEDDING_PROVIDER: ${{ vars.EMBEDDING_PROVIDER || 'bge' }}
+      EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL || 'text-embedding-3-small' }}
+      BGE_EMBEDDING_MODEL: ${{ vars.BGE_EMBEDDING_MODEL || 'BAAI/bge-m3' }}
+      BGE_EMBEDDING_PATH: ${{ vars.BGE_EMBEDDING_PATH }}
+      BGE_EMBEDDING_DEVICE: ${{ vars.BGE_EMBEDDING_DEVICE }}
+      BGE_EMBEDDING_USE_FP16: ${{ vars.BGE_EMBEDDING_USE_FP16 || 'false' }}
+      ALLOW_EXTERNAL_EMBEDDINGS: ${{ vars.ALLOW_EXTERNAL_EMBEDDINGS || 'false' }}
+      COHERE_EMBEDDING_MODEL: ${{ vars.COHERE_EMBEDDING_MODEL || 'embed-v4.0' }}
+
+      RERANKER_ENABLED: ${{ vars.RERANKER_ENABLED || 'false' }}
+      RERANKER_PROVIDER: ${{ vars.RERANKER_PROVIDER || 'bge' }}
+      RERANKER_MODEL: ${{ vars.RERANKER_MODEL || 'BAAI/bge-reranker-v2-m3' }}
+      BGE_RERANKER_PATH: ${{ vars.BGE_RERANKER_PATH }}
+      RERANKER_USE_FP16: ${{ vars.RERANKER_USE_FP16 || 'false' }}
+      ALLOW_EXTERNAL_RERANKER: ${{ vars.ALLOW_EXTERNAL_RERANKER || 'false' }}
+      COHERE_RERANKER_MODEL: ${{ vars.COHERE_RERANKER_MODEL || 'rerank-v4.0-pro' }}
+      RERANKER_TIMEOUT_SECONDS: ${{ vars.RERANKER_TIMEOUT_SECONDS || '15' }}
+
+      DATAJUD_ENABLED: ${{ vars.DATAJUD_ENABLED || 'false' }}
+      DATAJUD_AUTHORIZED_USE: ${{ vars.DATAJUD_AUTHORIZED_USE || 'false' }}
+      DATAJUD_BASE_URL: ${{ vars.DATAJUD_BASE_URL || 'https://api-publica.datajud.cnj.jus.br' }}
+      DATAJUD_TIMEOUT_SECONDS: ${{ vars.DATAJUD_TIMEOUT_SECONDS || '20' }}
+
+      LANGFUSE_ENABLED: ${{ vars.LANGFUSE_ENABLED || 'false' }}
+      LANGFUSE_BASE_URL: ${{ vars.LANGFUSE_BASE_URL }}
+      LANGFUSE_TRACING_ENVIRONMENT: ${{ vars.LANGFUSE_TRACING_ENVIRONMENT || 'staging' }}
+
+      JUDIT_TIMEOUT_SECONDS: ${{ vars.JUDIT_TIMEOUT_SECONDS || '15' }}
+      JUDIT_ATTACHMENTS_ENABLED: ${{ vars.JUDIT_ATTACHMENTS_ENABLED || 'false' }}
+      JUDIT_ATTACHMENT_DOWNLOAD_MODE: ${{ vars.JUDIT_ATTACHMENT_DOWNLOAD_MODE }}
+      JUDIT_WEBHOOK_MAX_BODY_BYTES: ${{ vars.JUDIT_WEBHOOK_MAX_BODY_BYTES || '5242880' }}
+      JUDIT_WEBHOOK_TENANT_ID: ${{ vars.JUDIT_WEBHOOK_TENANT_ID }}
+      RPY_TENANT_PROCESSES: ${{ vars.RPY_TENANT_PROCESSES || '{}' }}
+
+      ANTHROPIC_TIMEOUT_SECONDS: ${{ vars.ANTHROPIC_TIMEOUT_SECONDS || '15' }}
+      EMBEDDING_TIMEOUT_SECONDS: ${{ vars.EMBEDDING_TIMEOUT_SECONDS || '15' }}
+      PROVIDER_MAX_ATTEMPTS: ${{ vars.PROVIDER_MAX_ATTEMPTS || '2' }}
+      PROVIDER_RETRY_BACKOFF_SECONDS: ${{ vars.PROVIDER_RETRY_BACKOFF_SECONDS || '0.25' }}
+      PROVIDER_PROMPT_MAX_CHARS: ${{ vars.PROVIDER_PROMPT_MAX_CHARS || '120000' }}
+      PROVIDER_STEP_TEXT_MAX_CHARS: ${{ vars.PROVIDER_STEP_TEXT_MAX_CHARS || '12000' }}
+      PROVIDER_STEPS_TEXT_MAX_CHARS: ${{ vars.PROVIDER_STEPS_TEXT_MAX_CHARS || '80000' }}
+      WORKER_TASK_TIMEOUT_SECONDS: ${{ vars.WORKER_TASK_TIMEOUT_SECONDS || '120' }}
+      WORKER_SHUTDOWN_GRACE_SECONDS: ${{ vars.WORKER_SHUTDOWN_GRACE_SECONDS || '30' }}
+      WORKER_STOP_GRACE_PERIOD: ${{ vars.WORKER_STOP_GRACE_PERIOD || '40s' }}
+
+      RETENTION_DAYS: ${{ vars.RETENTION_DAYS || '365' }}
+      JOB_RETENTION_DAYS: ${{ vars.JOB_RETENTION_DAYS || '30' }}
+
+      OPS_BACKUP_MAX_AGE_SECONDS: ${{ vars.OPS_BACKUP_MAX_AGE_SECONDS || '93600' }}
+      OPS_QUEUE_WARN_SECONDS: ${{ vars.OPS_QUEUE_WARN_SECONDS || '300' }}
+      OPS_QUEUE_CRITICAL_SECONDS: ${{ vars.OPS_QUEUE_CRITICAL_SECONDS || '1800' }}
+      OPS_STALE_PROCESSING_SECONDS: ${{ vars.OPS_STALE_PROCESSING_SECONDS || '60' }}
+      OPS_DEAD_JOBS_WARN_24H: ${{ vars.OPS_DEAD_JOBS_WARN_24H || '1' }}
+      OPS_DEAD_JOBS_CRITICAL_24H: ${{ vars.OPS_DEAD_JOBS_CRITICAL_24H || '5' }}
+      OPS_GENERATION_P95_WARN_MS: ${{ vars.OPS_GENERATION_P95_WARN_MS || '60000' }}
+      OPS_GENERATION_P95_CRITICAL_MS: ${{ vars.OPS_GENERATION_P95_CRITICAL_MS || '120000' }}
+
+      RPY_API_BIND_ADDRESS: "127.0.0.1"
+      RPY_API_PORT: ${{ vars.RPY_API_PORT || '8000' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+
+      - name: Validate stable staging origin
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          base = os.environ.get("STAGING_BASE_URL", "").strip().rstrip("/")
+          callback = os.environ.get("JUDIT_CALLBACK_URL", "").strip()
+          token = os.environ.get("JUDIT_WEBHOOK_TOKEN", "")
+
+          if not base:
+              raise SystemExit("STAGING_BASE_URL is required in the staging environment")
+          parsed = urlsplit(base)
+          if (
+              parsed.scheme != "https"
+              or not parsed.hostname
+              or parsed.username is not None
+              or parsed.password is not None
+              or parsed.query
+              or parsed.fragment
+              or parsed.path not in {"", "/"}
+              or parsed.port not in {None, 443}
+          ):
+              raise SystemExit("STAGING_BASE_URL must be a bare public HTTPS origin")
+
+          callback_parsed = urlsplit(callback)
+          if (callback_parsed.scheme, callback_parsed.netloc) != (
+              parsed.scheme,
+              parsed.netloc,
+          ):
+              raise SystemExit("JUDIT_CALLBACK_URL must use STAGING_BASE_URL origin")
+          if callback_parsed.path != f"/webhooks/judit/{token}":
+              raise SystemExit("JUDIT_CALLBACK_URL path must match the staging webhook token")
+
+          print("staging origin contract: ok")
+          PY
+
+      - name: Validate deployment environment
+        run: python scripts/validate_deploy_env.py
+
+      - name: Validate production Compose contract
+        run: |
+          docker compose -f compose.production.yaml config --format json > /tmp/rpy-staging-compose.json
+          python scripts/validate_production_compose.py /tmp/rpy-staging-compose.json
+          rm -f /tmp/rpy-staging-compose.json
+
+      - name: Authenticate to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Pull and smoke-test immutable image
+        run: |
+          docker pull "$RPY_IMAGE"
+          sh scripts/verify_image_runtime.sh "$RPY_IMAGE"
+
+      - name: Verify image attestation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh attestation verify "oci://$RPY_IMAGE" -R "$GITHUB_REPOSITORY"
+
+      - name: Check public staging health and readiness
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          base = os.environ["STAGING_BASE_URL"].rstrip("/")
+          for path in ("/health", "/ready"):
+              with urllib.request.urlopen(base + path, timeout=10) as response:
+                  if response.status != 200:
+                      raise SystemExit(f"{path} returned HTTP {response.status}")
+                  body = json.loads(response.read(65536))
+                  if body != {"ok": True}:
+                      raise SystemExit(f"{path} returned an unexpected body")
+          print("staging health/readiness: ok")
+          PY
+
+      - name: Verify public webhook rejects an invalid token
+        run: |
+          python - <<'PY'
+          import os
+          import urllib.error
+          import urllib.request
+
+          url = os.environ["STAGING_BASE_URL"].rstrip("/") + "/webhooks/judit/readiness-invalid-token"
+          request = urllib.request.Request(
+              url,
+              data=b"{}",
+              method="POST",
+              headers={"Content-Type": "application/json"},
+          )
+          try:
+              urllib.request.urlopen(request, timeout=10)
+          except urllib.error.HTTPError as exc:
+              if exc.code != 404:
+                  raise SystemExit(f"invalid webhook token returned HTTP {exc.code}")
+          else:
+              raise SystemExit("invalid webhook token was unexpectedly accepted")
+          print("staging webhook negative control: ok")
+          PY
+
+      - name: Staging readiness summary
+        run: |
+          {
+            echo "### Staging readiness"
+            echo
+            echo "- immutable image contract: passed"
+            echo "- image runtime smoke: passed"
+            echo "- image attestation: verified"
+            echo "- production compose contract: passed"
+            echo "- public /health: passed"
+            echo "- public /ready: passed"
+            echo "- webhook invalid-token control: passed"
+            echo
+            echo "This workflow performs no deployment and no paid provider request."
+          } >> "$GITHUB_STEP_SUMMARY"

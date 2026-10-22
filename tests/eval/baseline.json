@@ -1,0 +1,63 @@
+{
+  "baseline_version": 3,
+  "dataset": {
+    "path": "tests/eval/synthetic_cases.json",
+    "version": "synthetic-30-v1",
+    "git_blob_sha": "78c31e818fa8dd78f7b1468aab8f34fdb3a98ad8"
+  },
+  "runtime": {
+    "model": "claude-sonnet-5",
+    "prompt_version": "process-summary-v6",
+    "retrieval": {
+      "short_process_all_steps_max": 40,
+      "default_rank_limit": 20,
+      "lexical_source": "literal_bm25",
+      "lexical_weight": 0.5,
+      "vector_weight": 0.5,
+      "postgresql_fts_role": "candidate_discovery_and_index_verification_only",
+      "vector_optional_when_unconfigured": true,
+      "recency_boost_max": 0.3,
+      "mandatory_recent_steps": 5
+    }
+  },
+  "aggregate_thresholds": {
+    "unsupported_assertion_rate": {"direction": "max", "value": 0.05},
+    "milestone_recall": {"direction": "min", "value": 0.9},
+    "inconsistency_detection_recall": {"direction": "min", "value": 0.9444444444444444},
+    "attention_false_positive_rate": {"direction": "max", "value": 0.05263157894736842}
+  },
+  "case_thresholds": {
+    "defaults": {
+      "unsupported_assertion_rate": {"direction": "max", "value": 0.0},
+      "milestone_recall": {"direction": "min", "value": 1.0},
+      "inconsistency_detection_recall": {"direction": "min", "value": 1.0},
+      "attention_false_positive_rate": {"direction": "max", "value": 0.0}
+    },
+    "overrides": {
+      "synthetic-04": {
+        "attention_false_positive_rate": {"direction": "max", "value": 1.0}
+      },
+      "synthetic-06": {
+        "milestone_recall": {"direction": "min", "value": 0.0}
+      },
+      "synthetic-07": {
+        "unsupported_assertion_rate": {"direction": "max", "value": 0.5}
+      },
+      "synthetic-09": {
+        "inconsistency_detection_recall": {"direction": "min", "value": 0.0}
+      },
+      "synthetic-18": {
+        "milestone_recall": {"direction": "min", "value": 0.0}
+      },
+      "synthetic-19": {
+        "unsupported_assertion_rate": {"direction": "max", "value": 0.5}
+      },
+      "synthetic-28": {
+        "unsupported_assertion_rate": {"direction": "max", "value": 0.5}
+      },
+      "synthetic-30": {
+        "milestone_recall": {"direction": "min", "value": 0.0}
+      }
+    }
+  }
+}

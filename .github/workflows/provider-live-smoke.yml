@@ -1,0 +1,314 @@
+name: provider-live-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Live provider call or replay a prior sanitized capture
+        required: true
+        type: choice
+        default: diagnose
+        options:
+          - preflight
+          - diagnose
+          - judit
+          - judit-roundtrip
+          - judit-observe
+          - datajud
+          - live
+          - replay
+      public_cnj:
+        description: PUBLIC/non-sensitive CNJ override; workflow inputs are visible in Actions metadata
+        required: false
+        type: string
+      judit_requests_host:
+        description: Judit requests host for the controlled Judit-only call
+        required: true
+        type: choice
+        default: prod
+        options:
+          - prod
+          - production
+      replay_run_id:
+        description: Prior provider-live-smoke run ID containing provider-acceptance-capture
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: provider-live-smoke-both
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+          cache: pip
+          cache-dependency-path: requirements/constraints.txt
+
+      - name: Install bounded smoke dependencies
+        run: |
+          python -m pip install pip==26.2.1
+          python -m pip install --constraint requirements/constraints.txt -e .
+          python -m pip check
+
+      - name: Validate provider CNJ locally before any provider work
+        if: ${{ contains(fromJSON('["preflight","judit","judit-roundtrip","datajud","live","replay"]'), github.event.inputs.mode) }}
+        env:
+          PROVIDER_ACCEPTANCE_CNJ: ${{ github.event.inputs.public_cnj || secrets.PROVIDER_ACCEPTANCE_CNJ }}
+        run: |
+          if [ -z "$PROVIDER_ACCEPTANCE_CNJ" ]; then
+            echo "::error::A complete CNJ is required. Set public_cnj for a PUBLIC/non-sensitive process or fix PROVIDER_ACCEPTANCE_CNJ."
+            exit 1
+          fi
+          python scripts/provider_live_smoke.py --preflight-cnj
+
+      - name: Diagnose Judit credentials without creating a paid request
+        if: ${{ github.event.inputs.mode == 'diagnose' }}
+        env:
+          JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+        run: |
+          if [ -z "$JUDIT_API_KEY" ]; then
+            echo "::error::JUDIT_API_KEY is not provisioned."
+            exit 1
+          fi
+
+          set +e
+          production_rc=1
+          compat_rc=1
+
+          echo "::group::Judit documented prod host"
+          JUDIT_REQUESTS_BASE_URL="https://requests.prod.judit.io" \
+            python scripts/provider_live_smoke.py --diagnose-judit
+          production_rc=$?
+          echo "::endgroup::"
+
+          echo "::group::Judit legacy production alias"
+          JUDIT_REQUESTS_BASE_URL="https://requests.production.judit.io" \
+            python scripts/provider_live_smoke.py --diagnose-judit
+          compat_rc=$?
+          echo "::endgroup::"
+
+          if [ "$production_rc" -eq 0 ] || [ "$compat_rc" -eq 0 ]; then
+            exit 0
+          fi
+          exit 1
+
+      - name: Run one controlled Judit-only lawsuit request
+        if: ${{ github.event.inputs.mode == 'judit' }}
+        env:
+          PROVIDER_ACCEPTANCE_CNJ: ${{ github.event.inputs.public_cnj || secrets.PROVIDER_ACCEPTANCE_CNJ }}
+          PROVIDER_ACCEPTANCE_AUTHORIZED: ${{ secrets.PROVIDER_ACCEPTANCE_AUTHORIZED }}
+          JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+          JUDIT_ATTACHMENTS_ENABLED: "false"
+          JUDIT_REQUESTS_HOST_CHOICE: ${{ github.event.inputs.judit_requests_host }}
+        run: |
+          if [ -z "$PROVIDER_ACCEPTANCE_CNJ" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_CNJ is required for Judit smoke."
+            exit 1
+          fi
+          if [ "$PROVIDER_ACCEPTANCE_AUTHORIZED" != "true" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_AUTHORIZED must be true for Judit smoke."
+            exit 1
+          fi
+          if [ -z "$JUDIT_API_KEY" ]; then
+            echo "::error::JUDIT_API_KEY is required for Judit smoke."
+            exit 1
+          fi
+
+          case "$JUDIT_REQUESTS_HOST_CHOICE" in
+            prod)
+              export JUDIT_REQUESTS_BASE_URL="https://requests.prod.judit.io"
+              ;;
+            production)
+              export JUDIT_REQUESTS_BASE_URL="https://requests.production.judit.io"
+              ;;
+            *)
+              echo "::error::Unsupported Judit requests host choice."
+              exit 1
+              ;;
+          esac
+
+          python scripts/provider_live_smoke.py \
+            --provider judit \
+            --capture-file provider-acceptance-artifacts/provider-smoke-capture.json
+
+      - name: Run controlled Judit round-trip smoke
+        if: ${{ github.event.inputs.mode == 'judit-roundtrip' }}
+        env:
+          PROVIDER_ACCEPTANCE_CNJ: ${{ github.event.inputs.public_cnj || secrets.PROVIDER_ACCEPTANCE_CNJ }}
+          PROVIDER_ACCEPTANCE_AUTHORIZED: ${{ secrets.PROVIDER_ACCEPTANCE_AUTHORIZED }}
+          JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+          JUDIT_ATTACHMENTS_ENABLED: "false"
+          JUDIT_REQUESTS_HOST_CHOICE: ${{ github.event.inputs.judit_requests_host }}
+        run: |
+          if [ -z "$PROVIDER_ACCEPTANCE_CNJ" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_CNJ is required for Judit round-trip smoke."
+            exit 1
+          fi
+          if [ "$PROVIDER_ACCEPTANCE_AUTHORIZED" != "true" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_AUTHORIZED must be true for Judit round-trip smoke."
+            exit 1
+          fi
+          if [ -z "$JUDIT_API_KEY" ]; then
+            echo "::error::JUDIT_API_KEY is required for Judit round-trip smoke."
+            exit 1
+          fi
+
+          case "$JUDIT_REQUESTS_HOST_CHOICE" in
+            prod)
+              export JUDIT_REQUESTS_BASE_URL="https://requests.prod.judit.io"
+              ;;
+            production)
+              export JUDIT_REQUESTS_BASE_URL="https://requests.production.judit.io"
+              ;;
+            *)
+              echo "::error::Unsupported Judit requests host choice."
+              exit 1
+              ;;
+          esac
+
+          python scripts/provider_live_smoke.py \
+            --judit-roundtrip \
+            --capture-file provider-acceptance-artifacts/provider-smoke-capture.json
+
+      - name: Observe existing Judit request without creating another
+        if: ${{ github.event.inputs.mode == 'judit-observe' }}
+        env:
+          PROVIDER_ACCEPTANCE_AUTHORIZED: ${{ secrets.PROVIDER_ACCEPTANCE_AUTHORIZED }}
+          PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID: ${{ secrets.PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID }}
+          JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+          JUDIT_REQUESTS_HOST_CHOICE: ${{ github.event.inputs.judit_requests_host }}
+        run: |
+          if [ "$PROVIDER_ACCEPTANCE_AUTHORIZED" != "true" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_AUTHORIZED must be true for Judit observation."
+            exit 1
+          fi
+          if [ -z "$JUDIT_API_KEY" ]; then
+            echo "::error::JUDIT_API_KEY is required for Judit observation."
+            exit 1
+          fi
+          if [ -z "$PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID must contain an existing request id."
+            exit 1
+          fi
+
+          case "$JUDIT_REQUESTS_HOST_CHOICE" in
+            prod)
+              export JUDIT_REQUESTS_BASE_URL="https://requests.prod.judit.io"
+              ;;
+            production)
+              export JUDIT_REQUESTS_BASE_URL="https://requests.production.judit.io"
+              ;;
+            *)
+              echo "::error::Unsupported Judit requests host choice."
+              exit 1
+              ;;
+          esac
+
+          python scripts/provider_live_smoke.py --judit-observe
+
+      - name: Run controlled DataJud-only live smoke
+        if: ${{ github.event.inputs.mode == 'datajud' }}
+        env:
+          PROVIDER_ACCEPTANCE_CNJ: ${{ github.event.inputs.public_cnj || secrets.PROVIDER_ACCEPTANCE_CNJ }}
+          PROVIDER_ACCEPTANCE_AUTHORIZED: ${{ secrets.PROVIDER_ACCEPTANCE_AUTHORIZED }}
+          DATAJUD_ENABLED: "true"
+          DATAJUD_AUTHORIZED_USE: ${{ secrets.DATAJUD_AUTHORIZED_USE }}
+          DATAJUD_API_KEY: ${{ secrets.DATAJUD_API_KEY }}
+        run: |
+          if [ -z "$PROVIDER_ACCEPTANCE_CNJ" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_CNJ is required for DataJud smoke."
+            exit 1
+          fi
+          if [ "$PROVIDER_ACCEPTANCE_AUTHORIZED" != "true" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_AUTHORIZED must be true for DataJud smoke."
+            exit 1
+          fi
+          if [ "$DATAJUD_AUTHORIZED_USE" != "true" ]; then
+            echo "::error::DATAJUD_AUTHORIZED_USE must be true for DataJud smoke."
+            exit 1
+          fi
+          if [ -z "$DATAJUD_API_KEY" ]; then
+            echo "::error::DATAJUD_API_KEY is required for DataJud smoke."
+            exit 1
+          fi
+          python scripts/provider_live_smoke.py --provider datajud
+
+      - name: Download prior sanitized capture for replay
+        if: ${{ github.event.inputs.mode == 'replay' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPLAY_RUN_ID: ${{ github.event.inputs.replay_run_id }}
+        run: |
+          if [ -z "$REPLAY_RUN_ID" ]; then
+            echo "::error::replay_run_id is required in replay mode."
+            exit 1
+          fi
+          mkdir -p provider-acceptance-artifacts
+          gh run download "$REPLAY_RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --name provider-acceptance-capture \
+            --dir provider-acceptance-artifacts
+
+      - name: Replay sanitized capture without provider calls
+        if: ${{ github.event.inputs.mode == 'replay' }}
+        env:
+          PROVIDER_ACCEPTANCE_CNJ: ${{ github.event.inputs.public_cnj || secrets.PROVIDER_ACCEPTANCE_CNJ }}
+        run: |
+          if [ -z "$PROVIDER_ACCEPTANCE_CNJ" ]; then
+            echo "::error::PROVIDER_ACCEPTANCE_CNJ is required to verify replay identity."
+            exit 1
+          fi
+          python scripts/provider_live_smoke.py \
+            --provider both \
+            --replay-file provider-acceptance-artifacts/provider-smoke-capture.json
+
+      - name: Run controlled Judit + DataJud live smoke and capture evidence
+        if: ${{ github.event.inputs.mode == 'live' }}
+        env:
+          PROVIDER_ACCEPTANCE_CNJ: ${{ github.event.inputs.public_cnj || secrets.PROVIDER_ACCEPTANCE_CNJ }}
+          PROVIDER_ACCEPTANCE_AUTHORIZED: ${{ secrets.PROVIDER_ACCEPTANCE_AUTHORIZED }}
+          JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+          JUDIT_ATTACHMENTS_ENABLED: "false"
+          DATAJUD_ENABLED: "true"
+          DATAJUD_AUTHORIZED_USE: ${{ secrets.DATAJUD_AUTHORIZED_USE }}
+          DATAJUD_API_KEY: ${{ secrets.DATAJUD_API_KEY }}
+        run: |
+          if [ -z "$PROVIDER_ACCEPTANCE_CNJ" ]; then
+            echo "::notice::PROVIDER_ACCEPTANCE_CNJ is not provisioned; combined live provider smoke is armed but not executed."
+            exit 0
+          fi
+          if [ "$PROVIDER_ACCEPTANCE_AUTHORIZED" != "true" ]; then
+            echo "::notice::PROVIDER_ACCEPTANCE_AUTHORIZED is not true; combined live provider smoke is armed but not executed."
+            exit 0
+          fi
+          if [ -z "$JUDIT_API_KEY" ]; then
+            echo "::notice::JUDIT_API_KEY is not provisioned; combined live provider smoke is armed but not executed."
+            exit 0
+          fi
+          if [ "$DATAJUD_AUTHORIZED_USE" != "true" ] || [ -z "$DATAJUD_API_KEY" ]; then
+            echo "::notice::DataJud authorization/key is not provisioned; combined live provider smoke is armed but not executed."
+            exit 0
+          fi
+          python scripts/provider_live_smoke.py \
+            --provider both \
+            --capture-file provider-acceptance-artifacts/provider-smoke-capture.json
+
+      - name: Upload sanitized provider capture
+        if: ${{ (github.event.inputs.mode == 'live' || github.event.inputs.mode == 'judit' || github.event.inputs.mode == 'judit-roundtrip') && success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: provider-acceptance-capture
+          path: provider-acceptance-artifacts/provider-smoke-capture.json
+          if-no-files-found: ignore
+          retention-days: 90

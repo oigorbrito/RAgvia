@@ -1,0 +1,19 @@
+{
+  "baseline_version": 1,
+  "description": "Provider-free deterministic probe over the 30-case synthetic corpus using real Rpy retrieval and secret-summary boundaries.",
+  "metrics": {
+    "mandatory_milestone_recall": {"direction": "min", "value": 1.0},
+    "policy_candidate_precision": {"direction": "min", "value": 0.9420505200594353},
+    "source_presence_rate": {"direction": "min", "value": 1.0},
+    "secret_summary_leakage_rate": {"direction": "max", "value": 0.0}
+  },
+  "counts": {
+    "milestone_expected": 26,
+    "milestone_recovered": 26,
+    "selected_candidates": 673,
+    "policy_relevant_selected": 634,
+    "sourced_selected": 673,
+    "secret_checks": 8,
+    "secret_leaks": 0
+  }
+}

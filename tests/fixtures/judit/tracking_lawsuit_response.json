@@ -1,0 +1,58 @@
+{
+  "callback_id": "cb-tracking-lawsuit-001",
+  "event_type": "response_created",
+  "reference_type": "tracking",
+  "reference_id": "tracking-123",
+  "payload": {
+    "request_id": "request-abc",
+    "response_id": "response-lawsuit-001",
+    "response_type": "lawsuit",
+    "response_data": {
+      "code": "0000000-00.2026.8.21.0001",
+      "tribunal_acronym": "TJRS",
+      "secrecy_level": 0,
+      "classifications": [
+        {"code": "7", "name": "PROCEDIMENTO COMUM CÍVEL"}
+      ],
+      "subjects": [
+        {"code": "123", "name": "DIREITO CIVIL"}
+      ],
+      "parties": [
+        {
+          "name": "PARTE AUTORA TESTE",
+          "side": "Active",
+          "person_type": "Autor",
+          "main_document": "00000000000"
+        },
+        {
+          "name": "PARTE RÉ TESTE",
+          "side": "Passive",
+          "person_type": "Réu"
+        }
+      ],
+      "steps": [
+        {
+          "step_id": "step-1",
+          "step_date": "2026-08-10T12:00:00Z",
+          "step_type": "DISTRIBUICAO",
+          "content": "Processo distribuído.",
+          "private": false
+        },
+        {
+          "step_id": "step-2",
+          "step_date": "2026-08-20T15:30:00Z",
+          "step_type": "DECISAO",
+          "content": "Decisão interlocutória disponibilizada.",
+          "private": false
+        }
+      ],
+      "instance": 1,
+      "area": "Cível",
+      "state": "RS",
+      "city": "Porto Alegre"
+    },
+    "tags": {
+      "cached_response": false
+    }
+  }
+}
