@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -260,6 +261,10 @@ Nenhuma divergência objetiva identificada.
         assert body["summary"]["model"] == "claude-sonnet-5"
         assert body["iaSummary"] == body["summary"]["markdown"]
         assert code in body["iaSummary"]
+        # Optional synthetic API artifact bridges this canonical pipeline to the browser smoke.
+        # It contains no request headers, tokens or external-provider data.
+        if artifact_path := os.getenv("RAGV_TEST_API_RESPONSE_PATH"):
+            Path(artifact_path).write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
 
         async with pool.acquire() as conn:
             assert await conn.fetchval(

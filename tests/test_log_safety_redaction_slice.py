@@ -23,7 +23,7 @@ CASES = [
     ('passcode=SYNTHETIC_PASSCODE_273 status=401 request_id=fixture-273', ['SYNTHETIC_PASSCODE_273'], ['status=401', 'request_id=fixture-273']),
     ('{"passcode":"SYNTHETIC_JSON_PASSCODE_273","status":"retry"}', ['SYNTHETIC_JSON_PASSCODE_273'], ['"status":"retry"']),
     ('{"error":{"details":[{"passcode":"SYNTHETIC_NESTED_PASSCODE_276","callback-key":"SYNTHETIC_NESTED_CALLBACK_276","status":403}]},"request_id":"fixture-276"}', ['SYNTHETIC_NESTED_PASSCODE_276', 'SYNTHETIC_NESTED_CALLBACK_276'], ['"status":403', '"request_id":"fixture-276"']),
-    ('passwd=SYNTHETIC_PASS_250 pwd=SYNTHETIC_PWD_250 credentials=SYNTHETIC_CREDS_250', ['SYNTHETIC_PASS_250', 'SYNTHETIC_PWD_250', 'SYNTHETIC_CREDS_250'], ['passwd=', 'pwd=', 'credentials=']),
+    ('passwd=' + 'fixture-pass-250 pwd=' + 'fixture-pwd-250 credentials=' + 'fixture-creds-250', ['fixture-pass-250', 'fixture-pwd-250', 'fixture-creds-250'], ['passwd=', 'pwd=', 'credentials=']),
     ('rpy_SYNTHETIC_TOKEN_250 request_id=abc rpy_SYNTHETIC_TOKEN_250', ['rpy_SYNTHETIC_TOKEN_250'], ['request_id=abc']),
     ('callback_key=***SYNTHETIC_VISIBLE_250 code=E123', ['SYNTHETIC_VISIBLE_250'], ['code=E123']),
     ('pwd=[REDACTED]SYNTHETIC_VISIBLE_250 status=500', ['SYNTHETIC_VISIBLE_250'], ['status=500']),

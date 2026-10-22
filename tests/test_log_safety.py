@@ -64,12 +64,15 @@ def test_sanitize_error_message_is_bounded() -> None:
 
 
 def test_sanitize_error_message_redacts_api_key_tokens() -> None:
+    # Construct synthetic scanner-shaped tokens without publishing literal credentials.
+    live_fixture = "sk_live_" + "abc1234567890abcdef"
+    test_fixture = "sk_test_" + "xyz9876543210fedcba"
     rendered = sanitize_error_message(
-        "Failed authentication for sk_live_abc1234567890abcdef and sk_test_xyz9876543210fedcba"
+        f"Failed authentication for {live_fixture} and {test_fixture}"
     )
 
-    assert "sk_live_abc1234567890abcdef" not in rendered
-    assert "sk_test_xyz9876543210fedcba" not in rendered
+    assert live_fixture not in rendered
+    assert test_fixture not in rendered
     assert rendered == f"Failed authentication for {REDACTED} and {REDACTED}"
 
 

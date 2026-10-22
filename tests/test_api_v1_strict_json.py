@@ -120,7 +120,7 @@ async def test_v1_summary_request_rejects_excessive_nesting_before_auth(
             "/v1/resumos",
             headers={
                 "Content-Type": "application/json",
-                "Idempotency-Key": "synthetic-depth-253",
+                "Idempotency-Key": "depth-case-253",
             },
             content='{"unused":' + "[" * depth + "0" + "]" * depth + "}",
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -116,7 +117,7 @@ def fill_lookup(page: Page) -> None:
     page.locator("#search-submit").click()
 
 
-def run() -> None:
+def run(*, api_response: dict | None = None) -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FrontendHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -246,6 +247,28 @@ def run() -> None:
                 "only the expected synthetic 404 may appear in the console",
             )
             _require(page_errors == [], "browser page must have no uncaught errors")
+            if api_response is not None:
+                # Replay the exact response exported by the PostgreSQL canonical E2E,
+                # not an independently authored summary fixture.
+                _require(isinstance(api_response.get("iaSummary"), str), "published Markdown required")
+                _require(api_response["summary"]["validation"]["passed"] is True, "validated summary required")
+                page.unroute("**/processes/**")
+                configure_ready_api(page, api_response)
+                fill_lookup(page)
+                page.locator("#result").wait_for(state="visible")
+                code = api_response["code"]
+                page.wait_for_function(
+                    "code => document.querySelector('#result-code').textContent === code", arg=code
+                )
+                _require(code in page.locator("#summary-body").inner_text(), "canonical summary must render")
+                browser.contexts[0].grant_permissions(["clipboard-read", "clipboard-write"])
+                page.locator("#copy-summary").click()
+                page.wait_for_function("document.querySelector('#copy-summary').textContent.includes('copiado')")
+                copied = page.evaluate("navigator.clipboard.readText()")
+                _require(code in copied, "canonical summary must reach the clipboard")
+                _require("<ProcessHeader" not in copied, "clipboard must contain readable text")
+                _require(page_errors == [], "canonical summary must not cause browser errors")
+                print("canonical PostgreSQL API response -> browser presentation/copy: PASS (synthetic)")
             browser.close()
     finally:
         server.shutdown()
@@ -254,5 +277,10 @@ def run() -> None:
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--api-response", type=Path,
+                        help="Synthetic response exported by test_pipeline_e2e")
+    args = parser.parse_args()
+    response = json.loads(args.api_response.read_text(encoding="utf-8")) if args.api_response else None
+    run(api_response=response)
     print("frontend browser smoke: PASS")

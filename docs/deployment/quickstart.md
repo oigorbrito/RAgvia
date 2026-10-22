@@ -72,14 +72,14 @@ Crie um monitoramento substituindo o CNJ abaixo por um processo que você está 
 ```bash
 CNJ='0000000-00.0000.0.00.0000'
 curl -X POST \
-  -H 'Authorization: Bearer dev-local-token' \
+  -H "Authorization: Bearer ${RAGVIA_LOCAL_TOKEN}" \
   "http://localhost:8000/v1/trackings/${CNJ}"
 ```
 
 Listar monitoramentos:
 
 ```bash
-curl -H 'Authorization: Bearer dev-local-token' \
+curl -H "Authorization: Bearer ${RAGVIA_LOCAL_TOKEN}" \
   http://localhost:8000/v1/trackings
 ```
 
@@ -88,7 +88,7 @@ Remover um monitoramento usa o `tracking_id` retornado pela API:
 ```bash
 TRACKING_ID='00000000-0000-0000-0000-000000000000'
 curl -X DELETE \
-  -H 'Authorization: Bearer dev-local-token' \
+  -H "Authorization: Bearer ${RAGVIA_LOCAL_TOKEN}" \
   "http://localhost:8000/v1/trackings/${TRACKING_ID}"
 ```
 
@@ -96,13 +96,13 @@ Para uma carteira em lote:
 
 ```bash
 curl -X POST \
-  -H 'Authorization: Bearer dev-local-token' \
+  -H "Authorization: Bearer ${RAGVIA_LOCAL_TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{"codes":["0000000-00.0000.0.00.0000","0000000-00.0000.0.00.0001"],"recurrence_days":1}' \
   http://localhost:8000/v1/trackings
 ```
 
-Não use CNJs reais em testes, fixtures, documentação ou CI. Os exemplos acima são placeholders estruturais, não dados processuais.
+Não use CNJs reais em testes, fixtures, documentação ou CI. Os exemplos acima são placeholders estruturais, não dados processuais. Defina `RAGVIA_LOCAL_TOKEN` com o token local configurado no `.env` antes de executar os comandos.
 
 ## 4. Testes e harnesses
 
