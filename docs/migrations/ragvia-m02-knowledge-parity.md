@@ -204,10 +204,14 @@ project harness (26 observações), `index_legal_knowledge.py --help`, diff chec
 Gitleaks (árvore commitada, zero findings) passaram. Registro reprodutível,
 comandos, ambiente, digest e run ID: [`ragvia-m02-local-qualification.json`](evidence/ragvia-m02-local-qualification.json);
 `run_id=ragvia-qualification-11e4e0a12bc9`. O PostgreSQL foi descartável, em
-porta loopback, com limpeza confirmada. Fixtures, oracle e vetores de integração
-são sintéticos. Isso não prova compatibilidade real do BGE, qualidade jurídica,
-latência, custo ou comportamento Claude. CI da revisão deve ser observado no PR;
-este registro não antecipa seu resultado.
+porta loopback, com limpeza confirmada. A CI de PR #14 passou para o SHA
+`363cbc286d20bb3dc7014b185c68823b7e1db62f`: [run 39877969951](https://github.com/oigorbrito/RAgvia/actions/runs/39877969951), inclusive harness,
+unit, avaliação sintética, browser, imagem, restore e integrações PostgreSQL sem
+skips. O registro estruturado está em
+[`ragvia-m02-ci.json`](evidence/ragvia-m02-ci.json). Cada SHA posterior requer e
+recebe sua própria execução CI; status não é herdado. Fixtures, oracle e vetores
+de integração são sintéticos. Isso não prova compatibilidade real do BGE,
+qualidade jurídica, latência, custo ou comportamento Claude.
 
 ## Arquivos e reversão
 
