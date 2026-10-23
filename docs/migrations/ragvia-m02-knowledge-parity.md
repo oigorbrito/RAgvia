@@ -196,15 +196,18 @@ python scripts/validate_candidate_postgres.py --output "$env:TEMP/ragvia-m02-new
   --test-path tests/integration/test_claim_evidence_postgres.py
 ```
 
-Resultado local nesta execução: **137 testes direcionados** (imagem Linux fixa) e
-**28 integrações PostgreSQL direcionadas**, zero skips, incluindo o percurso
+Resultado local do commit `4efa00a9ffdfaeac1320951995a25befbeabfedd`:
+**137 testes direcionados** no host e **137** na imagem Linux fixada;
+**28 integrações PostgreSQL** direcionadas, zero skips, incluindo o percurso
 completo, pgvector sintético, tenant, sigilo, autorização e publicação. Ruff,
-project harness e `index_legal_knowledge.py --help` passaram. Gitleaks e CI do head
-final serão registrados abaixo depois de publicar o branch. PostgreSQL é o
-container descartável do executor, digest e hashes em `qualification.json`, porta
-loopback e cleanup confirmado. Fixtures, oracle e vetores de integração são
-sintéticos. Não é evidência de compatibilidade real do BGE, qualidade jurídica,
-latência, custo ou comportamento Claude.
+project harness (26 observações), `index_legal_knowledge.py --help`, diff check e
+Gitleaks (árvore commitada, zero findings) passaram. Registro reprodutível,
+comandos, ambiente, digest e run ID: [`ragvia-m02-local-qualification.json`](evidence/ragvia-m02-local-qualification.json);
+`run_id=ragvia-qualification-11e4e0a12bc9`. O PostgreSQL foi descartável, em
+porta loopback, com limpeza confirmada. Fixtures, oracle e vetores de integração
+são sintéticos. Isso não prova compatibilidade real do BGE, qualidade jurídica,
+latência, custo ou comportamento Claude. CI da revisão deve ser observado no PR;
+este registro não antecipa seu resultado.
 
 ## Arquivos e reversão
 
