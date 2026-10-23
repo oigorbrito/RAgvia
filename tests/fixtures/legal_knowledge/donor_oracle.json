@@ -1,0 +1,420 @@
+{
+  "donor_sha": "0d0f8cbb495292a3f3d61fba75428f3136059ea8",
+  "files": {
+    "resumo\\knowledge.py": "7f15f86c231c22e7116ecc5b2ce09c74882a7c195fac23c266279f0641b64296",
+    "resumo\\embeddings.py": "462bbf138412e674681a0e1c7c8d4335f0959e27099a9b7d7a79c93aebde9ba0",
+    "kb\\glossario.jsonl": "4374dd33f373691b35219c9508d678024e9776c7973b9b2e2b778ea566bbcc1a",
+    "scripts\\indexar.py": "78f65bca83f1a44bfaf28e22d2993648bd9d7047d461b459e5f171852e65d9e8"
+  },
+  "environment": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "numpy": "2.5.4",
+    "embedder": "hashing-4096"
+  },
+  "synthetic": true,
+  "item_cases": [
+    {
+      "kind": "classe",
+      "name": "ignorado",
+      "code": "436",
+      "result": {
+        "id": "classe-436",
+        "tipo": "classe",
+        "termo": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+        "score": 1.0,
+        "origem": "codigo",
+        "donor_content_sha256": "a042deffa31be2fd54ef44c442d78fe9b5174d5def4adce5a0613baa2f66cca0"
+      }
+    },
+    {
+      "kind": "classe",
+      "name": "JEC",
+      "code": null,
+      "result": {
+        "id": "classe-436",
+        "tipo": "classe",
+        "termo": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+        "score": 1.0,
+        "origem": "termo",
+        "donor_content_sha256": "a042deffa31be2fd54ef44c442d78fe9b5174d5def4adce5a0613baa2f66cca0"
+      }
+    },
+    {
+      "kind": "assunto",
+      "name": "DANO MORAL",
+      "code": null,
+      "result": {
+        "id": "assunto-14033",
+        "tipo": "assunto",
+        "termo": "INDENIZAÇÃO POR DANO MORAL",
+        "score": 1.0,
+        "origem": "termo",
+        "donor_content_sha256": "2440d2750ed7b2166c538bb66de23af6f6c1421abd89fdc0f6f715c40c471135"
+      }
+    },
+    {
+      "kind": "movimento",
+      "name": "INTIMAÇÃO",
+      "code": null,
+      "result": {
+        "id": "mov-intimacao",
+        "tipo": "movimento",
+        "termo": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA",
+        "score": 1.0,
+        "origem": "termo",
+        "donor_content_sha256": "eb85fa32526482225e166e5bfb1f82f415cea711612ad38b0327644764f1187d"
+      }
+    },
+    {
+      "kind": "assunto",
+      "name": "JEC",
+      "code": null,
+      "result": {
+        "id": "classe-436",
+        "tipo": "classe",
+        "termo": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+        "score": 1.0,
+        "origem": "termo",
+        "donor_content_sha256": "a042deffa31be2fd54ef44c442d78fe9b5174d5def4adce5a0613baa2f66cca0"
+      }
+    },
+    {
+      "kind": "classe",
+      "name": "zzqx inexistente",
+      "code": null,
+      "result": null
+    }
+  ],
+  "search_cases": [
+    {
+      "query": "audiência de conciliação",
+      "kind": "movimento",
+      "limit": 2,
+      "min_score": 0.25,
+      "results": [
+        {
+          "id": "mov-audiencia-conciliacao",
+          "tipo": "movimento",
+          "termo": "AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA",
+          "score": 0.588,
+          "origem": "semantica",
+          "donor_content_sha256": "26ba874f0191affd114498ad75840de5416ccf376d47a42138d4e7fe8879325f"
+        },
+        {
+          "id": "mov-audiencia-instrucao",
+          "tipo": "movimento",
+          "termo": "AUDIÊNCIA DE INSTRUÇÃO E JULGAMENTO",
+          "score": 0.371,
+          "origem": "semantica",
+          "donor_content_sha256": "869f4b718a45c4821da3edba2ebe3a625dee13e18943345a861f05e27fe5865d"
+        }
+      ]
+    },
+    {
+      "query": "zzqx inexistente",
+      "kind": "movimento",
+      "limit": 2,
+      "min_score": 0.99,
+      "results": []
+    },
+    {
+      "query": "intimação",
+      "kind": "movimento",
+      "limit": 1,
+      "min_score": 0.25,
+      "results": [
+        {
+          "id": "mov-intimacao",
+          "tipo": "movimento",
+          "termo": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA",
+          "score": 0.422,
+          "origem": "semantica",
+          "donor_content_sha256": "eb85fa32526482225e166e5bfb1f82f415cea711612ad38b0327644764f1187d"
+        }
+      ]
+    },
+    {
+      "query": "audiência de conciliação",
+      "kind": "classe",
+      "limit": 2,
+      "min_score": 0.25,
+      "results": [
+        {
+          "id": "classe-procedimento-comum",
+          "tipo": "classe",
+          "termo": "PROCEDIMENTO COMUM CÍVEL",
+          "score": 0.355,
+          "origem": "semantica",
+          "donor_content_sha256": "e68113907bacc34e265208cf5657570ae9cceb4745fc8a7ae5dfce12a49060c5"
+        }
+      ]
+    }
+  ],
+  "controlled_entries": [
+    {
+      "id": "synthetic-class",
+      "tipo": "classe",
+      "codigo": "1",
+      "termo": "Termo Alfa",
+      "sinonimos": [
+        "Alias Alfa"
+      ],
+      "donor_content_sha256": "8c1fd9b195ab72c203a5d99348eb60fa79ca3687b728875e564fbcc8276082fc"
+    },
+    {
+      "id": "synthetic-subject",
+      "tipo": "assunto",
+      "codigo": "1",
+      "termo": "Termo Beta",
+      "sinonimos": [],
+      "donor_content_sha256": "04e2986fab92fed822dc1c5152cd9a8eb7ad51a4fa66be791d72c6ae238046f3"
+    }
+  ],
+  "controlled_cases": [
+    {
+      "min_score": 0.8,
+      "limit": 2,
+      "kinds": null,
+      "results": [
+        {
+          "id": "synthetic-class",
+          "tipo": "classe",
+          "termo": "Termo Alfa",
+          "score": 0.8,
+          "origem": "semantica",
+          "donor_content_sha256": "8c1fd9b195ab72c203a5d99348eb60fa79ca3687b728875e564fbcc8276082fc"
+        }
+      ]
+    },
+    {
+      "min_score": 0.8001,
+      "limit": 2,
+      "kinds": null,
+      "results": []
+    },
+    {
+      "min_score": 0.25,
+      "limit": 1,
+      "kinds": null,
+      "results": [
+        {
+          "id": "synthetic-class",
+          "tipo": "classe",
+          "termo": "Termo Alfa",
+          "score": 0.8,
+          "origem": "semantica",
+          "donor_content_sha256": "8c1fd9b195ab72c203a5d99348eb60fa79ca3687b728875e564fbcc8276082fc"
+        }
+      ]
+    },
+    {
+      "min_score": 0.25,
+      "limit": 2,
+      "kinds": [
+        "assunto"
+      ],
+      "results": [
+        {
+          "id": "synthetic-subject",
+          "tipo": "assunto",
+          "termo": "Termo Beta",
+          "score": 0.6,
+          "origem": "semantica",
+          "donor_content_sha256": "04e2986fab92fed822dc1c5152cd9a8eb7ad51a4fa66be791d72c6ae238046f3"
+        }
+      ]
+    },
+    {
+      "min_score": 0.25,
+      "limit": 0,
+      "kinds": null,
+      "results": [
+        {
+          "id": "synthetic-class",
+          "tipo": "classe",
+          "termo": "Termo Alfa",
+          "score": 0.8,
+          "origem": "semantica",
+          "donor_content_sha256": "8c1fd9b195ab72c203a5d99348eb60fa79ca3687b728875e564fbcc8276082fc"
+        }
+      ]
+    }
+  ],
+  "m01_context": {
+    "c1": [
+      {
+        "id": "classe-436",
+        "tipo": "classe",
+        "termo": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+        "score": 1.0,
+        "origem": "codigo",
+        "donor_content_sha256": "a042deffa31be2fd54ef44c442d78fe9b5174d5def4adce5a0613baa2f66cca0"
+      }
+    ],
+    "c2": [
+      {
+        "id": "classe-embargos",
+        "tipo": "classe",
+        "termo": "EMBARGOS",
+        "score": 1.0,
+        "origem": "termo",
+        "donor_content_sha256": "e61e6299ace0c6bb4ab35ac81129454ce6269213ebe3a5865be345423f04f575"
+      }
+    ],
+    "a1": [
+      {
+        "id": "assunto-14033",
+        "tipo": "assunto",
+        "termo": "INDENIZAÇÃO POR DANO MORAL",
+        "score": 1.0,
+        "origem": "codigo",
+        "donor_content_sha256": "2440d2750ed7b2166c538bb66de23af6f6c1421abd89fdc0f6f715c40c471135"
+      }
+    ],
+    "a2": [
+      {
+        "id": "assunto-10431",
+        "tipo": "assunto",
+        "termo": "RESPONSABILIDADE CIVIL",
+        "score": 1.0,
+        "origem": "codigo",
+        "donor_content_sha256": "cd6c5c2c148bd7bb9186729f804cdfa86894c79598ba5150e1f5977574a362e7"
+      }
+    ],
+    "a3": [
+      {
+        "id": "assunto-899",
+        "tipo": "assunto",
+        "termo": "DIREITO CIVIL",
+        "score": 1.0,
+        "origem": "codigo",
+        "donor_content_sha256": "2a87043fb152814b9b2caa39dffb614c5bb75d69bddb2e238faa67b25d1a989c"
+      }
+    ],
+    "movimentacoes": [
+      {
+        "id": "mov-distribuicao",
+        "tipo": "movimento",
+        "termo": "DISTRIBUÍDO POR SORTEIO",
+        "score": 0.434,
+        "origem": "semantica",
+        "donor_content_sha256": "e5e0fa7adbb1ef3d4f5363b26bee38cf3c91b6a929ea7390221d41e411cc8c0a"
+      },
+      {
+        "id": "mov-100-digital",
+        "tipo": "movimento",
+        "termo": "AUTOS INCLUÍDOS NO JUÍZO 100% DIGITAL",
+        "score": 0.597,
+        "origem": "semantica",
+        "donor_content_sha256": "7b44fe0e7f39c92f611b940c6658210b99bb66d6b4c4be6b0f9c0ce7f821a08f"
+      },
+      {
+        "id": "mov-remessa",
+        "tipo": "movimento",
+        "termo": "REMETIDOS OS AUTOS",
+        "score": 0.29,
+        "origem": "semantica",
+        "donor_content_sha256": "291277cd43b7bb24e9b5d9f818adb386318213d63ac9adddbbc2b1141329a026"
+      },
+      {
+        "id": "mov-audiencia-conciliacao",
+        "tipo": "movimento",
+        "termo": "AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA",
+        "score": 0.542,
+        "origem": "semantica",
+        "donor_content_sha256": "26ba874f0191affd114498ad75840de5416ccf376d47a42138d4e7fe8879325f"
+      },
+      {
+        "id": "mov-audiencia-instrucao",
+        "tipo": "movimento",
+        "termo": "AUDIÊNCIA DE INSTRUÇÃO E JULGAMENTO",
+        "score": 0.282,
+        "origem": "semantica",
+        "donor_content_sha256": "869f4b718a45c4821da3edba2ebe3a625dee13e18943345a861f05e27fe5865d"
+      },
+      {
+        "id": "mov-intimacao",
+        "tipo": "movimento",
+        "termo": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA",
+        "score": 0.464,
+        "origem": "semantica",
+        "donor_content_sha256": "eb85fa32526482225e166e5bfb1f82f415cea711612ad38b0327644764f1187d"
+      },
+      {
+        "id": "mov-citacao",
+        "tipo": "movimento",
+        "termo": "CITAÇÃO",
+        "score": 0.253,
+        "origem": "semantica",
+        "donor_content_sha256": "0fdf28ee02b10b08e47a4cda591d8893f2045b2eca9bfda244c8ea80c8ef95b2"
+      },
+      {
+        "id": "mov-ato-ordinatorio",
+        "tipo": "movimento",
+        "termo": "ATO ORDINATÓRIO PRATICADO",
+        "score": 0.446,
+        "origem": "semantica",
+        "donor_content_sha256": "34eb8df13ec0cb45c111ac5ff0f68db3dae4f3d6ef545f50c806aa789d45c79a"
+      },
+      {
+        "id": "mov-djen",
+        "tipo": "movimento",
+        "termo": "DISPONIBILIZADO NO DJEN",
+        "score": 0.406,
+        "origem": "semantica",
+        "donor_content_sha256": "8d90c862d2da25b558176d73e9972aa8f58c8bb1dcd193c0b715be40babf464c"
+      },
+      {
+        "id": "mov-juntada",
+        "tipo": "movimento",
+        "termo": "JUNTADA DE CERTIDÃO",
+        "score": 0.554,
+        "origem": "semantica",
+        "donor_content_sha256": "f4aae7fd41fb6eaea4bc0e46f80eb452540c85c9a47cc52fcd791c566a81a769"
+      }
+    ],
+    "conceitos": [
+      {
+        "id": "conceito-polos",
+        "tipo": "conceito",
+        "termo": "POLO ATIVO E POLO PASSIVO",
+        "score": 0.473,
+        "origem": "semantica",
+        "donor_content_sha256": "64ff45656fe827e3e9dd90a0cf385dacdf0913872ace064413b01f5d7bec8e2a"
+      },
+      {
+        "id": "conceito-advogado",
+        "tipo": "conceito",
+        "termo": "ADVOGADO",
+        "score": 0.36,
+        "origem": "semantica",
+        "donor_content_sha256": "10340d58ff99a4432ce9abb86a6d95dec23de1c6a8ccaf0993a41be8e1bbd505"
+      },
+      {
+        "id": "conceito-valor-causa",
+        "tipo": "conceito",
+        "termo": "VALOR DA CAUSA",
+        "score": 0.4,
+        "origem": "semantica",
+        "donor_content_sha256": "fecd193b1960dc83c261e3d566468cc82b2fce5d200502fb3488c791c275ea48"
+      },
+      {
+        "id": "conceito-fase-inicial",
+        "tipo": "conceito",
+        "termo": "FASE INICIAL",
+        "score": 0.439,
+        "origem": "semantica",
+        "donor_content_sha256": "b0078bde9a0e2758c6385cf4becde41ea4733503c47721752c56f96cc29aa5b5"
+      },
+      {
+        "id": "conceito-prazo-jec",
+        "tipo": "conceito",
+        "termo": "PRAZOS NO JUIZADO ESPECIAL",
+        "score": 0.584,
+        "origem": "semantica",
+        "donor_content_sha256": "e92ed1aaeabc03a726004d26aa17aa02b21acf7c5977524727e6fb76df08b8ef"
+      }
+    ]
+  },
+  "provider_calls": 0
+}

@@ -69,6 +69,7 @@ class VerificationEvidence:
     party_names: frozenset[str]
     step_counts: frozenset[int]
     exact_texts: frozenset[str]
+    legal_knowledge_segments: tuple[str, ...] = ()
     page_start: int | None = None
     page_end: int | None = None
     char_start: int | None = None
@@ -262,6 +263,7 @@ def _verification_evidence(
     amounts: frozenset[Decimal] | None = None,
     step_counts: frozenset[int] | None = None,
     exact_values: Sequence[Any] | None = None,
+    legal_knowledge_segments: Sequence[str] = (),
     page_start: int | None = None,
     page_end: int | None = None,
     char_start: int | None = None,
@@ -283,6 +285,7 @@ def _verification_evidence(
             for value in (exact_values if exact_values is not None else [text])
             for segment in _exact_text_segments(value)
         ),
+        legal_knowledge_segments=tuple(legal_knowledge_segments),
         page_start=page_start,
         page_end=page_end,
         char_start=char_start,
@@ -324,6 +327,11 @@ def verification_evidence_catalog(
                 else {}
             ),
             "step_count": context.get("step_count"),
+            "legal_knowledge": (
+                context.get("legal_knowledge")
+                if isinstance(context.get("legal_knowledge"), list)
+                else []
+            ),
             "source_warnings": (
                 context.get("source_warnings")
                 if isinstance(context.get("source_warnings"), list)
@@ -350,6 +358,12 @@ def verification_evidence_catalog(
                 else frozenset()
             ),
             exact_values=_scalar_text_values(process_payload),
+            legal_knowledge_segments=tuple(
+                segment
+                for item in process_payload["legal_knowledge"]
+                if isinstance(item, dict)
+                for segment in _exact_text_segments(item.get("definition"))
+            ),
         )
 
     for step in context.get("steps", []):
@@ -489,7 +503,12 @@ def verify_material_claims(
                 facts=facts,
                 evidence=evidence,
             )
-            excerpt, excerpt_sha256 = _excerpt(evidence.text)
+            legal_excerpt = next(
+                (segment for segment in evidence.legal_knowledge_segments
+                 if _normalized_exact_text(segment) == facts.normalized_text),
+                None,
+            )
+            excerpt, excerpt_sha256 = _excerpt(legal_excerpt or evidence.text)
             relations.append(
                 ClaimRelationVerification(
                     evidence_ref=ref,

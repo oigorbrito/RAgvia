@@ -83,7 +83,8 @@ async def test_public_tpu_glossary_reaches_rag_context_and_summary_provenance() 
             ("subject", "5804"),
         ]
         assert {item["tpu_version"] for item in glossary} == {"2026-09-12"}
-        assert len(context["_glossary_sources"]) == 2
+        assert len(context["_glossary_sources"]) >= 2
+        assert [(item["kind"], item["code"]) for item in context["_glossary_sources"][:2]] == [("class", "7"), ("subject", "5804")]
 
         async with pool.acquire() as conn:
             persisted = await _persist_summary(
@@ -113,13 +114,11 @@ async def test_public_tpu_glossary_reaches_rag_context_and_summary_provenance() 
 
         assert persisted is True
         assert "tpu_glossary" not in stored_header
-        assert [(row["kind"], row["code"]) for row in rows] == [
-            ("class", "7"),
-            ("subject", "5804"),
-        ]
-        assert {row["tpu_version"] for row in rows} == {"2026-09-12"}
+        assert [(row["kind"], row["code"]) for row in rows[:2]] == [("class", "7"), ("subject", "5804")]
+        assert {row["tpu_version"] for row in rows[:2]} == {"2026-09-12"}
+        assert {row["tpu_version"] for row in rows[2:]} <= {"ragvia-legal-m02-v1"}
         assert all(len(row["definition_sha256"]) == 64 for row in rows)
-        assert [row["source_order"] for row in rows] == [0, 1]
+        assert [row["source_order"] for row in rows] == list(range(len(rows)))
     finally:
         await pool.close()
 
@@ -168,7 +167,8 @@ async def test_unknown_codes_are_omitted_from_rag_glossary_without_invention() -
 
         context = await _load_context(pool, process_id, version_id)
         assert "tpu_glossary" not in context
-        assert context["_glossary_sources"] == []
+        assert not any(item["kind"] in {"class", "subject"} for item in context["_glossary_sources"])
+        assert {item["kind"] for item in context["_glossary_sources"]} <= {"concept"}
     finally:
         await pool.close()
 

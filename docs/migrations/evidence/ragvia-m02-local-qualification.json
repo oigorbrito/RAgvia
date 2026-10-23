@@ -1,0 +1,38 @@
+{
+  "qualification_commit": "4efa00a9ffdfaeac1320951995a25befbeabfedd",
+  "scope": "Synthetic local qualification only; no live Claude, Judit, DataJud, or external embedding calls",
+  "host": {
+    "os": "Windows 11 build 26300",
+    "python": "3.12.10"
+  },
+  "unit": {
+    "command": "python -m pytest -q tests/test_legal_knowledge.py tests/test_tpu_glossary.py tests/test_tpu_judit_context.py tests/test_tpu_snapshot_builder.py tests/test_claim_verification.py tests/test_claim_evidence.py tests/test_summary_contract.py tests/test_summary_output.py tests/test_embedding_spaces.py tests/test_embedding_runtime_rollout.py tests/test_embeddings_bge.py tests/test_embeddings.py tests/test_retrieval.py tests/test_retrieval_source_step_number.py",
+    "result": "137 passed",
+    "linux_container_image": "sha256:c0f369a87fe34768297e6058d968f316427bbfa405771defd8b2c641134d24a1",
+    "linux_container_python": "3.12.14",
+    "linux_container_result": "137 passed"
+  },
+  "postgres": {
+    "run_id": "ragvia-qualification-11e4e0a12bc9",
+    "image": "pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b",
+    "result": {
+      "tests": 28,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "run_record": "C:/Users/igorb/AppData/Local/Temp/ragvia-m02/pg-4efa/run.json"
+  },
+  "guardrails": {
+    "ruff": "passed",
+    "project_harness": "passed; 26 observations",
+    "git_diff_check": "passed",
+    "gitleaks_committed_tree": "passed; 0 findings",
+    "gitleaks_report": "C:/Users/igorb/AppData/Local/Temp/ragvia-m02/gitleaks-commit.json"
+  },
+  "limitations": [
+    "PostgreSQL vectors are synthetic and test SQL/provenance/filter wiring, not BGE semantic quality.",
+    "No legal-quality review or live-provider acceptance is claimed.",
+    "These results qualify only the recorded commit and environment."
+  ]
+}

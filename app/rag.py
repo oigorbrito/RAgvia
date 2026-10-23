@@ -70,7 +70,12 @@ from app.summary_policy import (
     restricted_summary_payload,
 )
 from app.tasks import PermanentTaskError, task
-from app.tpu_glossary import resolve_process_tpu_definitions
+from app.tpu_glossary import (
+    load_legal_knowledge,
+    normalize_legal_term,
+    resolve_legal_knowledge,
+    resolve_process_tpu_definitions,
+)
 from app.unicode_security import model_view_text, model_view_value
 from app.validation import ValidationResult, validar
 
@@ -342,6 +347,88 @@ async def _load_process(
     }
 
 
+async def _retrieve_supplemental_knowledge(
+    pool: asyncpg.Pool,
+    *,
+    context: dict[str, Any],
+    steps: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    entries = load_legal_knowledge()
+    class_code = context.get("header", {}).get("class_code")
+    class_name = str(context.get("class_name") or "")
+    subjects = context.get("subjects") or []
+    official_keys = {
+        (item.get("kind"), str(item.get("code") or ""))
+        for item in context.get("tpu_glossary", [])
+        if isinstance(item, dict)
+    }
+    terms: list[tuple[str, str]] = []
+    concept_queries: list[str] = []
+    if context.get("parties"):
+        concept_queries.append("POLO ATIVO E POLO PASSIVO")
+    if context.get("representatives"):
+        concept_queries.append("ADVOGADO")
+    if context.get("header", {}).get("amount") is not None:
+        concept_queries.append("VALOR DA CAUSA")
+    if "juizado especial" in normalize_legal_term(class_name):
+        concept_queries.append("PRAZOS NO JUIZADO ESPECIAL")
+    deterministic = resolve_legal_knowledge(
+        class_code=class_code, class_name=class_name, subjects=subjects,
+        movements=steps, entries=entries, concept_queries=concept_queries,
+    )
+    if class_name and ("class", str(class_code or "")) not in official_keys and not any(item.get("kind") == "class" for item in deterministic):
+        terms.append(("class", class_name))
+    for subject in subjects:
+        if not isinstance(subject, dict):
+            continue
+        name = str(subject.get("name") or "").strip()
+        if name and ("subject", str(subject.get("code") or "")) not in official_keys and not any(item.get("kind") == "subject" and normalize_legal_term(name) in {normalize_legal_term(item["name"]), *(normalize_legal_term(a) for a in item.get("aliases", []))} for item in deterministic):
+            terms.append(("subject", name))
+    for step in steps:
+        text = str(step.get("text") or step.get("title") or "").strip()
+        if text and not any(item.get("kind") == "movement" and (normalize_legal_term(item["name"]) in normalize_legal_term(text) or any(normalize_legal_term(alias) in normalize_legal_term(text) for alias in item.get("aliases", []))) for item in deterministic):
+            terms.append(("movement", text))
+    for term in concept_queries:
+        if not any(item.get("kind") == "concept" and normalize_legal_term(term) in {normalize_legal_term(item["name"]), *(normalize_legal_term(a) for a in item.get("aliases", []))} for item in deterministic):
+            terms.append(("concept", term))
+
+    terms = list(dict.fromkeys(terms))
+    scores: dict[str, dict[str, float]] = {}
+    if terms:
+        from app.embedding_runtime import embedding_space_runtime_enabled, get_active_embedding_runtime
+        if embedding_space_runtime_enabled():
+            runtime = get_active_embedding_runtime()
+            if runtime.space.provider == "bge":
+                async with pool.acquire() as conn:
+                    for kind, query in terms:
+                        candidates = [entry for entry in entries if entry.kind == kind]
+                        vector = await runtime.embed_query(query)
+                        rows = await conn.fetch(
+                            "SELECT indexed.entry_id, 1-(indexed.embedding <=> $1::vector) AS similarity FROM legal_knowledge_embeddings indexed JOIN unnest($4::text[], $5::text[]) requested(entry_id, embedding_content_sha256) ON requested.entry_id=indexed.entry_id AND requested.embedding_content_sha256=indexed.embedding_content_sha256 WHERE indexed.provider=$2 AND indexed.model=$3 ORDER BY indexed.embedding <=> $1::vector, indexed.entry_id LIMIT 10",
+                            vector, runtime.space.provider, runtime.space.model,
+                            [entry.id for entry in candidates],
+                            [entry.embedding_sha256 for entry in candidates],
+                        )
+                        scores[normalize_legal_term(query)] = {str(row["entry_id"]): max(0.0, float(row["similarity"])) for row in rows}
+    resolved = resolve_legal_knowledge(
+        class_code=class_code, class_name=class_name, subjects=subjects,
+        movements=steps, entries=entries, semantic_scores=scores,
+        concept_queries=concept_queries,
+    )
+    resolved = [item for item in resolved if (item.get("kind"), str(item.get("code") or "")) not in official_keys]
+    sources = [
+        {
+            "kind": item["kind"] if item["kind"] in {"class", "subject", "movement", "concept"} else "concept",
+            "code": item["code"], "tpu_version": item["tpu_version"],
+            "publisher": item["publisher"], "source": item["source"],
+            "source_ref": item["source_ref"], "definition_sha256": item["definition_sha256"],
+            "source_order": len(context.get("_glossary_sources", [])) + index,
+        }
+        for index, item in enumerate(resolved)
+    ]
+    return resolved, sources
+
+
 async def _load_context(
     pool: asyncpg.Pool,
     process_id: UUID,
@@ -371,6 +458,7 @@ async def _load_context(
     definitions = resolve_process_tpu_definitions(
         class_code=base["header"].get("class_code"),
         subjects=base["subjects"],
+        class_name=base["class_name"],
     )
     if definitions:
         base["tpu_glossary"] = [definition.as_context() for definition in definitions]
@@ -432,6 +520,12 @@ async def _load_context(
             base, list(source.get("unicode_security_flags") or [])
         )
     base["steps"] = _serialize_steps(ranked)
+    knowledge, knowledge_sources = await _retrieve_supplemental_knowledge(
+        pool, context=base, steps=base["steps"]
+    )
+    if knowledge:
+        base["legal_knowledge"] = knowledge
+    base["_glossary_sources"] = [*base.get("_glossary_sources", []), *knowledge_sources]
 
     base["_attachment_sources"] = []
     if tenant_id is not None:

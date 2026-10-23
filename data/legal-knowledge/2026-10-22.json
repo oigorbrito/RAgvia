@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "tpu_version": "ragvia-legal-m02-v1",
+  "publisher": "RAgvia — extratos de legislação identificada; não é tabela CNJ",
+  "source": "Legislação publicada pela Câmara dos Deputados e atos CNJ; mapeamentos doador não certificados pelo CNJ",
+  "source_version_label": "M02 primary-source snapshot",
+  "entries": [
+    {
+      "id": "classe-436",
+      "kind": "class",
+      "code": "436",
+      "name": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+      "aliases": [
+        "JUIZADO ESPECIAL CÍVEL",
+        "JEC"
+      ],
+      "definition": "Art. 3º O Juizado Especial Cível tem competência para conciliação, processo e julgamento das causas cíveis de menor complexidade, inclusive as de valor até quarenta vezes o salário mínimo. Art. 9º Nas causas de valor até vinte salários mínimos, as partes comparecerão pessoalmente, podendo ser assistidas por advogado; nas de valor superior, a assistência é obrigatória. Art. 12-A. Na contagem de prazo em dias, estabelecido por lei ou pelo juiz, para a prática de qualquer ato processual, inclusive recursos, computam-se somente os dias úteis.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1995/lei-9099-26-setembro-1995-348608-normaatualizada-pl.html — Art. 3º, 9º e 12-A",
+      "source_document": "jec",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "classe-cumprimento-sentenca",
+      "kind": "class",
+      "code": "classe-cumprimento-sentenca",
+      "name": "CUMPRIMENTO DE SENTENÇA",
+      "aliases": [],
+      "definition": "Art. 513. O cumprimento da sentença será feito segundo as regras deste Título, observando-se, no que couber e conforme a natureza da obrigação, o disposto no Livro II da Parte Especial deste Código.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 513.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "classe-execucao-titulo-extrajudicial",
+      "kind": "class",
+      "code": "classe-execucao-titulo-extrajudicial",
+      "name": "EXECUÇÃO DE TÍTULO EXTRAJUDICIAL",
+      "aliases": [],
+      "definition": "Art. 784. São títulos executivos extrajudiciais, entre outros previstos em lei, cheque, documento público assinado pelo devedor e documento particular assinado pelo devedor e por duas testemunhas.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 784.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "classe-reclamacao-trabalhista",
+      "kind": "class",
+      "code": "classe-reclamacao-trabalhista",
+      "name": "RECLAMAÇÃO TRABALHISTA",
+      "aliases": [
+        "AÇÃO TRABALHISTA",
+        "ATORD",
+        "ATSUM"
+      ],
+      "definition": "Art. 840. A reclamação poderá ser escrita ou verbal.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/declei/1940-1949/decreto-lei-5452-1-maio-1943-415500-normaatualizada-pe.html — Art. 840.",
+      "source_document": "clt",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-899",
+      "kind": "subject",
+      "code": "899",
+      "name": "DIREITO CIVIL",
+      "aliases": [],
+      "definition": "Sem extrato abrangente e específico no recorte oficial deste inventário. Consulte a legislação identificada aplicável ao fato concreto.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html",
+      "source_document": "cc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-10431",
+      "kind": "subject",
+      "code": "10431",
+      "name": "RESPONSABILIDADE CIVIL",
+      "aliases": [],
+      "definition": "Art. 927. Aquele que, por ato ilícito (arts. 186 e 187), causar dano a outrem, fica obrigado a repará-lo.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html — Art. 927.",
+      "source_document": "cc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-14033",
+      "kind": "subject",
+      "code": "14033",
+      "name": "INDENIZAÇÃO POR DANO MORAL",
+      "aliases": [
+        "DANO MORAL"
+      ],
+      "definition": "VI - a efetiva prevenção e reparação de danos patrimoniais e morais, individuais, coletivos e difusos",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html — VI - a efetiva prevenção e reparação de danos patrimoniais e morais",
+      "source_document": "cdc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-dano-material",
+      "kind": "subject",
+      "code": "assunto-dano-material",
+      "name": "INDENIZAÇÃO POR DANO MATERIAL",
+      "aliases": [
+        "DANO MATERIAL"
+      ],
+      "definition": "Art. 402. Salvo as exceções expressamente previstas em lei, as perdas e danos devidas ao credor abrangem, além do que ele efetivamente perdeu, o que razoavelmente deixou de lucrar.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html — Art. 402.",
+      "source_document": "cc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-direito-consumidor",
+      "kind": "subject",
+      "code": "assunto-direito-consumidor",
+      "name": "DIREITO DO CONSUMIDOR",
+      "aliases": [
+        "RELAÇÃO DE CONSUMO",
+        "CDC"
+      ],
+      "definition": "Art. 1º O presente código estabelece normas de proteção e defesa do consumidor, de ordem pública e interesse social, nos termos dos arts. 5º, inciso XXXII, 170, inciso V, da Constituição Federal e art. 48 de suas Disposições Transitórias.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html — Art. 1º",
+      "source_document": "cdc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-vicio-produto",
+      "kind": "subject",
+      "code": "assunto-vicio-produto",
+      "name": "PRODUTO IMPRÓPRIO",
+      "aliases": [
+        "VÍCIO DO PRODUTO",
+        "VÍCIO DE QUALIDADE"
+      ],
+      "definition": "Art. 18. Os fornecedores de produtos de consumo duráveis ou não duráveis respondem solidariamente pelos vícios de qualidade ou quantidade que os tornem impróprios ou inadequados ao consumo a que se destinam ou lhes diminuam o valor, assim como por aqueles decorrentes da disparidade, com as indicações constantes do recipiente, da embalagem, rotulagem ou mensagem publicitária, respeitadas as variações decorrentes de sua natureza, podendo o consumidor exigir a substituição das partes viciadas.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html — Art. 18.",
+      "source_document": "cdc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "assunto-direito-trabalho",
+      "kind": "subject",
+      "code": "assunto-direito-trabalho",
+      "name": "DIREITO DO TRABALHO",
+      "aliases": [],
+      "definition": "Art. 1º Esta Consolidação estatui as normas que regulam as relações individuais e coletivas de trabalho nela previstas.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/declei/1940-1949/decreto-lei-5452-1-maio-1943-415500-normaatualizada-pe.html — Art. 1º Esta Consolidação",
+      "source_document": "clt",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-distribuicao",
+      "kind": "movement",
+      "code": "mov-distribuicao",
+      "name": "DISTRIBUÍDO POR SORTEIO",
+      "aliases": [
+        "DISTRIBUIÇÃO",
+        "DISTRIBUÍDO POR DEPENDÊNCIA"
+      ],
+      "definition": "Art. 285. A distribuição, que poderá ser eletrônica, será alternada e aleatória, obedecendo-se rigorosa igualdade. Parágrafo único. A lista de distribuição deverá ser publicada no Diário de Justiça. Art. 286. Serão distribuídas por dependência as causas de qualquer natureza: I - quando se relacionarem, por conexão ou continência, com outra já ajuizada; II - quando, tendo sido extinto o processo sem resolução de mérito, for reiterado o pedido, ainda que em litisconsórcio com outros autores ou que sejam parcialmente alterados os réus da demanda; III - quando houver ajuizamento de ações nos termos do art. 55, § 3º, ao juízo prevento.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 285-286.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-100-digital",
+      "kind": "movement",
+      "code": "mov-100-digital",
+      "name": "AUTOS INCLUÍDOS NO JUÍZO 100% DIGITAL",
+      "aliases": [
+        "JUÍZO 100% DIGITAL"
+      ],
+      "definition": "Art. 1º Autorizar a adoção, pelos tribunais, das medidas necessárias à implementação do “Juízo 100% Digital” no Poder Judiciário.",
+      "source_ref": "https://atos.cnj.jus.br/atos/detalhar/3512 — Art. 1º",
+      "source_document": "digital",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-audiencia-conciliacao",
+      "kind": "movement",
+      "code": "mov-audiencia-conciliacao",
+      "name": "AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA",
+      "aliases": [
+        "AUDIÊNCIA DESIGNADA",
+        "AUDIÊNCIA DE CONCILIAÇÃO"
+      ],
+      "definition": "Art. 165. Os tribunais criarão centros judiciários de solução consensual de conflitos, responsáveis pela realização de sessões e audiências de conciliação e mediação e pelo desenvolvimento de programas destinados a auxiliar, orientar e estimular a autocomposição.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 165.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-audiencia-instrucao",
+      "kind": "movement",
+      "code": "mov-audiencia-instrucao",
+      "name": "AUDIÊNCIA DE INSTRUÇÃO E JULGAMENTO",
+      "aliases": [
+        "AUDIÊNCIA DE INSTRUÇÃO"
+      ],
+      "definition": "Art. 361. As provas orais serão produzidas em audiência, ouvindo-se nesta ordem, preferencialmente: I - o perito e os assistentes técnicos, que responderão aos quesitos de esclarecimentos requeridos no prazo e na forma do art. 477, caso não respondidos anteriormente por escrito; II - o autor e, em seguida, o réu, que prestarão depoimentos pessoais; III - as testemunhas arroladas pelo autor e pelo réu, que serão inquiridas.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 361.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-intimacao",
+      "kind": "movement",
+      "code": "mov-intimacao",
+      "name": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA",
+      "aliases": [
+        "INTIMAÇÃO",
+        "INTIMAÇÃO ELETRÔNICA"
+      ],
+      "definition": "Art. 269. Intimação é o ato pelo qual se dá ciência a alguém dos atos e dos termos do processo.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 269.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-citacao",
+      "kind": "movement",
+      "code": "mov-citacao",
+      "name": "CITAÇÃO",
+      "aliases": [
+        "EXPEDIDA A CITAÇÃO",
+        "CITAÇÃO ELETRÔNICA",
+        "CARTA DE CITAÇÃO"
+      ],
+      "definition": "Art. 238. Citação é o ato pelo qual são convocados o réu, o executado ou o interessado para integrar a relação processual.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 238.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-ato-ordinatorio",
+      "kind": "movement",
+      "code": "mov-ato-ordinatorio",
+      "name": "ATO ORDINATÓRIO PRATICADO",
+      "aliases": [
+        "ATO ORDINATÓRIO"
+      ],
+      "definition": "§ 4º Os atos meramente ordinatórios, como a juntada e a vista obrigatória, independem de despacho, devendo ser praticados de ofício pelo servidor e revistos pelo juiz quando necessário.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — § 4º Os atos meramente ordinatórios",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-juntada",
+      "kind": "movement",
+      "code": "mov-juntada",
+      "name": "JUNTADA DE CERTIDÃO",
+      "aliases": [
+        "JUNTADA",
+        "JUNTADA DE PETIÇÃO",
+        "JUNTADA DE DOCUMENTO"
+      ],
+      "definition": "§ 4º Os atos meramente ordinatórios, como a juntada e a vista obrigatória, independem de despacho, devendo ser praticados de ofício pelo servidor e revistos pelo juiz quando necessário.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — § 4º Os atos meramente ordinatórios",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-contestacao",
+      "kind": "movement",
+      "code": "mov-contestacao",
+      "name": "JUNTADA DE CONTESTAÇÃO",
+      "aliases": [
+        "CONTESTAÇÃO"
+      ],
+      "definition": "Art. 336. Incumbe ao réu alegar, na contestação, toda a matéria de defesa, expondo as razões de fato e de direito com que impugna o pedido do autor e especificando as provas que pretende produzir.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 336.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-sentenca",
+      "kind": "movement",
+      "code": "mov-sentenca",
+      "name": "SENTENÇA",
+      "aliases": [],
+      "definition": "§ 1º Ressalvadas as disposições expressas dos procedimentos especiais, sentença é o pronunciamento por meio do qual o juiz, com fundamento nos arts. 485 e 487, põe fim à fase cognitiva do procedimento comum, bem como extingue a execução.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — § 1º Ressalvadas as disposições expressas dos procedimentos especiais",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "mov-transito",
+      "kind": "movement",
+      "code": "mov-transito",
+      "name": "TRÂNSITO EM JULGADO",
+      "aliases": [],
+      "definition": "Art. 502. Denomina-se coisa julgada material a autoridade que torna imutável e indiscutível a decisão de mérito não mais sujeita a recurso.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 502.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "conceito-prazo-jec",
+      "kind": "concept",
+      "code": "conceito-prazo-jec",
+      "name": "PRAZOS NO JUIZADO ESPECIAL",
+      "aliases": [
+        "PRAZO",
+        "DIAS ÚTEIS"
+      ],
+      "definition": "Art. 12-A. Na contagem de prazo em dias, estabelecido por lei ou pelo juiz, para a prática de qualquer ato processual, inclusive para a interposição de recursos, computar-se-ão somente os dias úteis.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1995/lei-9099-26-setembro-1995-348608-normaatualizada-pl.html — Art. 12-A.",
+      "source_document": "jec",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "conceito-polos",
+      "kind": "concept",
+      "code": "conceito-polos",
+      "name": "POLO ATIVO E POLO PASSIVO",
+      "aliases": [
+        "AUTOR",
+        "RÉU",
+        "PARTES"
+      ],
+      "definition": "Art. 319. A petição inicial indicará os nomes do autor e do réu e os demais requisitos legais da demanda.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 319.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "conceito-advogado",
+      "kind": "concept",
+      "code": "conceito-advogado",
+      "name": "ADVOGADO",
+      "aliases": [
+        "PROCURADOR",
+        "OAB"
+      ],
+      "definition": "Art. 103. A parte será representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 103.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    },
+    {
+      "id": "conceito-valor-causa",
+      "kind": "concept",
+      "code": "conceito-valor-causa",
+      "name": "VALOR DA CAUSA",
+      "aliases": [
+        "VALOR ATRIBUÍDO"
+      ],
+      "definition": "Art. 291. A toda causa será atribuído valor certo, ainda que não tenha conteúdo econômico imediatamente aferível.",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 291.",
+      "source_document": "cpc",
+      "donor_mapping_verified_by_cnj": false
+    }
+  ],
+  "supplemental_aliases": {
+    "class:7": {
+      "aliases": [
+        "PROCEDIMENTO COMUM",
+        "AÇÃO ORDINÁRIA"
+      ],
+      "verified_by_cnj": false
+    }
+  }
+}
