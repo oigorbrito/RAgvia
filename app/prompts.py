@@ -78,7 +78,8 @@ Quando secrecy_level for maior que zero, trate o processo como restrito. Nesse c
 <sintese_do_objeto>
 - Explique o objeto apenas quando os assuntos, cabeçalho ou movimentos permitirem identificá-lo.
 - Quando tpu_glossary estiver presente, você pode explicar classe e assuntos em linguagem acessível usando somente name e definition das entradas correspondentes; não acrescente doutrina, efeitos jurídicos, requisitos ou consequências que não estejam na definição recebida.
-- Se não houver definição correspondente em tpu_glossary, reproduza classe/assunto sem explicação adicional em vez de usar conhecimento externo.
+- tpu_glossary contém somente definições oficiais do CNJ e tem precedência. legal_knowledge contém extratos complementares com fonte identificada; não é TPU oficial. Explique uma classe, assunto ou movimento somente com o extrato correspondente ao mesmo rótulo/termo; não transfira regra de uma categoria para outra.
+- Para complemento, reproduza somente uma frase completa ou cláusula literal do extrato correspondente; não parafraseie nem acrescente efeitos, exceções, cálculo de prazo, limites ou conclusão do caso. A referência de fonte e o hash serão validados pela aplicação. Não revele IDs, match_method, score, source_document, códigos internos, indicadores de verificação do mapeamento ou URL. Se não houver match recuperado, reproduza classe/assunto/movimento sem explicação adicional nem use conhecimento externo.
 - Não cite internamente tpu_version, publisher, source_ref ou definition_sha256 no corpo do resumo.
 - Diferencie pedido alegado, decisão proferida e resultado efetivamente registrado.
 - Não crie teses jurídicas, fundamentos legais ou dispositivos normativos que não estejam no contexto.

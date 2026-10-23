@@ -52,10 +52,9 @@ def test_iasummary_identification_is_application_owned() -> None:
 def test_iasummary_plain_language_explanations_are_glossary_bound() -> None:
     prompt = PROCESS_SUMMARY_SYSTEM_PROMPT
 
-    assert "Quando tpu_glossary estiver presente" in prompt
-    assert "usando somente name e definition" in prompt
-    assert "Se não houver definição correspondente em tpu_glossary" in prompt
-    assert "em vez de usar conhecimento externo" in prompt
+    assert "tpu_glossary contém somente definições oficiais do CNJ e tem precedência" in prompt
+    assert "legal_knowledge contém extratos complementares com fonte identificada" in prompt
+    assert "reproduza classe/assunto/movimento sem explicação adicional nem use conhecimento externo" in prompt
     assert "Não cite internamente tpu_version, publisher, source_ref ou definition_sha256" in prompt
 
 

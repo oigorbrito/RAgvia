@@ -1,0 +1,69 @@
+{
+  "retrieved_at_utc": "2026-10-22T23:49:46.212410+00:00",
+  "documents": [
+    {
+      "id": "cpc",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "0d7f8c9a0f67734cc047c3bea8bfabd57a7823f361d774041e11815822722821",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.297781+00:00",
+      "bytes": 938199
+    },
+    {
+      "id": "cc",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "6ed7c19586b21355e998746a0620cea5c2f3e6a24036d7f3743b7d30330e5d90",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.346523+00:00",
+      "bytes": 1571920
+    },
+    {
+      "id": "cdc",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "0f46ff9e5738563d855ff61d4d914017a7f265de248f331239da36d30af3a39d",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.353162+00:00",
+      "bytes": 220597
+    },
+    {
+      "id": "jec",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/1995/lei-9099-26-setembro-1995-348608-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "8dc7e91a4723a552034231716e1f058cb2f6d0b771280a15337d2babda30534e",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.357173+00:00",
+      "bytes": 114215
+    },
+    {
+      "id": "clt",
+      "url": "https://www2.camara.leg.br/legin/fed/declei/1940-1949/decreto-lei-5452-1-maio-1943-415500-normaatualizada-pe.html",
+      "http_status": 200,
+      "sha256": "bac9366bde35fa457231982db4ae0bec87561441699f504cd1a21891ff6f4703",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.395037+00:00",
+      "bytes": 1790529
+    },
+    {
+      "id": "oab",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/1994/lei-8906-4-julho-1994-349751-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "0fccfcb3d35ff7324d4e13ede0d71652ca6cf5a9488dc930162e0b86e8659b7e",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.414813+00:00",
+      "bytes": 227115
+    },
+    {
+      "id": "digital",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/3512",
+      "http_status": 200,
+      "sha256": "a1461ea9444adf5f99eb6de0656775f05d5c0b6d8f63bc5a2508601d5a32bc6b",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.414813+00:00",
+      "bytes": 20371
+    }
+  ],
+  "note": "Pinned public primary-source HTML hashes for the cited excerpts; not a legal currency certification."
+}

@@ -57,6 +57,18 @@ def test_known_codes_resolve_from_pinned_version_without_replacing_source_fields
     assert resolved[1]["definition"] == "Definição sintética do assunto."
 
 
+def test_pinned_official_alias_resolves_official_definition_without_rewriting_it():
+    from app.tpu_glossary import get_tpu_catalog, resolve_process_tpu_definitions
+
+    resolved = resolve_process_tpu_definitions(
+        class_code=None, class_name=" AÇÃO ORDINÁRIA ", subjects=[], catalog=get_tpu_catalog()
+    )
+    assert len(resolved) == 1
+    assert resolved[0].code == "7"
+    assert resolved[0].publisher == "Conselho Nacional de Justiça (CNJ)"
+    assert resolved[0].definition == "Procedimento comum conforme a nomenclatura do CPC 2015, com referência ao art. 318 do CPC 2015."
+
+
 def test_unknown_and_malformed_codes_are_omitted_without_name_fallback(tmp_path) -> None:
     path = tmp_path / "tpu.json"
     path.write_text(

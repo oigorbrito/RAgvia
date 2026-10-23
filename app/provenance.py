@@ -208,8 +208,8 @@ async def replace_summary_glossary_sources(
         source_ref = str(source.get("source_ref") or "").strip()
         digest = str(source.get("definition_sha256") or "").strip()
         source_order = int(source.get("source_order", 0))
-        if kind not in {"class", "subject"}:
-            raise ValueError("invalid TPU glossary provenance kind")
+        if kind not in {"class", "subject", "movement", "concept"}:
+            raise ValueError("invalid legal knowledge provenance kind")
         if not all((code, tpu_version, publisher, origin, source_ref)):
             raise ValueError("TPU glossary provenance is missing required metadata")
         if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
@@ -335,7 +335,7 @@ async def load_used_summary_sources(
     )
     sources.extend(
         {
-            "kind": "tpu_glossary",
+            "kind": "tpu_glossary" if str(row["kind"]) in {"class", "subject"} and str(row["tpu_version"]) != "ragvia-legal-m02-v1" else "legal_knowledge",
             "glossary_kind": str(row["kind"]),
             "code": str(row["code"]),
             "tpu_version": str(row["tpu_version"]),

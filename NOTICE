@@ -20,4 +20,8 @@ Additional parser provenance:
 
 - oigorbrito/rag_resumo, resumo/parser.py at 0d0f8cbb495292a3f3d61fba75428f3136059ea8: deterministic parser rules adapted for the explicitly requested RAGVIA-M01 migration. The pinned donor snapshot has no standalone LICENSE file; this notice does not invent an upstream license grant. See docs/migrations/ragvia-m01-parser-parity.md for scope, attribution, compatibility differences and release-review limitations.
 
+Additional legal-knowledge provenance:
+
+- oigorbrito/rag_resumo, `resumo/knowledge.py`, `resumo/embeddings.py`, and `kb/glossario.jsonl` at `0d0f8cbb495292a3f3d61fba75428f3136059ea8`: retrieval behavior and selected aliases were measured/adapted for RAGVIA-M02. The donor snapshot has no standalone LICENSE file. Donor explanations are not republished as legal authority; transported explanations are sourced to identified legislation/CNJ acts, and unsubstantiated explanations are dropped. See `docs/migrations/ragvia-m02-knowledge-parity.md` and `docs/migrations/evidence/ragvia-m02-content-audit.json`. Owner legal/license review is required before release.
+
 Rpy is licensed under the MIT License. See the repository root LICENSE file for the project-wide terms.
