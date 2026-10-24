@@ -1,0 +1,42 @@
+# RAGVIA-DOC01 — Paridade de apresentação do resumo
+
+**Status:** concluído em branch draft sobre a PR #15; nenhuma alteração de schema, prompt, geração ou provedor live.
+
+## Objetivo e método
+
+Comparar o renderer congelado do doador com a apresentação canônica de RAgvia para a mesma fixture sintética, corrigindo somente diferenças visuais demonstradas. O doador examinado foi `oigorbrito/rag_resumo` em `0d0f8cbb495292a3f3d61fba75428f3136059ea8`, usando `resumo/render.py` e `GeradorTemplate` já capturados em `docs/evaluation/evidence/m03-donor-template.json`. A fixture comum é `tests/fixtures/judit/parser_parity_synthetic.json` (SHA-256 `badc50e69b79be15f4334f555d679a1794ff0c4d6e2bbd111eab18c579180194`). Nenhum processo real, tráfego externo ou chamada paga foi usado; o fluxo RAgvia usou o stub determinístico do teste de integração.
+
+## Comparação funcional e decisão de migração
+
+| Capacidade | Renderer doador | RAgvia antes de DOC01 | Decisão / evidência após DOC01 |
+|---|---|---|---|
+| Título e seções | Título e seções Markdown (`Partes`, `Classe`, `Assuntos`, `Movimentações`) | Markdown convertido em cabeçalhos semânticos no DOM | Equivalente; preservado. Cabeçalhos continuam navegáveis e estilizados pelo frontend canônico. |
+| Contexto e andamento | Dois parágrafos distintos em `introducao` | Uma única linha de `synthesis`, com os dois rótulos concatenados | Lacuna visual reproduzida. O frontend separa em parágrafos rotulados quando há exatamente um par de rótulos válido; o `iaSummary` não é reescrito. A cópia insere a quebra correspondente. |
+| Identidade, metadados e datas | Dados incorporados em prosa com destaque inline | `ProcessHeader` mostrava valores de fonte como número, instância e timestamp ISO | Rótulos em português preservados; CNJ, instância, valor e data de distribuição recebem formatação pt-BR. Timestamp é convertido no fuso `America/Sao_Paulo`; o texto bruto segue disponível no artefato/API. |
+| Partes e representantes | Representação aparece nas descrições das partes; o mesmo advogado pode ser repetido para cada parte | Partes e relações de representação em seções distintas; repetição de uma pessoa representante | O compositor agrupa relações apenas quando a identidade normalizada do representante coincide, deduplica a mesma relação e lista todas as partes representadas. Teste cobre duas relações e repetição idêntica. Sem inferir polo, mérito ou responsabilidade; identificadores documentais não são publicados. A seção posterior “Dados da fonte processual” continua separada e identificada como fonte, preservando seus detalhes próprios. |
+| Classe e assuntos | Explicações extensas, inclusive classe secundária “EMBARGOS” | Classe e assuntos canônicos em seções próprias | Hierarquia e nomes mantidos; valores/nomes recebem ênfase semântica. Não foi copiada a classe secundária suspeita nem explicações do doador sem suporte no processo. Divergência intencional já justificada na evidência M03. |
+| Cronologia | Um parágrafo narrativo com datas destacadas | Lista de movimentações na síntese e linha do tempo detalhada da fonte em seção separada | A lista da síntese permanece em ordem cronológica de origem; datas válidas passam a ser elementos `<time>` destacados. A linha do tempo da fonte continua em ordem mais recente primeiro, como seu rótulo já documenta. A data agendada não é tratada como ato realizado. |
+| Destaques e markup | `strong`/`span` com classes JSX/Tailwind no texto do doador | Cabeçalhos e listas sem ênfase equivalente nos dados importantes | Migração sem classes ou HTML do doador: ênfase DOM restrita a rótulos do cabeçalho, partes, representante, classe, assuntos e datas. Conteúdo é inserido com `textContent`/nós de texto. HTML, atributos de evento, tags JSX e JSON não são interpretados; teste adversarial confirma que `<script>`/`onmouseover` ficam inertes. |
+| Cópia | O checkout do doador não contém renderer de clipboard nem implementação de cópia (`clipboard`/`Copiar` não encontrados) | Botão canônico copia uma projeção legível do Markdown validado | Mantido o botão existente. A projeção agora espelha a separação visual do contexto/andamento e os valores formatados do cabeçalho; teste Chromium compara a cópia integral com essa projeção e confirma preservação de fatos, datas e seções. |
+
+## Alterações e compatibilidade
+
+- `app/frontend/app.js` e `app/frontend/app.css`: transformações exclusivamente de apresentação, sem DOM construído a partir de HTML fornecido pelo resumo.
+- `app/summary_output.py`: agrupa relações repetidas do mesmo representante na composição Markdown canônica, sem remover partes representadas nem alterar a projeção estruturada persistida.
+- `tests/integration/test_legal_knowledge_parity_postgres.py`: o stub sintético emitia “Foi/Foram” após o prefixo `Em <data>,`; corrigido para minúscula nessa composição de teste. Não houve alteração de prompt, provedor ou texto por heurística na geração de produção.
+- Contrato do campo `iaSummary`, validação anterior à publicação, schema-v3, leitura compatível v2, autorização/tenant, dados históricos e pipeline único permanecem inalterados. A integração confirma `iaSummary == summary.markdown` e validação aprovada.
+- Não há migration SQL ou mudança de persistência. A repetição entre o resumo e os dados de origem permanece explicitamente separada por seções: cada seção serve a um propósito e conserva os campos próprios da fonte.
+
+## Evidências reproduzíveis
+
+A integração sintética PostgreSQL → worker canônico → persistência/API foi exercitada no commit de código `b68555da6bf0c0090d7613f5c06b31476d5a5c26`, base `7224c9577ae1851e7f02e3af8e49a905bbb62c1c`. Depois, `scripts/run_m03_browser_smoke.py` iniciou a API local e o Chromium acessou o processo pela API real local, copiou o resumo e verificou a renderização. O resultado é evidência sintética de integração/contrato, não de qualidade de modelo live, latência ou custo.
+
+- Fixture: SHA-256 `badc50e69b79be15f4334f555d679a1794ff0c4d6e2bbd111eab18c579180194`.
+- API `iaSummary` e demonstração Markdown: SHA-256 `3a31f7c66eb248137351dc63ef3d2e9bf09c606e9977b9d5d8f98eee8b560a42`; igualdade byte a byte confirmada em `docs/evaluation/evidence/doc01-synthetic-summary.md`.
+- Evidência estruturada do navegador: `docs/evaluation/evidence/doc01-browser-smoke.json` (Chromium `140.0.7339.16`, viewport `1440×900`; fixture, hashes do resumo/DOM/clipboard e checks `PASS`). Captura visual: `docs/evaluation/evidence/doc01-browser-smoke.png` (SHA-256 `f691b39808b4b01eaab055e7cc73a86b75afee6b6d92678e9354c7a1f4129b83`).
+- PostgreSQL: imagem `pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b`; PostgreSQL `16.15`, extensão `vector 0.8.6`.
+- Suite unitária Linux: imagem local de testes `sha256:c0f369a87fe34768297e6058d968f316427bbfa405771defd8b2c641134d24a1`; `env -u PYTEST_DISABLE_PLUGIN_AUTOLOAD python -m pytest -q -p no:cacheprovider tests --ignore=tests/integration` → **1364 passed**. A tentativa equivalente no host Windows falha em testes de sockets Unix e execução de `/bin/sh`; foi repetida no container Linux, onde passou.
+- Checks no commit de código: `python scripts/project_harness.py` → PASS; `python -m ruff check app/summary_output.py tests/test_summary_output.py tests/integration/test_legal_knowledge_parity_postgres.py tests/frontend_browser_smoke.py scripts/run_m03_browser_smoke.py` → PASS; `node tests/frontend_behavior_test.mjs` → PASS; `gitleaks detect --source . --no-git --exit-code 1` → PASS; `git diff --check` → PASS.
+- Testes direcionados: `pytest -q tests/test_summary_output.py tests/test_summary_contract.py tests/test_writing_parity_evaluation.py` → **27 passed**; `pytest -q tests/integration/test_legal_knowledge_parity_postgres.py` com PostgreSQL real → **1 passed**; browser local conectado à API → **PASS**.
+
+Nenhuma chamada paga ou provedor live foi executado. A branch DOC01 e a PR permanecem draft; PR #15 não foi alterada nem mesclada. O status de CI do novo head depende da execução após publicação da PR e não é inferido pelos checks locais.
