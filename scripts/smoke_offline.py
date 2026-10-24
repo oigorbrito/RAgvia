@@ -7,7 +7,7 @@ import httpx
 import app.rag as rag
 import app.process_requests as process_requests
 from app.claim_evidence import build_material_claims
-from app.summary_output import structured_summary_document
+from app.summary_output import render_structured_summary, structured_summary_document
 from app.api import app
 from app.db import create_pool
 from app.migrations import migrate
@@ -31,7 +31,10 @@ async def main() -> None:
         async def fake_generate(_client, _context, validation_errors=None):
             assert validation_errors is None
             payload = {
-                "synthesis": f"Processo {code}. Situação processual registrada.",
+                "synthesis": (
+                    f"Contexto do processo: demonstração sintética do processo {code}. "
+                    "Andamento processual: situação registrada para teste offline."
+                ),
                 "timeline": [],
                 "current_status": "Situação processual registrada.",
                 "attention": ["Nenhuma divergência objetiva identificada."],
@@ -48,7 +51,7 @@ async def main() -> None:
             _context["_structured_summary"] = structured_summary_document(
                 payload, _context
             )
-            return f"# Resumo do processo\n\nProcesso {code}. Situação processual registrada.\n\n## Pontos de atenção\nNenhuma divergência objetiva identificada."
+            return render_structured_summary(payload, _context)
         rag.anthropic_client = lambda *_args, **_kwargs: object()
         rag._generate = fake_generate
         process_requests.create_lawsuit_request = forbidden
