@@ -19,7 +19,7 @@ from app.worker import Worker, WorkerSettings
 
 def _prime_fake_structured_summary(context: dict) -> None:
     payload = {
-        "synthesis": "Síntese factual de teste.",
+        "synthesis": "Contexto do processo: síntese factual de teste. Andamento processual: situação registrada nos autos.",
         "timeline": [],
         "current_status": "Situação atual registrada nos autos.",
         "attention": ["Nenhuma divergência objetiva identificada."],
@@ -129,7 +129,7 @@ async def test_large_process_uses_offline_embeddings_and_hybrid_retrieval(
 - Tribunal: TJRS
 </ProcessHeader>
 
-O processo possui histórico extenso e foi recuperado por seleção híbrida offline.
+Contexto do processo: processo sintético com histórico extenso. Andamento processual: os movimentos foram recuperados por seleção híbrida offline.
 
 ## Classe
 Procedimento Comum
@@ -285,7 +285,7 @@ Nenhuma divergência objetiva identificada.
             validation = decode_json_object(summary["validation"], label="summary validation")
             assert validation["passed"] is True
             assert summary["model"] == "claude-sonnet-5"
-            assert summary["prompt_version"] == "process-summary-v6"  # nosec B101 - pytest assertion
+            assert summary["prompt_version"] == "process-summary-v7"  # nosec B101 - pytest assertion
 
             job_states = await conn.fetch(
                 """

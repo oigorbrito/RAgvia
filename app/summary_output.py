@@ -399,18 +399,25 @@ def render_structured_summary(payload: dict[str, Any], context: dict[str, Any]) 
     lines.extend(["", payload["synthesis"]])
 
     parties = context.get("parties")
-    party_names = (
-        [
-            _inline(item.get("name") or item.get("nome"))
-            for item in parties
-            if isinstance(item, dict)
-        ]
-        if isinstance(parties, list)
-        else []
-    )
-    party_names = [name for name in party_names if name]
+    party_lines = []
+    if isinstance(parties, list):
+        for item in parties:
+            if not isinstance(item, dict):
+                continue
+            name = _inline(item.get("name") or item.get("nome"))
+            if not name:
+                continue
+            side = _inline(item.get("side")).casefold()
+            side_label = {
+                "active": "ativo",
+                "passive": "passivo",
+                "ativo": "ativo",
+                "passivo": "passivo",
+            }.get(side)
+            suffix = f" — polo cadastrado: {side_label}" if side_label else ""
+            party_lines.append(f"- {name}{suffix}")
     lines.extend(["", "## Partes"])
-    lines.extend((f"- {name}" for name in party_names) if party_names else ["Não informado."])
+    lines.extend(party_lines or ["Não informado."])
 
     representatives = structured_summary_process(context)["representatives"]
     representative_lines = []

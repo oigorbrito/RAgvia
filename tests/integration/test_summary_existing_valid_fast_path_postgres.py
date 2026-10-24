@@ -322,7 +322,7 @@ Nenhuma divergência objetiva identificada."""
         assert result["reused"] is False
         assert stored["markdown"] == repaired_summary
         assert stored["model"] == "claude-sonnet-5"
-        assert stored["prompt_version"] == "process-summary-v6"  # nosec B101 - pytest assertion
+        assert stored["prompt_version"] == "process-summary-v7"  # nosec B101 - pytest assertion
         assert claim_count == 3
     finally:
         await pool.close()
@@ -403,7 +403,7 @@ async def test_approved_summary_replacement_requires_publishable_restricted_docu
             )
             assert unchanged["markdown"] == "approved public summary"
             assert unchanged["model"] == "claude-sonnet-5"
-            assert unchanged["prompt_version"] == "process-summary-v6"  # nosec B101 - pytest assertion
+            assert unchanged["prompt_version"] == "process-summary-v7"  # nosec B101 - pytest assertion
 
             assert await _persist_summary(
                 conn,

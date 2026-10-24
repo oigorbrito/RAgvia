@@ -86,7 +86,7 @@ OPUS_STEP_THRESHOLD = 100
 SHORT_SUMMARY_STEP_MAX = 15
 MEDIUM_SUMMARY_STEP_MAX = 60
 MAX_TOKENS = 4000
-PROMPT_VERSION = "process-summary-v6"
+PROMPT_VERSION = "process-summary-v7"
 _RENDER_ONLY_HEADER_FIELDS = frozenset(
     {"phase", "status", "distribution_date", "judge", "court_unit", "source_parser"}
 )
@@ -455,6 +455,7 @@ async def _load_context(
             "_glossary_sources": [],
         }
 
+    base["_require_context_and_progress"] = True
     definitions = resolve_process_tpu_definitions(
         class_code=base["header"].get("class_code"),
         subjects=base["subjects"],
@@ -671,6 +672,7 @@ def _validate_provider_summary(text: str, context: dict[str, Any]) -> Validation
         require_attention_section=True,
         required_attention_phrases=list(context.get("source_warnings", [])),
         require_document_title=True,
+        require_context_and_progress=bool(context.get("_require_context_and_progress")),
         allowed_headings=(
             "Resumo do processo",
             "Partes",

@@ -10,6 +10,7 @@ This directory records engineering policy that spans individual migrations and d
 - `../migrations/` — change-specific migration notes and durable decisions.
 - `../../AGENTS.md` — executable operating contract for coding agents.
 - `feature-registry.md` — registro de contratos protegidos, estado e evidências.
+- `legal-summary-roadmap.md` — etapas condicionais de paridade do resumo jurídico, com evidência, gates e limites de autorização.
 - `validation-matrix.md` — ligação entre contratos e validações executáveis.
 - `regression-policy.md` — política de impacto, persistência, evidência e lacunas.
 - `architecture-decisions/ADR-0001-windows-update-channel.md` — decisão do canal de atualização Windows e seus gates.

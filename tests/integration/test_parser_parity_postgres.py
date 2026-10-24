@@ -62,7 +62,7 @@ async def test_parser_annotations_survive_ingestion_but_never_cross_provider_bou
         hearing = next(s for s in steps if "scheduled_hearing" in s["source_temporal_facts"])
         assert hearing["source_temporal_facts"]["scheduled_hearing"] == {"date": "03/03/2027", "time": "15:00"}
         payload = {
-            "synthesis": "Demonstração sintética: audiência de conciliação designada para 03/03/2027.",
+            "synthesis": "Contexto do processo: demonstração sintética. Andamento processual: audiência de conciliação designada para 03/03/2027.",
             "timeline": [s["text"] for s in steps],
             "current_status": "Remessa interna registrada em 02/09/2026.",
             "attention": ["Demonstração sintética limitada ao recorte de movimentações fornecido."],

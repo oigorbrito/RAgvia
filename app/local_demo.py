@@ -16,7 +16,7 @@ from app.db import create_pool
 from app.json_utils import decode_json_object
 from app.processes import finalize_version, stage_version
 from app.rag import _load_context, _persist_summary, _validate_provider_summary
-from app.summary_output import structured_summary_document
+from app.summary_output import render_structured_summary, structured_summary_document
 
 DEMO_TOKEN = os.getenv("RPY_DEMO_BEARER_TOKEN", "dev-local-token")
 DEMO_CODE = "0000000-00.2026.8.21.0001"
@@ -156,14 +156,11 @@ async def seed_demo(database_url: str) -> None:
         context = await _load_context(
             pool, process_id, version_id, tenant_id=tenant_id
         )
-        summary = (
-            f"# Resumo do processo\n\n"
-            f"Processo {DEMO_CODE}. Situação processual registrada.\n\n"
-            "## Pontos de atenção\n"
-            "Nenhuma divergência objetiva identificada."
-        )
         demo_payload = {
-            "synthesis": f"Processo {DEMO_CODE}. Situação processual registrada.",
+            "synthesis": (
+                f"Contexto do processo: demonstração local do processo {DEMO_CODE}. "
+                "Andamento processual: situação sintética registrada para demonstração."
+            ),
             "timeline": [],
             "current_status": "Situação processual registrada.",
             "attention": ["Nenhuma divergência objetiva identificada."],
@@ -178,6 +175,7 @@ async def seed_demo(database_url: str) -> None:
         )
         context["_parsed_summary"] = demo_payload
         structured_output = structured_summary_document(demo_payload, context)
+        summary = render_structured_summary(demo_payload, context)
         result = _validate_provider_summary(summary, context)
         if not result.passed:
             raise RuntimeError(

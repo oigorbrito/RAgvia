@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -109,11 +110,11 @@ def configure_ready_api(page: Page, payload: dict) -> list[dict]:
     return requests
 
 
-def fill_lookup(page: Page) -> None:
+def fill_lookup(page: Page, *, token: str = TOKEN, code: str = VALID_CODE) -> None:
     if page.locator("#auth-panel").is_hidden():
         page.locator("#access-trigger").click()
-    page.locator("#bearer-token").fill(TOKEN)
-    page.locator("#process-code").fill(VALID_CODE)
+    page.locator("#bearer-token").fill(token)
+    page.locator("#process-code").fill(code)
     page.locator("#search-submit").click()
 
 
@@ -276,11 +277,93 @@ def run(*, api_response: dict | None = None) -> None:
         thread.join(timeout=5)
 
 
+def _expected_clipboard(markdown: str) -> str:
+    lines = []
+    for raw in markdown.splitlines():
+        line = raw.strip()
+        if not line:
+            lines.append("")
+        elif line.startswith('<ProcessHeader className="process-header">') or line == "</ProcessHeader>":
+            continue
+        elif match := re.match(r"^<Party\s+name=([\"'])([^\"'<>]+)\1\s*/>$", line):
+            lines.append(match.group(2))
+        elif match := re.match(r"^#{1,3}\s+(.+)$", line):
+            lines.append(match.group(1))
+        elif match := re.match(r"^[-*]\s+(.+)$", line):
+            lines.append(f"- {match.group(1)}")
+        else:
+            lines.append(line)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def run_connected_api(*, api_origin: str, api_response: dict, token: str) -> None:
+    _require(api_response.get("summary", {}).get("validation", {}).get("passed") is True,
+             "connected API artifact must be validated")
+    _require(api_response.get("iaSummary") == api_response.get("summary", {}).get("markdown"),
+             "API Markdown must equal the validated summary")
+    code = api_response["code"]
+    requests: list[dict] = []
+    responses: list[dict] = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context()
+        context.grant_permissions(["clipboard-read", "clipboard-write"])
+        page = context.new_page()
+        page.on("request", lambda request: requests.append({
+            "url": request.url,
+            "authorization": request.headers.get("authorization"),
+        }))
+        page.on("response", lambda response: responses.append({
+            "url": response.url, "status": response.status,
+        }))
+        page_errors: list[str] = []
+        page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+        page.goto(api_origin, wait_until="networkidle")
+        fill_lookup(page, token=token, code=code)
+        try:
+            page.locator("#result").wait_for(state="visible", timeout=10000)
+        except Exception as exc:
+            safe_responses = [item for item in responses if "/processes/" in item["url"]]
+            raise AssertionError(
+                f"connected API did not render the process; responses={safe_responses}; page_errors={page_errors}"
+            ) from exc
+        summary_body = page.locator("#summary-body")
+        summary_body.wait_for(state="visible")
+        rendered = summary_body.inner_text()
+        for phrase in (
+            "Contexto do processo:", "Andamento processual:", "Partes",
+            "Representantes", "Classe", "Assuntos", "Movimentações",
+            "Pontos de atenção", "Pessoa Sintética Alfa", "03/03/2027",
+        ):
+            _require(phrase in rendered, f"browser document is missing {phrase!r}")
+        page.locator("#copy-summary").click()
+        from playwright.sync_api import expect
+        expect(page.locator("#copy-summary")).to_contain_text("copiado")
+        copied = page.evaluate("navigator.clipboard.readText()")
+        expected_copy = _expected_clipboard(api_response["iaSummary"])
+        _require(copied.replace("\r\n", "\n") == expected_copy, "clipboard must preserve the exact API text apart from platform line endings")
+        for fact in ("01/09/2026", "03/03/2027", "15:00", "Pessoa Sintética Alfa"):
+            _require(fact in copied, f"clipboard changed or omitted {fact!r}")
+        _require(all(request["authorization"] != f"Bearer {token}" or "/processes/" in request["url"] for request in requests),
+                 "Bearer token must only accompany the authenticated process request")
+        _require(any(request["url"].startswith(api_origin) and "/processes/" in request["url"] for request in requests),
+                 "browser must fetch the process from the connected local API")
+        _require(page_errors == [], f"browser errors: {page_errors}")
+        browser.close()
+    print("local API -> browser presentation/copy: PASS (synthetic)")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-response", type=Path,
-                        help="Synthetic response exported by test_pipeline_e2e")
+                        help="Synthetic response exported by the PostgreSQL canonical E2E")
+    parser.add_argument("--api-origin", help="Connect the browser directly to this local FastAPI origin")
+    parser.add_argument("--api-token", help="Synthetic test-only Bearer token for the connected API")
     args = parser.parse_args()
     response = json.loads(args.api_response.read_text(encoding="utf-8")) if args.api_response else None
     run(api_response=response)
+    if args.api_origin:
+        if not response or not args.api_token:
+            parser.error("--api-origin requires --api-response and --api-token")
+        run_connected_api(api_origin=args.api_origin.rstrip("/"), api_response=response, token=args.api_token)
     print("frontend browser smoke: PASS")

@@ -114,7 +114,7 @@ async def test_sonnet_5_request_uses_cacheable_system_prompt_without_custom_samp
     request = client.messages.calls[0]
     assert request["model"] == MODEL == SONNET_MODEL == "claude-sonnet-5"
     assert request["max_tokens"] == MAX_TOKENS == 4000
-    assert PROMPT_VERSION == "process-summary-v6"  # nosec B101 - pytest assertion
+    assert PROMPT_VERSION == "process-summary-v7"  # nosec B101 - pytest assertion
     assert REQUESTED_TEMPERATURE == 0.2
     assert "temperature" not in request
     assert "top_p" not in request

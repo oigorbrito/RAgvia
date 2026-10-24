@@ -27,7 +27,7 @@ from app.worker import Worker, WorkerSettings
 
 def _prime_fake_structured_summary(context: dict) -> None:
     payload = {
-        "synthesis": "Síntese factual de teste.",
+        "synthesis": "Contexto do processo: síntese factual de teste. Andamento processual: situação registrada nos autos.",
         "timeline": [],
         "current_status": "Situação atual registrada nos autos.",
         "attention": ["Nenhuma divergência objetiva identificada."],
@@ -321,7 +321,7 @@ async def test_public_lifecycle_runs_through_fake_pipeline(
 - Tribunal: TJRS
 </ProcessHeader>
 
-O processo contém registros de distribuição, citação e sentença.
+Contexto do processo: processo sintético com distribuição, citação e sentença registradas. Andamento processual: o último movimento fornecido é uma sentença.
 
 ## Classe
 Procedimento Comum
