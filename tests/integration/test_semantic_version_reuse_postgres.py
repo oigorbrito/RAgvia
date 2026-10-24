@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.claim_verification import verify_material_claims
 from app.claim_evidence import (
     build_material_claims,
     evidence_catalog,
@@ -191,6 +192,14 @@ async def test_semantically_equal_response_reuses_current_version_and_summary(
             "court": process["court"],
             "header": header,
             "parties": parties,
+            "legal_knowledge": [
+                {
+                    "definition": (
+                        "Resumo sintético. Situação atual registrada. "
+                        "Nenhum ponto adicional de atenção."
+                    )
+                }
+            ],
             "_process_evidence_ref": process_evidence_ref(first_version),
             "_selected_sources": [],
             "_attachment_sources": [],
@@ -214,6 +223,8 @@ async def test_semantically_equal_response_reuses_current_version_and_summary(
             claim_context,
         )
         assert claim_errors == []
+        claim_verification = verify_material_claims(claims, claim_context)
+        assert all(item.status == "supported" for item in claim_verification.values())
         assert await _persist_summary(
             conn,
             process_id=process_id,
@@ -227,6 +238,7 @@ async def test_semantically_equal_response_reuses_current_version_and_summary(
             ),
             claims=claims,
             evidence_sources=evidence_catalog(claim_context),
+            claim_verification=claim_verification,
         )
 
     duplicate_request = f"req-duplicate-{uuid4()}"

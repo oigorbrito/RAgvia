@@ -23,21 +23,27 @@ pytestmark = pytest.mark.skipif(
 
 
 def _prime_fake_structured_summary(context: dict) -> None:
+    steps = list(context.get("steps") or [])
+    fallback = str((context.get("source_warnings") or [context.get("class_name") or ""])[0])
+    first = str(steps[0].get("text") or fallback) if steps else fallback
+    last = str(steps[-1].get("text") or fallback) if steps else fallback
     payload = {
-        "synthesis": "Contexto do processo: síntese factual de teste. Andamento processual: situação registrada nos autos.",
+        "synthesis": f"Contexto do processo: {first}. Andamento processual: {last}",
         "timeline": [],
-        "current_status": "Situação atual registrada nos autos.",
-        "attention": list(context.get("source_warnings", []))
-        or ["Nenhuma divergência objetiva identificada."],
+        "current_status": last,
+        "attention": list(context.get("source_warnings") or [fallback]),
         "decisions": [],
         "deadlines": [],
         "related_processes": [],
         "attachments": [],
     }
-    payload["claims"] = build_material_claims(
-        payload,
-        evidence_refs=[str(context["_process_evidence_ref"])],
+    refs = [str(context["_process_evidence_ref"])]
+    refs.extend(
+        str(source["evidence_ref"])
+        for source in context.get("_selected_sources", [])
+        if source.get("evidence_ref")
     )
+    payload["claims"] = build_material_claims(payload, evidence_refs=refs)
     context["_parsed_summary"] = payload
     context["_structured_summary"] = structured_summary_document(payload, context)
 
@@ -389,7 +395,10 @@ async def test_paginated_request_uses_only_lawsuit_for_rag_context(
             )
             assert legacy_response.status_code == 200  # nosec B101 - pytest assertion
             legacy_payload = legacy_response.json()
-            assert legacy_payload["summary_status"] == "available"  # nosec B101 - pytest assertion
+            assert legacy_payload["summary_status"] == "available", await pool.fetchval(
+                "SELECT validation FROM process_summaries WHERE process_id=$1",
+                process["id"],
+            )  # nosec B101 - pytest assertion
             assert legacy_payload["iaSummary"] == legacy_payload["summary"]["markdown"]  # nosec B101 - pytest assertion
             assert "Advogada Sintética (representa: Parte Sintética)" in legacy_payload["iaSummary"]  # nosec B101 - pytest assertion
 

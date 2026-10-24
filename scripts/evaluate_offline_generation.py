@@ -148,12 +148,12 @@ class _FakeMessages:
             "current_status": (
                 "Recomendo que a parte tome providências."
                 if force_first_failure
-                else str((steps[-1] if steps else {}).get("text") or "Sem movimentação processual.")
+                else str((steps[-1] if steps else {}).get("text") or EMPTY_STEPS_WARNING)
             ),
             "attention": (
                 [str(warning) for warning in warnings]
                 if warnings
-                else ["Nenhuma divergência objetiva identificada."]
+                else [str(process.get("class_name") or "") + "."]
             ),
             "decisions": [],
             "deadlines": [],

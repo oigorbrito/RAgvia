@@ -58,12 +58,16 @@ async def test_synthetic_legal_document_uses_canonical_structured_generation(mon
         assert [s["occurred_at"][:10] for s in steps] == ["2026-01-10", "2026-01-20", "2026-02-10", "2026-04-10"]
         assert "synthetic-not-a-provider-credential" not in prompt
         payload = {
-            "synthesis": "Contexto do processo: demonstração sintética de ação de cobrança. Andamento processual: distribuição em 10/01/2026 e sentença em 10/04/2026.",
+            "synthesis": (
+                "Contexto do processo: Em 10/01/2026, distribuída ação de cobrança. "
+                "Andamento processual: Em 10/04/2026, sentença julgou parcialmente procedente "
+                "o pedido de cobrança."
+            ),
             "timeline": [step["text"] for step in steps],
             "current_status": steps[-1]["text"],
             "attention": [
-                "Documento exclusivamente sintético; não corresponde ao caso real do gerente.",
-                "O recorte não fornece anexos, prazo recursal ou informação de trânsito em julgado; não se presume encerramento definitivo.",
+                "Dados exclusivamente sintéticos para demonstração.",
+                "O recorte fornecido não informa trânsito em julgado nem prazo recursal.",
             ],
             "decisions": [steps[-1]["text"]],
             "deadlines": [], "related_processes": [], "attachments": [],

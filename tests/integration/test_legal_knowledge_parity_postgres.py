@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,83 +23,26 @@ from tests.test_generation_authorization import configure_approval
 from tests.test_parser_parity import source
 
 URL = os.getenv("TEST_DATABASE_URL")
-PARSER_FIXTURE = Path(__file__).parents[1] / "fixtures/judit/parser_parity_expected.json"
 pytestmark = pytest.mark.skipif(not URL, reason="TEST_DATABASE_URL is required")
 
 
-def _writing_payload(process_json: dict, steps: list[dict], expected: dict) -> dict:
-    """Deterministic SDK simulation with explicit, source-linked writing coverage."""
-    by_number = {movement["numero"]: movement for movement in expected["movimentos"]}
-    groups: list[dict] = []
-    grouped: dict[tuple, list[dict]] = {}
+def _writing_payload(process_json: dict, steps: list[dict]) -> dict:
+    """Simulate a generator that cites raw movements instead of unsupported summaries."""
+    timeline = []
     for step in steps:
-        record = by_number[step["step_number"]]
-        kind = record["tipo"]
         occurred_at = datetime.fromisoformat(step["occurred_at"].replace("Z", "+00:00"))
-        date = occurred_at.strftime("%d/%m/%Y")
-        key = None
-        if kind == "intimacao":
-            details = record["detalhes"]
-            key = (kind, record["data"], details.get("prazo_dias"), details.get("finalidade"))
-        elif kind in {"ato_ordinatorio", "publicacao_diario"}:
-            key = ("expediente", record["data"])
-        elif kind == "remessa_interna":
-            key = (kind, record["data"])
-        if key is not None:
-            grouped.setdefault(key, []).append((step, record))
-            continue
-
-        if kind == "distribuicao":
-            text = f"Em {date}, o processo foi distribuído por sorteio."
-        elif kind == "juizo_100_digital":
-            text = f"Em {date}, foi registrada a inclusão no Juízo 100% Digital."
-        elif kind == "audiencia_designada":
-            scheduled = step["source_temporal_facts"]["scheduled_hearing"]
-            text = (f"Em {date}, foi designada audiência de conciliação para "
-                    f"{scheduled['date']} às {scheduled['time']}; a data futura é agendada, "
-                    "não confirmação de realização.")
-        elif kind == "juntada":
-            text = f"Em {date}, consta juntada de certidão."
-        else:
-            text = f"Em {date}, consta o registro: {step['text']}."
-        groups.append({"order": step["step_number"], "text": text, "refs": [step["evidence_ref"]]})
-
-    for key, entries in grouped.items():
-        records = [record for _, record in entries]
-        refs = [step["evidence_ref"] for step, _ in entries]
-        order = min(step["step_number"] for step, _ in entries)
-        if key[0] == "intimacao":
-            date, period, purpose = key[1:]
-            people = sorted({
-                match.group(1).strip()
-                for _, record in entries
-                if (match := re.search(r"\((?:AUTOR|RÉU)\s*-\s*([^)]*)\)", record["texto"], re.I))
-            })
-            amount = len(entries)
-            purpose_text = f" com finalidade de {purpose}" if purpose else ""
-            day_word = "dia" if period == 1 else "dias"
-            text = (f"Em {date}, foram expedidas {amount} intimações para {', '.join(people)}"
-                    f"{purpose_text}; prazo registrado: {period} {day_word} em cada ato.")
-        elif key[0] == "remessa_interna":
-            date = key[1]
-            text = (f"Em {date}, consta remessa interna dos autos entre unidades, "
-                    "movimentação de caráter administrativo.")
-        else:
-            date = key[1]
-            count = len(entries)
-            verb = "foi agrupado" if count == 1 else "foram agrupados"
-            noun = "registro" if count == 1 else "registros"
-            text = (f"Em {date}, {verb} {count} {noun} de expediente administrativo "
-                    "e publicação no diário eletrônico.")
-        groups.append({"order": order, "text": text, "refs": refs})
-
-    groups.sort(key=lambda item: item["order"])
+        timeline.append(
+            {
+                "text": f"Em {occurred_at:%d/%m/%Y}. {step['text']}",
+                "refs": [step["evidence_ref"]],
+            }
+        )
     class_entry = next(item for item in process_json["legal_knowledge"] if item["id"] == "classe-436")
     subject_entry = next(item for item in process_json["legal_knowledge"] if item["id"] == "assunto-14033")
-    class_quote = "Art. 3º O Juizado Especial Cível tem competência para conciliação, processo e julgamento das causas cíveis de menor complexidade, inclusive as de valor até quarenta vezes o salário mínimo."
+    class_quote = "3º O Juizado Especial Cível tem competência para conciliação, processo e julgamento das causas cíveis de menor complexidade, inclusive as de valor até quarenta vezes o salário mínimo."
     subject_quote = "VI - a efetiva prevenção e reparação de danos patrimoniais e morais, individuais, coletivos e difusos"
     intimation_entry = next(item for item in process_json["legal_knowledge"] if item["id"] == "mov-intimacao")
-    intimation_quote = "Art. 269. Intimação é o ato pelo qual se dá ciência a alguém dos atos e dos termos do processo."
+    intimation_quote = "Intimação é o ato pelo qual se dá ciência a alguém dos atos e dos termos do processo."
     assert class_quote in class_entry["definition"]
     assert subject_quote in subject_entry["definition"]
     assert intimation_quote in intimation_entry["definition"]
@@ -111,31 +53,24 @@ def _writing_payload(process_json: dict, steps: list[dict], expected: dict) -> d
     distribution = next(item for item in steps if "DISTRIBUÍDO" in item["text"])
     hearing = next(item for item in steps if "scheduled_hearing" in item["source_temporal_facts"])
     synthesis = (
-        f"Contexto do processo: {process_json['code']} tramita no tribunal {process_json['court']}; "
-        f"partes cadastradas: {parties}. Classe: {process_json['class_name']}. "
-        f"A explicação recuperada para a classe registra: {class_quote} "
-        f"O assunto {subject_entry['name']} tem a seguinte definição recuperada: {subject_quote}. "
-        f"A explicação recuperada para intimação é: {intimation_quote} "
-        f"Andamento processual: a distribuição ocorreu em "
-        f"{datetime.fromisoformat(distribution['occurred_at'].replace('Z', '+00:00')).strftime('%d/%m/%Y')}; "
-        f"a audiência foi designada em "
-        f"{datetime.fromisoformat(hearing['occurred_at'].replace('Z', '+00:00')).strftime('%d/%m/%Y')} para "
-        f"{hearing['source_temporal_facts']['scheduled_hearing']['date']} às "
-        f"{hearing['source_temporal_facts']['scheduled_hearing']['time']}."
+        f"Contexto do processo: {process_json['class_name']}. "
+        f"{class_quote} {subject_quote}. {intimation_quote} "
+        f"Andamento processual: {distribution['text']}. {hearing['text']}"
     )
     payload = {
         "synthesis": synthesis,
-        "timeline": [item["text"] for item in groups],
-        "current_status": "O último movimento do recorte é uma remessa interna registrada em 02/09/2026.",
-        "attention": ["O recorte fornecido não registra citação, decisão ou sentença; não se infere que esses atos tenham ocorrido."],
+        "timeline": [item["text"] for item in timeline],
+        "current_status": steps[-1]["text"],
+        "attention": [steps[-1]["text"]],
         "decisions": [], "deadlines": [], "related_processes": [], "attachments": [],
     }
     refs = [process_json["evidence_ref"], *[step["evidence_ref"] for step in steps]]
     payload["claims"] = build_material_claims(payload, evidence_refs=refs)
-    for index, item in enumerate(groups):
+    for index, item in enumerate(timeline):
         next(claim for claim in payload["claims"] if claim["claim_id"] == f"timeline:{index}")["evidence_refs"] = item["refs"]
     next(claim for claim in payload["claims"] if claim["claim_id"] == "synthesis")["evidence_refs"] = refs
-    next(claim for claim in payload["claims"] if claim["claim_id"] == "current_status")["evidence_refs"] = groups[-1]["refs"]
+    next(claim for claim in payload["claims"] if claim["claim_id"] == "current_status")["evidence_refs"] = [steps[-1]["evidence_ref"]]
+    next(claim for claim in payload["claims"] if claim["claim_id"] == "attention:0")["evidence_refs"] = [steps[-1]["evidence_ref"]]
     return payload
 
 
@@ -182,8 +117,7 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
         assert any(item["id"] == "assunto-14033" and item["match_method"] == "code" for item in knowledge)
         assert any(item["id"] == "mov-intimacao" for item in knowledge)
         assert len({item["id"] for item in knowledge}) == len(knowledge)
-        expected = json.loads(PARSER_FIXTURE.read_text(encoding="utf-8"))
-        payload = _writing_payload(process_json, steps, expected)
+        payload = _writing_payload(process_json, steps)
         return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(payload, ensure_ascii=False))], stop_reason="end_turn", usage=None)
     async def close():
         pass
@@ -225,10 +159,10 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             assert body["iaSummary"] == body["summary"]["markdown"]
             assert "Contexto do processo:" in body["iaSummary"]
             assert "Andamento processual:" in body["iaSummary"]
-            assert "Art. 3º O Juizado Especial Cível tem competência" in body["iaSummary"]
+            assert "3º O Juizado Especial Cível tem competência" in body["iaSummary"]
             assert "VI - a efetiva prevenção e reparação" in body["iaSummary"]
             assert "Intimação é o ato pelo qual" in body["iaSummary"]
-            assert "01/09/2026" in body["iaSummary"] and "03/03/2027 às 15:00" in body["iaSummary"]
+            assert "01/09/2026" in body["iaSummary"] and "03/03/2027 15:00" in body["iaSummary"]
             assert "polo cadastrado: ativo" in body["iaSummary"]
             assert "Pessoa Sintética Beta (representa: Pessoa Sintética Alfa e Pessoa Sintética Gama)" in body["iaSummary"]
             assert "envio do processo de um setor" not in body["iaSummary"]

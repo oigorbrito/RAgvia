@@ -26,20 +26,27 @@ from app.worker import Worker, WorkerSettings
 
 
 def _prime_fake_structured_summary(context: dict) -> None:
+    steps = list(context.get("steps") or [])
+    fallback = str((context.get("source_warnings") or [context.get("class_name") or ""])[0])
+    first = str(steps[0].get("text") or fallback) if steps else fallback
+    last = str(steps[-1].get("text") or fallback) if steps else fallback
     payload = {
-        "synthesis": "Contexto do processo: síntese factual de teste. Andamento processual: situação registrada nos autos.",
+        "synthesis": f"Contexto do processo: {first}. Andamento processual: {last}",
         "timeline": [],
-        "current_status": "Situação atual registrada nos autos.",
-        "attention": ["Nenhuma divergência objetiva identificada."],
+        "current_status": last,
+        "attention": list(context.get("source_warnings") or [fallback]),
         "decisions": [],
         "deadlines": [],
         "related_processes": [],
         "attachments": [],
     }
-    payload["claims"] = build_material_claims(
-        payload,
-        evidence_refs=[str(context["_process_evidence_ref"])],
+    refs = [str(context["_process_evidence_ref"])]
+    refs.extend(
+        str(source["evidence_ref"])
+        for source in context.get("_selected_sources", [])
+        if source.get("evidence_ref")
     )
+    payload["claims"] = build_material_claims(payload, evidence_refs=refs)
     context["_parsed_summary"] = payload
     context["_structured_summary"] = structured_summary_document(payload, context)
 
@@ -351,7 +358,7 @@ Nenhuma divergência objetiva identificada.
                 request_id=public_request.id,
             )
             assert public_done is not None
-            assert public_done.status == "completed"
+            assert public_done.status == "completed", public_done
             assert public_done.process_id is not None
             assert public_done.version_id is not None
             assert public_done.summary_id is not None

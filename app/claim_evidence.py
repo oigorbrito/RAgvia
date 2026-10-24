@@ -363,7 +363,7 @@ def claim_evidence_is_publishable(
 
     for item in claim_evidence:
         valid_claim_metadata, evaluated_claim = _claim_verification_metadata(item)
-        if not valid_claim_metadata:
+        if not valid_claim_metadata or item.get("verification_status") != "supported":
             return False
 
         sources = item.get("sources")

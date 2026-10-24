@@ -13,7 +13,7 @@ from app.claim_evidence import (
 )
 from app.db import create_pool
 from app.migrations import migrate
-from app.rag import _persist_summary, generate_summary
+from app.rag import _load_publishable_summary, _persist_summary, generate_summary
 from app.summary_output import structured_summary_document
 from app.summary_policy import RESTRICTED_MODEL, RESTRICTED_PROMPT_VERSION
 
@@ -62,6 +62,14 @@ def _claim_material(code: str, version_id):
         "court": None,
         "header": {},
         "parties": [],
+        "legal_knowledge": [
+            {
+                "definition": (
+                    "Resumo válido sem dados sensíveis. Situação atual registrada. "
+                    "Nenhuma divergência objetiva identificada."
+                )
+            }
+        ],
         "_process_evidence_ref": process_evidence_ref(version_id),
         "_selected_sources": [],
         "_attachment_sources": [],
@@ -82,7 +90,59 @@ def _claim_material(code: str, version_id):
     )
     claims, errors = validate_claim_evidence(payload, context)
     assert errors == []
-    return context, payload, claims
+    from app.claim_verification import verify_material_claims
+
+    verification = verify_material_claims(claims, context)
+    assert all(item.status == "supported" for item in verification.values())
+    return context, payload, claims, verification
+
+
+@pytest.mark.asyncio
+async def test_rejected_candidate_does_not_publish_or_replace_valid_summary() -> None:
+    assert TEST_DATABASE_URL is not None
+    pool = await create_pool(TEST_DATABASE_URL, min_size=1, max_size=2)
+    try:
+        async with pool.acquire() as conn:
+            process_id, version_id, code = await _fixture(conn)
+            context, payload, claims, verification = _claim_material(code, version_id)
+            structured = structured_summary_document(payload, context)
+            assert await _persist_summary(
+                conn,
+                process_id=process_id,
+                version_id=version_id,
+                text="last valid summary",
+                validation={"passed": True, "errors": []},
+                generation_ms=100,
+                structured_output=structured,
+                claims=claims,
+                evidence_sources=evidence_catalog(context),
+                claim_verification=verification,
+            )
+            assert await _persist_summary(
+                conn,
+                process_id=process_id,
+                version_id=version_id,
+                text="unsupported legal conclusion",
+                validation={
+                    "passed": False,
+                    "errors": ["claim has insufficient cited evidence: synthesis"],
+                },
+                generation_ms=101,
+            ) is False
+            stored = await conn.fetchrow(
+                "SELECT markdown, validation FROM process_summaries "
+                "WHERE process_id=$1 AND version_id=$2",
+                process_id,
+                version_id,
+            )
+            assert stored["markdown"] == "last valid summary"
+            assert stored["validation"]["passed"] is True
+
+        publishable = await _load_publishable_summary(pool, process_id, version_id)
+        assert publishable is not None
+        assert publishable["validation"] == {"passed": True, "errors": []}
+    finally:
+        await pool.close()
 
 
 @pytest.mark.asyncio
@@ -92,7 +152,7 @@ async def test_existing_valid_summary_skips_context_retrieval_and_providers(monk
     try:
         async with pool.acquire() as conn:
             process_id, version_id, code = await _fixture(conn)
-            claim_context, payload, claims = _claim_material(code, version_id)
+            claim_context, payload, claims, claim_verification = _claim_material(code, version_id)
             legacy_structured_output = structured_summary_document(
                 payload, claim_context
             )
@@ -108,6 +168,7 @@ async def test_existing_valid_summary_skips_context_retrieval_and_providers(monk
                 structured_output=legacy_structured_output,
                 claims=claims,
                 evidence_sources=evidence_catalog(claim_context),
+                claim_verification=claim_verification,
             )
 
         async def fail_context(*args, **kwargs):
@@ -181,7 +242,15 @@ Nenhuma divergência objetiva identificada."""
         async def fake_generate(client, context, validation_errors=None):
             nonlocal generation_calls
             generation_calls += 1
-            _, payload, _ = _claim_material(code, version_id)
+            _, payload, _, _ = _claim_material(code, version_id)
+            context["legal_knowledge"] = [
+                {
+                    "definition": (
+                        "Resumo válido sem dados sensíveis. Situação atual registrada. "
+                        "Nenhuma divergência objetiva identificada."
+                    )
+                }
+            ]
             context["_parsed_summary"] = payload
             context["_structured_summary"] = structured_summary_document(
                 payload, context
@@ -227,7 +296,7 @@ async def test_existing_incomplete_provenance_is_repaired_with_same_model(
     try:
         async with pool.acquire() as conn:
             process_id, version_id, code = await _fixture(conn)
-            claim_context, payload, claims = _claim_material(code, version_id)
+            claim_context, payload, claims, claim_verification = _claim_material(code, version_id)
             assert await _persist_summary(
                 conn,
                 process_id=process_id,
@@ -240,6 +309,7 @@ async def test_existing_incomplete_provenance_is_repaired_with_same_model(
                 ),
                 claims=claims,
                 evidence_sources=evidence_catalog(claim_context),
+                claim_verification=claim_verification,
             )
             summary_id = await conn.fetchval(
                 """
@@ -256,6 +326,9 @@ async def test_existing_incomplete_provenance_is_repaired_with_same_model(
                 """,
                 summary_id,
             )
+            assert await _load_publishable_summary(
+                pool, process_id, version_id
+            ) is None
 
         context_calls = 0
         generation_calls = 0
@@ -287,7 +360,15 @@ Nenhuma divergência objetiva identificada."""
         async def fake_generate(client, context, validation_errors=None):
             nonlocal generation_calls
             generation_calls += 1
-            _, claim_payload, _ = _claim_material(code, version_id)
+            _, claim_payload, _, _ = _claim_material(code, version_id)
+            context["legal_knowledge"] = [
+                {
+                    "definition": (
+                        "Resumo válido sem dados sensíveis. Situação atual registrada. "
+                        "Nenhuma divergência objetiva identificada."
+                    )
+                }
+            ]
             context["_parsed_summary"] = claim_payload
             context["_structured_summary"] = structured_summary_document(
                 claim_payload, context
@@ -318,7 +399,7 @@ Nenhuma divergência objetiva identificada."""
 
         assert context_calls == 1
         assert generation_calls == 1
-        assert result["persisted"] is True
+        assert result["persisted"] is True, result["validation"]
         assert result["reused"] is False
         assert stored["markdown"] == repaired_summary
         assert stored["model"] == "claude-sonnet-5"
@@ -335,7 +416,7 @@ async def test_approved_summary_replacement_requires_publishable_restricted_docu
     try:
         async with pool.acquire() as conn:
             process_id, version_id, code = await _fixture(conn)
-            claim_context, payload, claims = _claim_material(code, version_id)
+            claim_context, payload, claims, claim_verification = _claim_material(code, version_id)
             assert await _persist_summary(
                 conn,
                 process_id=process_id,
@@ -348,6 +429,7 @@ async def test_approved_summary_replacement_requires_publishable_restricted_docu
                 ),
                 claims=claims,
                 evidence_sources=evidence_catalog(claim_context),
+                claim_verification=claim_verification,
             )
             await conn.execute(
                 "UPDATE processes SET secrecy_level = 1 WHERE id = $1",
@@ -440,7 +522,7 @@ async def test_public_summary_is_not_reused_after_process_becomes_secret(monkeyp
     try:
         async with pool.acquire() as conn:
             process_id, version_id, code = await _fixture(conn)
-            claim_context, payload, claims = _claim_material(code, version_id)
+            claim_context, payload, claims, claim_verification = _claim_material(code, version_id)
             assert await _persist_summary(
                 conn,
                 process_id=process_id,
@@ -453,6 +535,7 @@ async def test_public_summary_is_not_reused_after_process_becomes_secret(monkeyp
                 ),
                 claims=claims,
                 evidence_sources=evidence_catalog(claim_context),
+                claim_verification=claim_verification,
             )
             await conn.execute(
                 "UPDATE processes SET secrecy_level = 1 WHERE id = $1",

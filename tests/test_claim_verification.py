@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import pytest
+
 from app.claim_evidence import MaterialClaim, process_evidence_ref
 from app.claim_verification import verification_errors, verify_material_claims
 
@@ -71,6 +73,24 @@ def test_process_amount_mismatch_is_contradicted() -> None:
     assert verification_errors(verification) == [
         "claim contradicted by cited evidence: synthesis"
     ]
+
+
+def test_contradicted_proposition_does_not_erase_separate_supported_proposition() -> None:
+    claim = MaterialClaim(
+        claim_id="synthesis",
+        claim_class="synthesis",
+        text="Valor da causa: R$ 2.000,00. Maria da Silva é parte autora.",
+        evidence_refs=(process_evidence_ref(VERSION_ID),),
+    )
+
+    result = verify_material_claims([claim], _context())["synthesis"]
+
+    assert result.status == "contradicted"
+    assert [item.status for item in result.propositions] == [
+        "contradicted",
+        "supported",
+    ]
+    assert result.propositions[1].evidence_refs == (process_evidence_ref(VERSION_ID),)
 
 
 def test_different_cnj_on_process_ref_is_insufficient_not_contradicted() -> None:
@@ -233,7 +253,7 @@ def test_missing_deterministic_date_is_insufficient_and_retryable() -> None:
 
     assert verification["timeline:0"].status == "insufficient"
     assert verification_errors(verification) == [
-        "claim has insufficient cited evidence: timeline:0"
+        "claim has insufficient cited evidence: timeline:0 (cited_sources_do_not_support_all_deterministic_facts; p0:cited_sources_do_not_support_all_deterministic_facts)"
     ]
 
 
@@ -255,7 +275,7 @@ def test_unanchored_intrinsically_material_claim_is_retryable() -> None:
     ]
 
 
-def test_unanchored_narrative_current_status_remains_measured_without_retry() -> None:
+def test_unanchored_narrative_current_status_is_rejected_for_correction() -> None:
     claim = MaterialClaim(
         claim_id="current_status",
         claim_class="current_status",
@@ -266,10 +286,12 @@ def test_unanchored_narrative_current_status_remains_measured_without_retry() ->
     verification = verify_material_claims([claim], _context())
 
     assert verification["current_status"].status == "not_evaluated"
-    assert verification_errors(verification) == []
+    assert verification_errors(verification) == [
+        "claim was not evaluated: current_status"
+    ]
 
 
-def test_generic_attention_can_remain_measured_not_evaluated_without_retry() -> None:
+def test_generic_attention_not_evaluated_is_rejected_for_correction() -> None:
     claim = MaterialClaim(
         claim_id="attention:0",
         claim_class="attention",
@@ -281,7 +303,9 @@ def test_generic_attention_can_remain_measured_not_evaluated_without_retry() -> 
 
     assert verification["attention:0"].status == "not_evaluated"
     assert verification["attention:0"].claim_class == "attention"
-    assert verification_errors(verification) == []
+    assert verification_errors(verification) == [
+        "claim was not evaluated: attention:0"
+    ]
 
 
 def test_attachment_verification_preserves_available_positions_and_excerpt_hash() -> None:
@@ -304,6 +328,125 @@ def test_attachment_verification_preserves_available_positions_and_excerpt_hash(
     assert relation.evidence_excerpt is not None
     assert relation.evidence_excerpt_sha256 is not None
     assert len(relation.evidence_excerpt_sha256) == 64
+
+
+@pytest.mark.parametrize(
+    ("claim_text", "claim_class", "source_texts"),
+    [
+        (
+            "Maria da Silva participou da audiência em 10/09/2026. "
+            "A lei assegura automaticamente a procedência do pedido, ainda que não haja prova.",
+            "synthesis",
+            ["Audiência realizada em 10/09/2026."],
+        ),
+        (
+            "A sentença de 10/09/2026 transitou em julgado.",
+            "decision",
+            ["Sentença proferida em 10/09/2026."],
+        ),
+        (
+            "A parte ré foi citada em 10/09/2026 e é revel.",
+            "synthesis",
+            ["Parte ré citada em 10/09/2026."],
+        ),
+        (
+            "A audiência em 10/09/2026 permanece designada.",
+            "procedural_event",
+            [
+                "Audiência designada para 10/09/2026.",
+                "Audiência de 10/09/2026 cancelada.",
+            ],
+        ),
+        (
+            "O prazo de 15 dias vence em 25/09/2026.",
+            "deadline",
+            ["Intimação publicada em 10/09/2026; prazo de 15 dias."],
+        ),
+        (
+            "A tutela concedida em 10/09/2026 permanece vigente.",
+            "current_status",
+            ["Tutela deferida em 10/09/2026.", "Tutela revogada em 12/09/2026."],
+        ),
+        (
+            "Não há prazo recursal pendente.",
+            "attention",
+            ["O recorte fornecido não informa prazo recursal."],
+        ),
+    ],
+)
+def test_unsupported_or_contradicted_propositions_are_not_approved(
+    claim_text: str, claim_class: str, source_texts: list[str]
+) -> None:
+    context = _context()
+    context["steps"] = [
+        {
+            "evidence_ref": f"m-{UUID(int=200 + index).hex}",
+            "step_number": index + 1,
+            "occurred_at": f"2026-09-{10 + index:02d}T12:00:00-03:00",
+            "title": text.split(".")[0],
+            "text": text,
+        }
+        for index, text in enumerate(source_texts)
+    ]
+    refs = [step["evidence_ref"] for step in context["steps"]]
+    if claim_text.startswith("Maria da Silva"):
+        refs.insert(0, process_evidence_ref(VERSION_ID))
+    claim = MaterialClaim(
+        claim_id="synthesis" if claim_class == "synthesis" else "current_status",
+        claim_class=claim_class,
+        text=claim_text,
+        evidence_refs=tuple(refs),
+    )
+
+    verification = verify_material_claims([claim], context)
+
+    assert verification[claim.claim_id].status in {"insufficient", "not_evaluated", "contradicted"}
+    assert verification_errors(verification)
+
+
+def test_mixed_synthesis_tracks_propositions_to_distinct_sources() -> None:
+    context = _context()
+    claim = MaterialClaim(
+        claim_id="synthesis",
+        claim_class="synthesis",
+        text=(
+            "Maria da Silva participou da audiência em 10/09/2026. "
+            "A lei assegura automaticamente a procedência do pedido."
+        ),
+        evidence_refs=(
+            process_evidence_ref(VERSION_ID),
+            f"m-{STEP_ID.hex}",
+        ),
+    )
+
+    result = verify_material_claims([claim], context)["synthesis"]
+
+    assert [item.status for item in result.propositions] == [
+        "supported",
+        "not_evaluated",
+    ]
+    assert result.propositions[0].evidence_refs == (
+        process_evidence_ref(VERSION_ID),
+        f"m-{STEP_ID.hex}",
+    )
+    assert result.propositions[1].evidence_refs == ()
+    assert result.status == "not_evaluated"
+    assert verification_errors({"synthesis": result})
+
+
+def test_exactly_supported_propositions_remain_publishable() -> None:
+    context = _context()
+    claim = MaterialClaim(
+        claim_id="timeline:0",
+        claim_class="procedural_event",
+        text="Audiência realizada em 10/09/2026.",
+        evidence_refs=(f"m-{STEP_ID.hex}",),
+    )
+
+    verification = verify_material_claims([claim], context)
+
+    assert verification[claim.claim_id].status == "supported"
+    assert verification_errors(verification) == []
 
 
 def test_any_cited_canonical_contradiction_wins_over_other_support() -> None:
@@ -345,7 +488,7 @@ def test_multiple_cited_sources_can_support_different_deterministic_facts() -> N
 
     result = verify_material_claims([claim], _context())["decisions:0"]
 
-    # Each source alone is incomplete for the full sentence. The first deterministic
-    # baseline therefore does not overclaim semantic entailment across sources.
+    # The deterministic proposition is supported across the two citations, so
+    # each contributing source must remain visible as supported provenance.
     assert result.status == "supported"
-    assert {relation.status for relation in result.relations} == {"insufficient"}
+    assert {relation.status for relation in result.relations} == {"supported"}

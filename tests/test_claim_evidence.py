@@ -37,6 +37,28 @@ def _context() -> dict:
     }
 
 
+def _supported_persisted_claims(
+    claims: list[dict],
+) -> list[dict]:
+    return [
+        {
+            **claim,
+            "verification_status": "supported",
+            "verification_reason": "exact_source_support",
+            "sources": [
+                {
+                    "evidence_ref": ref,
+                    "verification_status": "supported",
+                    "verification_reason": "exact_source_support",
+                    "evidence_excerpt_sha256": "a" * 64,
+                }
+                for ref in claim["evidence_refs"]
+            ],
+        }
+        for claim in claims
+    ]
+
+
 def _payload() -> dict:
     return {
         "synthesis": "Síntese factual.",
@@ -193,19 +215,24 @@ def test_attention_items_require_claim_provenance() -> None:
 def _structured_output(
     payload: dict,
     claims: list[dict] | None = None,
+    *,
+    schema_version: int = 3,
 ) -> dict:
     summary = dict(payload)
     if claims is not None:
         summary["claims"] = [dict(item) for item in claims]
+    process = {
+        "cnj": "0000000-00.2026.8.21.0001",
+        "class_name": None,
+        "court": None,
+        "header": {},
+        "parties": [],
+    }
+    if schema_version == 3:
+        process["representatives"] = []
     return {
-        "schema_version": 2,
-        "process": {
-            "cnj": "0000000-00.2026.8.21.0001",
-            "class_name": None,
-            "court": None,
-            "header": {},
-            "parties": [],
-        },
+        "schema_version": schema_version,
+        "process": process,
         "summary": summary,
     }
 
@@ -228,7 +255,7 @@ def test_publication_gate_rejects_tampered_process_projection() -> None:
     assert claim_evidence_is_complete(structured, complete) is True
     assert claim_evidence_is_publishable(
         structured,
-        complete,
+        _supported_persisted_claims(complete),
         process=process,
     ) is True
 
@@ -242,7 +269,7 @@ def test_publication_gate_rejects_tampered_process_projection() -> None:
     assert claim_evidence_is_complete(tampered, complete) is True
     assert claim_evidence_is_publishable(
         tampered,
-        complete,
+        _supported_persisted_claims(complete),
         process=process,
     ) is False
 
@@ -280,7 +307,7 @@ def test_publication_gate_rejects_contradicted_semantic_verification() -> None:
     ) is False
 
 
-def test_publication_gate_allows_explicit_not_evaluated_semantic_status() -> None:
+def test_publication_gate_rejects_not_evaluated_semantic_status() -> None:
     payload = _payload()
     complete = build_material_claims(
         payload,
@@ -312,7 +339,54 @@ def test_publication_gate_allows_explicit_not_evaluated_semantic_status() -> Non
         structured,
         persisted,
         process=process,
+    ) is False
+
+
+def test_publication_gate_preserves_schema_v2_legacy_read() -> None:
+    payload = _payload()
+    complete = build_material_claims(
+        payload,
+        evidence_refs=[movement_evidence_ref(STEP_ID)],
+    )
+    structured = _structured_output(payload, complete, schema_version=2)
+    process = {
+        "code": "0000000-00.2026.8.21.0001",
+        "class_name": None,
+        "court": None,
+        "header": {},
+        "parties": [],
+    }
+    supported_legacy = _supported_persisted_claims(complete)
+
+    assert claim_evidence_is_publishable(
+        structured,
+        supported_legacy,
+        process=process,
     ) is True
+
+
+def test_publication_gate_rejects_insufficient_semantic_status() -> None:
+    payload = _payload()
+    complete = build_material_claims(
+        payload,
+        evidence_refs=[movement_evidence_ref(STEP_ID)],
+    )
+    structured = _structured_output(payload, complete)
+    process = {
+        "code": "0000000-00.2026.8.21.0001",
+        "class_name": None,
+        "court": None,
+        "header": {},
+        "parties": [],
+    }
+    persisted = _supported_persisted_claims(complete)
+    persisted[0] = {**persisted[0], "verification_status": "insufficient"}
+
+    assert claim_evidence_is_publishable(
+        structured,
+        persisted,
+        process=process,
+    ) is False
 
 
 def test_publication_completeness_rejects_noncanonical_document() -> None:
@@ -482,7 +556,7 @@ def test_publication_gate_requires_audit_metadata_for_evaluated_relations() -> N
         "parties": [],
     }
     valid_hash = "a" * 64
-    evaluated = [dict(item) for item in complete]
+    evaluated = _supported_persisted_claims(complete)
     evaluated[0] = {
         **evaluated[0],
         "verification_status": "supported",

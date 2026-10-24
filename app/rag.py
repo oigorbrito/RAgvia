@@ -990,11 +990,24 @@ async def _persist_summary(
                                 if verification is not None
                                 else "not_evaluated"
                             ),
+                            "verification_reason": (
+                                verification.reason
+                                if verification is not None
+                                else "semantic_verifier_not_run"
+                            ),
                             "sources": (
                                 [
                                     {
                                         "evidence_ref": relation.evidence_ref,
                                         "verification_status": relation.status,
+                                        "verification_reason": relation.reason,
+                                        "evidence_excerpt_sha256": (
+                                            relation.evidence_excerpt_sha256
+                                        ),
+                                        "page_start": relation.page_start,
+                                        "page_end": relation.page_end,
+                                        "char_start": relation.char_start,
+                                        "char_end": relation.char_end,
                                     }
                                     for relation in verification.relations
                                 ]

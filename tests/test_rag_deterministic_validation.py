@@ -11,6 +11,14 @@ def _context() -> dict:
         "parties": [{"name": "Maria da Silva"}],
         "secrecy_level": 0,
         "header": {"distribution_date": "2026-09-10"},
+        "legal_knowledge": [
+            {
+                "definition": (
+                    "Síntese factual. Situação atual registrada. "
+                    "Nenhuma divergência objetiva identificada."
+                )
+            }
+        ],
         "step_count": 200,
         "_process_evidence_ref": "p-00000000000000000000000000000001",
         "_selected_sources": [],
@@ -118,6 +126,27 @@ def test_wired_validation_rejects_retrieved_count_as_total() -> None:
     )
     assert result.passed is False
     assert "movement count mismatch: stated 20, expected 200" in result.errors
+
+
+def test_wired_validation_rejects_unsupported_consequence_inside_synthesis() -> None:
+    context = _context()
+    synthesis = (
+        "Síntese factual. A lei assegura automaticamente a procedência do pedido."
+    )
+    context["_parsed_summary"]["synthesis"] = synthesis
+    context["_parsed_summary"]["claims"][0]["text"] = synthesis
+
+    result = _validate_provider_summary(
+        (
+            "# Resumo do processo\n"
+            f"{synthesis}\n\n"
+            "## Pontos de atenção\nNenhuma divergência objetiva identificada."
+        ),
+        context,
+    )
+
+    assert result.passed is False
+    assert any("synthesis" in error for error in result.errors)
 
 
 def test_wired_validation_rejects_date_not_sent_to_provider() -> None:

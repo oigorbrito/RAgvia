@@ -119,6 +119,12 @@ def test_gap_warning_must_appear_inside_attention_section() -> None:
     },
     }
 
+    context["_parsed_summary"]["synthesis"] = warning
+    context["_parsed_summary"]["current_status"] = warning
+    context["_parsed_summary"]["attention"] = [warning]
+    for claim in context["_parsed_summary"]["claims"]:
+        claim["text"] = warning
+
     invalid = rag._validate_provider_summary(
         f"# Resumo do processo\n\n## Síntese\n{warning}\n\n## Pontos de atenção\nNenhuma divergência factual identificada.",
         context,
