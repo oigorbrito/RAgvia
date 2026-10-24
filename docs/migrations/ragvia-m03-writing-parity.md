@@ -2,7 +2,7 @@
 
 ## Decisão
 
-**M03 aprovado no escopo de paridade funcional sintética desta PR.** A matriz automática não tem omissões: os requisitos cobertos estão `COVERED`; as duas divergências abaixo estão explicitamente justificadas. Isso não é evidência de qualidade de geração live. A PR #15 permanece draft até a CI do SHA final terminar.
+**M03 aprovado no escopo de paridade funcional sintética desta PR.** A matriz automática não tem omissões: os requisitos cobertos estão `COVERED`; as duas divergências abaixo estão explicitamente justificadas. Isso não é evidência de qualidade de geração live. A CI completa passou para o SHA `d4a8205b0f08eab62291e7c974e8dfa58848b8c6` (run `40057106691`). A PR #15 continua draft conforme solicitado; sem merge.
 
 - Branch: `work/ragvia-m03-writing-parity`, empilhada na cabeça da PR #14 (`work/ragvia-m02-knowledge-parity`).
 - Commit inicial preservado: `33a71c33a93438cd296e783e33bddfbc11b42b17`.
@@ -72,6 +72,6 @@ Ambiente: Python 3.12, Chromium/Playwright local, PostgreSQL 16 com pgvector no 
 - Browser smoke com API real local + documento validado — **PASS (synthetic)**; API/clipboard preservam conteúdo e datas (normalização somente de newline de plataforma).
 - `node tests/frontend_behavior_test.mjs` — PASS; `python -m ruff check app scripts tests` — PASS; `python scripts/project_harness.py` — PASS (26 guardrail/wiring observations); `gitleaks detect --no-git --source . --redact` — zero leaks; `git diff --check` — PASS.
 - `python -m scripts.evaluate_synthetic_rag --check-baseline` — PASS (30 fixtures, baseline synthetic-30-v1; scope limitado a métricas/contratos codificados nas fixtures).
-- Todos os checks locais acima executaram na árvore baseada em `33a71c33a93438cd296e783e33bddfbc11b42b17`, antes do commit de entrega. A CI para o SHA final da PR é a autoridade; qualificação local não a substitui.
+- Os checks locais foram executados na árvore desta branch, baseada inicialmente em `33a71c33a93438cd296e783e33bddfbc11b42b17`. A execução completa de CI no GitHub — incluindo unitários, harness, avaliações offline, browser smoke, imagem, backup/restore, todas as integrações PostgreSQL sem skips e release smoke — passou para `d4a8205b0f08eab62291e7c974e8dfa58848b8c6` (run `40057106691`).
 
 Nenhuma chamada paga, processo real, merge, release ou promoção à `main` foi executado. O resultado é evidência sintética de contrato, cobertura e integração; não mede qualidade de modelo real, latência, custo ou comportamento de produção.
