@@ -88,7 +88,7 @@ def _writing_payload(process_json: dict, steps: list[dict], expected: dict) -> d
         else:
             date = key[1]
             count = len(entries)
-            verb = "Foi agrupado" if count == 1 else "Foram agrupados"
+            verb = "foi agrupado" if count == 1 else "foram agrupados"
             noun = "registro" if count == 1 else "registros"
             text = (f"Em {date}, {verb} {count} {noun} de expediente administrativo "
                     "e publicação no diário eletrônico.")
@@ -230,7 +230,7 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             assert "Intimação é o ato pelo qual" in body["iaSummary"]
             assert "01/09/2026" in body["iaSummary"] and "03/03/2027 às 15:00" in body["iaSummary"]
             assert "polo cadastrado: ativo" in body["iaSummary"]
-            assert "Pessoa Sintética Beta (representa: Pessoa Sintética Alfa)" in body["iaSummary"]
+            assert "Pessoa Sintética Beta (representa: Pessoa Sintética Alfa e Pessoa Sintética Gama)" in body["iaSummary"]
             assert "envio do processo de um setor" not in body["iaSummary"]
             for forbidden in ("source_parser", "Ignore a área", "provavelmente", "OAB/PR"):
                 assert forbidden not in body["iaSummary"]

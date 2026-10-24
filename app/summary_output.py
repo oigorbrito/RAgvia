@@ -420,13 +420,35 @@ def render_structured_summary(payload: dict[str, Any], context: dict[str, Any]) 
     lines.extend(party_lines or ["Não informado."])
 
     representatives = structured_summary_process(context)["representatives"]
-    representative_lines = []
+    grouped_representatives: list[dict[str, Any]] = []
+    group_by_identity: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for representative in representatives:
         name = _inline(representative.get("name"))
+        if not name:
+            continue
+        identity = (
+            name.casefold(),
+            _inline(representative.get("side")).casefold(),
+            _inline(representative.get("person_type")).casefold(),
+            _inline(representative.get("masked_person_id")).casefold(),
+        )
+        group = group_by_identity.get(identity)
+        if group is None:
+            group = {"name": name, "represents": []}
+            group_by_identity[identity] = group
+            grouped_representatives.append(group)
         represents = _inline(representative.get("represents"))
-        if name:
-            label = f"{name} (representa: {represents})" if represents else name
-            representative_lines.append(f"- {label}")
+        if represents and all(
+            existing.casefold() != represents.casefold()
+            for existing in group["represents"]
+        ):
+            group["represents"].append(represents)
+    representative_lines = []
+    for representative in grouped_representatives:
+        name = representative["name"]
+        represented_parties = representative["represents"]
+        label = f"{name} (representa: {' e '.join(represented_parties)})" if represented_parties else name
+        representative_lines.append(f"- {label}")
     lines.extend(["", "## Representantes"])
     lines.extend(representative_lines or ["Não informado."])
 

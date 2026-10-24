@@ -155,6 +155,23 @@ def test_renderer_owns_document_structure_and_source_identity() -> None:
 
 
 
+def test_renderer_groups_representative_relations_without_repeating_the_person() -> None:
+    context = _context() | {
+        "parties": [{"name": "Parte Alfa"}, {"name": "Parte Beta"}],
+        "representatives": [
+            {"name": "Advogada Sintética", "represents": "Parte Alfa"},
+            {"name": "Advogada Sintética", "represents": "Parte Beta"},
+            {"name": "Advogada Sintética", "represents": "Parte Alfa"},
+        ],
+    }
+
+    rendered = render_structured_summary(_payload(), context)
+    representative_section = rendered.split("## Representantes\n", 1)[1].split("\n## ", 1)[0].strip()
+
+    assert representative_section == "- Advogada Sintética (representa: Parte Alfa e Parte Beta)"
+    assert rendered.count("Advogada Sintética") == 1
+
+
 def test_renderer_keeps_attention_before_conditional_sections() -> None:
     payload = _payload()
     payload["decisions"] = ["Sentença registrada."]

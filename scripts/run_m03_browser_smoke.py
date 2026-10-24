@@ -30,7 +30,7 @@ def _wait_for_api(origin: str, process: subprocess.Popen[Any]) -> None:
     raise RuntimeError(f"local API did not become ready: {last_error}")
 
 
-def run(api_response_path: Path, browser_auth_path: Path) -> None:
+def run(api_response_path: Path, browser_auth_path: Path, evidence_out: Path | None = None, screenshot_out: Path | None = None) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
         raise RuntimeError("TEST_DATABASE_URL must point to the disposable PostgreSQL database")
@@ -64,14 +64,19 @@ def run(api_response_path: Path, browser_auth_path: Path) -> None:
     )
     try:
         _wait_for_api(origin, process)
+        browser_command = [
+            sys.executable,
+            str(BROWSER_SMOKE),
+            "--api-response", str(api_response_path),
+            "--api-origin", origin,
+            "--api-token", token,
+        ]
+        if evidence_out:
+            browser_command.extend(["--evidence-out", str(evidence_out)])
+        if screenshot_out:
+            browser_command.extend(["--screenshot-out", str(screenshot_out)])
         subprocess.run(
-            [
-                sys.executable,
-                str(BROWSER_SMOKE),
-                "--api-response", str(api_response_path),
-                "--api-origin", origin,
-                "--api-token", token,
-            ],
+            browser_command,
             cwd=ROOT,
             env=environment,
             check=True,
@@ -90,8 +95,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-response", type=Path, required=True)
     parser.add_argument("--browser-auth", type=Path, required=True)
+    parser.add_argument("--evidence-out", type=Path, help="Optional sanitized browser evidence JSON output")
+    parser.add_argument("--screenshot-out", type=Path, help="Optional synthetic browser screenshot output")
     args = parser.parse_args()
-    run(args.api_response, args.browser_auth)
+    run(args.api_response, args.browser_auth, args.evidence_out, args.screenshot_out)
     return 0
 
 

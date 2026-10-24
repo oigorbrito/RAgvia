@@ -26,3 +26,7 @@
 .provider-tooltip{position:absolute;z-index:8;right:0;bottom:calc(100% + 7px);width:max-content;max-width:min(300px,75vw);padding:9px 11px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--ink);color:#fff;font-size:12px;font-weight:500;line-height:1.45;box-shadow:var(--shadow)}
 .provider-tooltip[hidden]{display:none!important}
 .source-warning{font-size:11px;color:var(--danger);display:block;margin-top:4px;font-weight:600}
+.summary-header-field strong,.summary-introduction strong{color:var(--accent);font-family:ui-sans-serif,system-ui,sans-serif;font-size:.92em}
+.summary-header-field span{font-variant-numeric:tabular-nums}
+.summary-entity{font-weight:700}
+.summary-date-highlight{color:var(--accent);font-family:ui-sans-serif,system-ui,sans-serif;font-size:.9em;font-weight:650;font-variant-numeric:tabular-nums}
