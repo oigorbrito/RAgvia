@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 
 def _prime_fake_structured_summary(context: dict) -> None:
     payload = {
-        "synthesis": "Síntese factual de teste.",
+        "synthesis": "Contexto do processo: síntese factual de teste. Andamento processual: situação registrada nos autos.",
         "timeline": [],
         "current_status": "Situação atual registrada nos autos.",
         "attention": list(context.get("source_warnings", []))

@@ -1,0 +1,91 @@
+{
+  "synthetic": true,
+  "donor_commit": "0d0f8cbb495292a3f3d61fba75428f3136059ea8",
+  "donor_fixture_sha256": "badc50e69b79be15f4334f555d679a1794ff0c4d6e2bbd111eab18c579180194",
+  "destination_fixture_sha256": "badc50e69b79be15f4334f555d679a1794ff0c4d6e2bbd111eab18c579180194",
+  "destination_document_sha256": "add0052357a8bf8446fcf40adb1f98443e2651e879632d8b94733bb41d667807",
+  "comparison": "deterministic information coverage; wording equality not required",
+  "results": [
+    {
+      "requirement": "Identificação CNJ",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Partes e polos explicitamente cadastrados",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Relações parte–representante registradas",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Alegações e responsabilidade não inferidas apenas pelo polo",
+      "donor_present": false,
+      "destination_present": true,
+      "status": "DIVERGENCE_JUSTIFIED",
+      "justification": "O template doador atribui prejuízo ao polo ativo e responsabilidade ao polo passivo; o destino descreve somente o polo registrado, sem converter cadastro em alegação ou mérito."
+    },
+    {
+      "requirement": "Classe principal",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Classe secundária marcada como suspeita",
+      "donor_present": true,
+      "destination_present": false,
+      "status": "DIVERGENCE_JUSTIFIED",
+      "justification": "O doador explica a classificação EMBARGOS embora M01 a marque como suspeita; o contrato canônico publica a classe principal e não apresenta heurística como fato processual."
+    },
+    {
+      "requirement": "Cobertura dos assuntos cadastrados",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Explicações de classe/assunto sustentadas por conteúdo recuperado",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Data do ato separada de data/horário agendado",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Marcos e agrupamento administrativo sem perda de eventos",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Ordem cronológica dos movimentos",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Informação ausente sem afirmar ocorrência",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    },
+    {
+      "requirement": "Ausência de documentos pessoais no documento publicado",
+      "donor_present": true,
+      "destination_present": true,
+      "status": "COVERED"
+    }
+  ],
+  "passed": true
+}

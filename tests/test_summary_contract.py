@@ -63,6 +63,7 @@ def test_iasummary_writing_parity_stays_within_canonical_contract() -> None:
 
     assert "<composicao_textual>" in prompt
     assert "duas partes complementares" in prompt
+    assert "prefixos `Contexto do processo:` e `Andamento processual:`" in prompt
     assert "Polo processual, isoladamente, não prova o mérito" in prompt
     assert "somente a definição TPU oficial ou o complemento jurídico correspondente recuperado" in prompt
     assert "mantenha a ordem cronológica" in prompt
