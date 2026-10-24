@@ -4,7 +4,7 @@
 
 A proteção factual foi mantida e as regressões sintéticas foram corrigidas. A mudança continua local à branch `work/ragvia-m04f-claim-proposition-verification`; não houve chamada paga, processo real, migração de banco ou alteração de schema v2/v3.
 
-Base de teste: commit `980a967b4589fd58ac25697b4401a5921ef7dfdd` (PR #17), mais a árvore de trabalho identificada nos artefatos abaixo. Os testes PostgreSQL usaram exclusivamente o executor descartável e fixtures sintéticas.
+Base funcional: commit `980a967b4589fd58ac25697b4401a5921ef7dfdd` (PR #17). A árvore final validada para unit/integração e smoke offline é o commit `72c7deeebad37c0b3ebf9ab398b8764f1ecfc14a` (follow-up sobre o verificador). Os testes PostgreSQL usaram exclusivamente o executor descartável e fixtures sintéticas.
 
 ## Diagnóstico único
 
@@ -43,10 +43,10 @@ Este verificador é uma salvaguarda determinística de referências, correspond�
 
 ## Qualificação final
 
-- Os oito testes PostgreSQL canônicos requeridos foram incluídos na execução final mais ampla: **12 passaram, 0 falhas/erros/skips** nos sete arquivos `test_api_v1_postgres`, `test_judit_paginated_source_e2e`, `test_legal_knowledge_parity_postgres`, `test_parser_parity_postgres`, `test_pipeline_e2e`, `test_pipeline_resilience_e2e` e `test_public_summary_lifecycle`. Evidência: `C:/Temp/ragvia-m04f2-final2-canonical/`. Imagem PostgreSQL `pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b`; `run.json` conserva comando e ambiente.
-- Seis testes de persistência/publicação: **6 passaram, 0 falhas/erros/skips**, `C:/Temp/ragvia-m04f2-final2-persistence/`. Incluem resumo anterior válido, regeneração de inválido/incompleto, caminho rápido válido e documento restrito.
+- Os oito testes PostgreSQL canônicos requeridos foram incluídos na execução final mais ampla: **12 passaram, 0 falhas/erros/skips** nos sete arquivos `test_api_v1_postgres`, `test_judit_paginated_source_e2e`, `test_legal_knowledge_parity_postgres`, `test_parser_parity_postgres`, `test_pipeline_e2e`, `test_pipeline_resilience_e2e` e `test_public_summary_lifecycle`. Evidência: `C:/Temp/ragvia-m04f2-final3-canonical/`. Imagem PostgreSQL `pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b`; `run.json` conserva comando e ambiente.
+- Seis testes de persistência/publicação: **6 passaram, 0 falhas/erros/skips**, `C:/Temp/ragvia-m04f2-final3-persistence/`. Incluem resumo anterior válido, regeneração de inválido/incompleto, caminho rápido válido e documento restrito.
 - Suíte unitária completa em Linux: **1.377 passaram**, Python 3.12.14, pytest 9.0.3, imagem local de teste `sha256:c0f369a87fe34768297e6058d968f316427bbfa405771defd8b2c641134d24a1`; plugins `pytest-asyncio`, `anyio` e Hypothesis foram carregados explicitamente porque a imagem não auto-carrega os entry points. Comando equivalente à CI, com plugins explícitos: `pytest -p pytest_asyncio.plugin -p anyio.pytest_plugin -p hypothesis.extra.pytestplugin -q tests --ignore=tests/integration --hypothesis-seed=20260918`.
 - Testes direcionados exigidos: **67 passaram** (`test_claim_verification`, `test_claim_evidence`, `test_validation`), incluindo a regressão que preserva proposição suportada ao lado de proposição contradita.
 - `bash scripts/smoke_offline.sh` passou com PostgreSQL descartável; o provider foi bloqueado pelo fixture, sem chamadas.
 - `ruff check app scripts tests`, `python scripts/project_harness.py`, `git diff --check` e Gitleaks passaram na árvore local final.
-- A CI do commit inicial `f3949eb` falhou no smoke offline por fixture sintético sem referências de suporte; o diagnóstico e ajuste estão acima. A CI da revisão que inclui o fixture corrigido deve ser verificada antes de declarar o commit qualificado.
+- A CI do commit inicial `f3949eb` falhou no smoke offline por fixture sintético sem referências de suporte; o diagnóstico e ajuste estão acima. A CI da revisão que inclui o fixture corrigido deve ser verificada antes de declarar o commit qualificado. As suítes unitária, PostgreSQL, targeted e offline smoke foram reexecutadas no commit `72c7deeebad37c0b3ebf9ab398b8764f1ecfc14a`; os metadados `run.json` finais identificam esse commit.
