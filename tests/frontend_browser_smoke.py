@@ -289,7 +289,7 @@ def run(*, api_response: dict | None = None) -> None:
             )
             isolated_response["summary"] = None
             isolated_response["iaSummary"] = (
-                "# Resumo do processo\\n\\n"
+                "# Resumo do processo\n\n"
                 "Resumo jurídico sintético disponível somente por iaSummary."
             )
             configure_ready_api(isolated, isolated_response)

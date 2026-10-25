@@ -200,6 +200,12 @@ function createHarness(fetchResponses, { apiBase = "same-origin", hasExplicitCap
     createElement(tag) {
       return new Element(tag);
     },
+    createTextNode(value) {
+      // Mirror the browser's text node sufficiently to expose interrupted
+      // Markdown rendering instead of masking exceptions in the fake DOM.
+      const text = String(value);
+      return { textContent: text, renderedText: text };
+    },
   };
 
   const context = {
