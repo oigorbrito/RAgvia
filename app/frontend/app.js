@@ -659,7 +659,7 @@ function renderProcess(data) {
 
   if (currentSummary) {
     renderMarkdown(currentSummary, body);
-    const created = formatDate(data.summary.created_at);
+    const created = formatDate(data.summary?.created_at);
     provenance.textContent = demoSummary ? (created ? `Resumo sintético local publicado em ${created}. Nenhum provedor externo foi utilizado.` : 'Resumo sintético local. Nenhum provedor externo foi utilizado.') : (created ? `Resumo gerado por IA e publicado em ${created}.` : 'Resumo gerado por IA para a versão atual.');
   } else {
     clear(body);

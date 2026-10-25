@@ -277,6 +277,36 @@ def run(*, api_response: dict | None = None) -> None:
                 _require("<ProcessHeader" not in copied, "clipboard must contain readable text")
                 _require(page_errors == [], "canonical summary must not cause browser errors")
                 print("canonical PostgreSQL API response -> browser presentation/copy: PASS (synthetic)")
+            # A format-only iaSummary response has no legacy summary object.
+            # Use a fresh page to ensure a rendering failure cannot be masked
+            # by a previous successful result or silently caught as networking.
+            isolated = browser.new_page()
+            isolated_errors: list[str] = []
+            isolated.on("pageerror", lambda exc: isolated_errors.append(str(exc)))
+            isolated.goto(origin, wait_until="networkidle")
+            isolated_response = ready_payload(
+                markdown="Não deve depender do campo summary."
+            )
+            isolated_response["summary"] = None
+            isolated_response["iaSummary"] = (
+                "# Resumo do processo\\n\\n"
+                "Resumo jurídico sintético disponível somente por iaSummary."
+            )
+            configure_ready_api(isolated, isolated_response)
+            fill_lookup(isolated)
+            expect(isolated.locator("#result")).to_be_visible(timeout=5000)
+            _require(
+                "disponível somente por iaSummary"
+                in isolated.locator("#summary-body").inner_text(),
+                "iaSummary-only content must be visible without legacy summary",
+            )
+            _require(
+                isolated.locator("#status-title").inner_text()
+                != "Sem conexão com o serviço",
+                "rendering must not be misdiagnosed as a network failure",
+            )
+            _require(isolated_errors == [], "iaSummary-only browser must not throw")
+            isolated.close()
             browser.close()
     finally:
         server.shutdown()
