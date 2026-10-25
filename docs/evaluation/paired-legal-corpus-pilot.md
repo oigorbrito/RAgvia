@@ -1,0 +1,77 @@
+# RAgvia — corpus jurídico pareado, piloto 01
+
+## Escopo observado e população
+
+**Um par autêntico**, não trinta casos: a fixture sintética Judit
+`tests/fixtures/judit/parser_parity_synthetic.json` alimentou o gerador
+template **original** do doador `oigorbrito/rag_resumo@0d0f8cbb...`.
+A captura congelada está em `docs/evaluation/evidence/m03-donor-template.json`.
+O candidato é o `iaSummary` obtido da API após worker + PostgreSQL no
+**HEAD em teste**, nunca o Markdown arquivado em M03. O manifest
+`tests/eval/paired_legal_corpus_v1.json` fixa identidade e hashes.
+Qualquer alteração dessas fontes invalida o par antes da comparação.
+
+Os 30 registros de `tests/eval/synthetic_cases.json` são casos de
+**retrieval/geração simulada**, não pares independentes de escrita do
+doador. As mutações da suíte avaliam sensibilidade do medidor e também
+**não** aumentam a quantidade de pares.
+
+## Quatro dimensões e critérios de julgamento
+
+| Dimensão | Critério de anotação por especialista |
+| --- | --- |
+| Fidelidade factual | Partes, polos, datas e atos expressos, sem converter agendamento em realização |
+| Omissões materiais | Movimentações e fatos relevantes ao estado do processo, sem apagar efeitos processuais |
+| Fundamentação jurídica | Cada conclusão material acompanhada por fonte pertinente e vínculo justificável |
+| Legibilidade | Texto utilizável, claro e organizado, sem inferir mérito |
+
+Para cada dimensão, avaliação humana **cega e pareada** (doador/candidato
+em ordem aleatória): 0 = falha grave; 1 = falha material; 2 = aceitável com
+ressalva; 3 = adequado. Registrar justificativa, localização do problema
+e referências. Pelo menos dois avaliadores independentes por caso; resolver
+discordância em adjudicação separada, mantendo notas originais.
+Essas avaliações **não ocorreram**: `human_review.*.score_0_to_3=null`.
+Não calcular preferência, significância ou taxa de erro de modelo com
+um único caso e sem anotadores.
+
+## Gate reproduzível e o que ele mede
+
+`scripts/evaluate_paired_legal_corpus.py`:
+- valida o commit do doador, SHA-256 da entrada e hash Git do oráculo;
+- executa os 13 requisitos fixados da matriz M03 no texto **publicado**;
+- associa cada requisito a uma dimensão, distinguindo `COVERED`,
+  `FAIL_DESTINATION_OMISSION` e `DIVERGENCE_JUSTIFIED`;
+- registra metadados de verificação da aplicação e existência de refs,
+  **sem** alegar entailment/verdade jurídica automática;
+- sinaliza apenas dois padrões estreitos de risco e registra hashes das
+  saídas, nunca textos ou identificadores/credenciais reais.
+
+O teste PostgreSQL integra o medidor ao mesmo resultado da API e
+exige preservação determinística. A matriz completa de escrita pode
+mostrar omissões mesmo com CI verde: provedor simulado **não valida**
+qualidade humana. `legal_quality_qualified` e `release_qualified`
+permanecem falsos. O arquivo publicado no artefato CI contém somente
+metadados, sem `summary.md` ou payload Judit.
+
+Executar com PostgreSQL descartável:
+
+```bash
+export TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rpy_test
+export RAGV_M01_ARTIFACT_DIR=/tmp/ragvia-paired-corpus
+python -m pytest -q tests/integration/test_legal_knowledge_parity_postgres.py
+python scripts/evaluate_paired_legal_corpus.py \
+  --case-id m01-doc01-scheduled-hearing \
+  --destination /tmp/ragvia-paired-corpus/summary.md \
+  --output /tmp/ragvia-paired-corpus/paired-legal-case-cli.json
+```
+
+## Fechamento e limites
+
+Uma afirmação de paridade **real** exigirá uma população previamente
+definida de entradas autorizadas, saídas pareadas do mesmo processo,
+configuração fixa de modelo/prompt, fonte verificável, rubricadores
+independentes, custo e latência observados. Evitar usar o dataset de
+retrieval como se fossem 30 resumos escritos pelo doador. O corpus piloto
+fecha apenas a infraestrutura de medição e o caso sintético referenciado,
+não as autorizações externas, direito de reutilização ou aceitação jurídica.
+Sem merge ou chamadas ao Claude/Judit reais.

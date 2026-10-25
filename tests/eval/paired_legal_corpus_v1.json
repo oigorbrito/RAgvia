@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "description": "Only one proven donor/reference pair; mutations do not count as independent cases.",
+  "cases": [
+    {
+      "case_id": "m01-doc01-scheduled-hearing",
+      "fixture_sha256": "badc50e69b79be15f4334f555d679a1794ff0c4d6e2bbd111eab18c579180194",
+      "donor_commit": "0d0f8cbb495292a3f3d61fba75428f3136059ea8",
+      "donor_oracle_blob_sha1": "ee4c6349522810af9c773a59b23f8c427bc77330",
+      "synthetic_cnj": "0000000-00.0000.0.00.0401",
+      "donor_type": "original deterministic template"
+    }
+  ]
+}

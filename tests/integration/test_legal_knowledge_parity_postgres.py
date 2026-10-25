@@ -20,6 +20,7 @@ from app.migrations import migrate
 from app.tpu_glossary import load_legal_knowledge
 from app.worker import Worker, WorkerSettings
 from scripts.evaluate_writing_parity import evaluate as evaluate_writing_parity
+from scripts.evaluate_paired_legal_corpus import evaluate_case as evaluate_paired_case
 from tests.test_generation_authorization import configure_approval
 from tests.test_parser_parity import source
 
@@ -210,6 +211,20 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             assert summary_jsx["iaSummary"] == body["iaSummary"]
             assert summary_jsx["cnj"] == code
             assert summary_jsx["claim_evidence"]
+            paired_report = evaluate_paired_case(
+                case_id="m01-doc01-scheduled-hearing",
+                document=body["iaSummary"],
+                claims=summary_jsx["claim_evidence"],
+                commit_sha=os.environ.get("GITHUB_SHA"),
+            )
+            assert paired_report["comparison"]["deterministic_preservation_passed"]
+            assert paired_report["claim_source_metadata"]["total"] > 0
+            assert paired_report["claim_source_metadata"]["not_supported"] == 0
+            assert paired_report["claim_source_metadata"]["without_valid_source_reference"] == 0
+            assert paired_report["narrow_risk_signals"] == []
+            assert paired_report["legal_quality_qualified"] is False
+            assert all(v["score_0_to_3"] is None for v in paired_report["human_review"].values())
+
             assert all(
                 claim["verification_status"] == "supported"
                 for claim in summary_jsx["claim_evidence"]
@@ -312,6 +327,10 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             out = Path(directory)
             out.mkdir(parents=True, exist_ok=True)
             (out / "summary.md").write_text(body["iaSummary"], encoding="utf-8")
+            (out / "paired-legal-case.json").write_text(
+                json.dumps(paired_report, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
             (out / "api-response.json").write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "browser-auth.json").write_text(json.dumps({"tenant_id": str(tenant), "token": "m01-owner", "code": code}, indent=2), encoding="utf-8")
             (out / "evidence.json").write_text(json.dumps({"synthetic": True, "provider_calls": 0, "provider_cost_usd": "0", "stub_messages": len(outbound), "movement_sources": 13, "legal_knowledge_sources": len(knowledge_sources)}, indent=2), encoding="utf-8")
