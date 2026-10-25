@@ -194,6 +194,53 @@ async def test_api_keys_enforce_scope_rate_limit_lifecycle_and_safe_audit(monkey
             )
             assert requested.status_code == 202
 
+            # One tenant has an acquired process and a pending request.
+            # Scope filtering must happen before count, limit and offset.
+            explicit_headers = {"Authorization": f"Bearer {token_request}"}
+            portfolio_headers = {"Authorization": f"Bearer {token_portfolio}"}
+            denied_headers = {"Authorization": f"Bearer {token_denied}"}
+            scoped_list = await client.get("/v1/processos?limit=1", headers=explicit_headers)
+            assert scoped_list.status_code == 200
+            assert scoped_list.json()["total"] == 1
+            assert [item["code"] for item in scoped_list.json()["items"]] == [code_explicit]
+            scoped_next = await client.get(
+                "/v1/processos?limit=1&offset=1", headers=explicit_headers
+            )
+            assert scoped_next.status_code == 200
+            assert scoped_next.json()["total"] == 1
+            assert scoped_next.json()["items"] == []
+
+            portfolio_list = await client.get("/v1/processos", headers=portfolio_headers)
+            assert portfolio_list.status_code == 200
+            assert portfolio_list.json()["total"] == 1
+            assert [item["code"] for item in portfolio_list.json()["items"]] == [
+                code_portfolio
+            ]
+            no_scope_list = await client.get("/v1/processos", headers=denied_headers)
+            assert no_scope_list.status_code == 200
+            assert no_scope_list.json()["total"] == 0
+            assert no_scope_list.json()["items"] == []
+
+            # API-key identity alone cannot authorize per-process status
+            # or issue an acquisition authorization for a forbidden CNJ.
+            for suffix in ("status", "precheck"):
+                forbidden = await client.get(
+                    f"/v1/processos/{code_portfolio}/{suffix}",
+                    headers=explicit_headers,
+                )
+                assert forbidden.status_code == 404
+            forbidden_authorization = await client.post(
+                f"/v1/processos/{code_portfolio}/authorizations",
+                headers=explicit_headers,
+                json={"source": "judit", "operation": "refresh"},
+            )
+            assert forbidden_authorization.status_code == 404
+            allowed_status = await client.get(
+                f"/v1/processos/{code_portfolio}/status",
+                headers=portfolio_headers,
+            )
+            assert allowed_status.status_code == 200
+
             denied = await client.post(
                 f"/processes/{code_forbidden}/request",
                 headers={"Authorization": f"Bearer {token_denied}"},
