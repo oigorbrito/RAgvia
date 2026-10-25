@@ -175,7 +175,6 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
                     "Relações parte–representante registradas",
                     "Classe principal",
                     "Cobertura dos assuntos cadastrados",
-                    "Data do ato separada de data/horário agendado",
                     "Ordem cronológica dos movimentos",
                     "Ausência de documentos pessoais no documento publicado",
                 }
@@ -190,6 +189,8 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             assert "VI - a efetiva prevenção e reparação" in body["iaSummary"]
             assert "Intimação é o ato pelo qual" in body["iaSummary"]
             assert "01/09/2026" in body["iaSummary"] and "03/03/2027 15:00" in body["iaSummary"]
+            assert "audiência realizada" not in body["iaSummary"].casefold()
+            assert "audiência ocorreu" not in body["iaSummary"].casefold()
             assert "polo cadastrado: ativo" in body["iaSummary"]
             assert "Pessoa Sintética Beta (representa: Pessoa Sintética Alfa e Pessoa Sintética Gama)" in body["iaSummary"]
             assert "envio do processo de um setor" not in body["iaSummary"]

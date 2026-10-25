@@ -242,7 +242,6 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
         "Relações parte–representante registradas",
         "Classe principal",
         "Cobertura dos assuntos cadastrados",
-        "Data do ato separada de data/horário agendado",
         "Ordem cronológica dos movimentos",
         "Ausência de documentos pessoais no documento publicado",
     }
@@ -261,7 +260,8 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
         "synthetic": True,
         "deterministic_preservation_passed": critical_passed,
         "deterministic_preservation_count": len(critical_rows),
-        "writing_quality_qualified": not unresolved,
+        "writing_rubric_passed": not unresolved,
+        "live_model_quality_qualified": False,
         "writing_quality_gaps": unresolved,
         "rubric_count": len(results),
         "rubric_covered": sum(row["status"] == "COVERED" for row in results),
