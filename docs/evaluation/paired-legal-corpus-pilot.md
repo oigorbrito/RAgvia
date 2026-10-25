@@ -131,3 +131,27 @@ provisionar primeiro o secret de acesso somente leitura. Se nao houver
 secret, a verificacao falha de maneira explicita e nao afeta a CI
 funcional independente. Uma execucao workflow_dispatch tambem estara
 disponivel quando a workflow existir na branch padrao.
+
+## Security qualification of the donor attestation gate
+
+Donor source is PRIVATE. Read permission was authorized in the chat, but
+that is NOT an Actions credential. Use a fine-grained, time-limited token
+with Contents: Read only on oigorbrito/rag_resumo. Store it exclusively
+as RAG_RESUMO_READ_TOKEN in the protected donor-attestation environment
+of oigorbrito/RAgvia. Configure required reviewers and restrict
+deployment branches/tags before entering the token. No repository-wide
+token and no token as workflow input.
+
+The donor workflow triggers on owner-initiated ready_for_review of
+consolidated PR #20 against migration/ragvia-01-candidate (or explicit
+manual workflow_dispatch once installed on the default branch).
+A synchronize push never exposes the secret. The workflow pins the
+candidate head commit, not a generated merge ref; the donor SHA is
+pinned separately. No PR Draft or merge change is performed by this
+implementation. An environment with no required reviewers is NOT
+adequately protected, even if it has a benign-sounding name.
+
+The verifier is invoked using python -m scripts.verify_donor_reference
+so Python resolves imports from the project root without assuming an
+editable install. All outputs are hash-only. Donor reexecution stays
+PENDING until the actual gated job completes successfully.

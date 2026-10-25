@@ -3,7 +3,7 @@ name: donor-reference-reproduction
 on:
   workflow_dispatch:
   pull_request:
-    types: [ready_for_review, synchronize]
+    types: [ready_for_review]
 
 permissions:
   contents: read
@@ -14,7 +14,8 @@ concurrency:
 
 jobs:
   reproduce:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.base.ref == 'migration/ragvia-01-candidate' && github.event.pull_request.number == 20 && github.actor == 'oigorbrito') }}
+    environment: donor-attestation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,6 +32,7 @@ jobs:
       - name: Checkout exact RAgvia candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Checkout exact private donor revision
@@ -53,7 +55,7 @@ jobs:
 
       - name: Re-execute donor and verify archived evidence
         run: |
-          python scripts/verify_donor_reference.py \
+          python -m scripts.verify_donor_reference \
             --donor-path .tmp/frozen-donor \
             --output /tmp/ragvia-frozen-donor-metadata.json
 
