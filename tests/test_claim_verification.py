@@ -492,3 +492,39 @@ def test_multiple_cited_sources_can_support_different_deterministic_facts() -> N
     # each contributing source must remain visible as supported provenance.
     assert result.status == "supported"
     assert {relation.status for relation in result.relations} == {"supported"}
+
+
+@pytest.mark.parametrize(
+    "unsupported_text",
+    [
+        "O processo 0000000-00.2026.8.21.0001 é juridicamente nulo.",
+        "O processo 0000000-00.2026.8.21.0001 comprova fraude processual.",
+        "Maria da Silva é absolutamente incapaz.",
+    ],
+)
+def test_structured_anchor_does_not_prove_unrelated_legal_conclusion(
+    unsupported_text: str,
+) -> None:
+    """CNJ/party identity is not evidence for an additional legal conclusion."""
+    claim = MaterialClaim(
+        claim_id="synthesis",
+        claim_class="synthesis",
+        text=unsupported_text,
+        evidence_refs=(process_evidence_ref(VERSION_ID),),
+    )
+    verification = verify_material_claims([claim], _context())
+    assert verification["synthesis"].status != "supported"
+    assert verification_errors(verification)
+
+
+def test_exact_cited_legal_explanation_is_not_blocked_by_anchor_guard() -> None:
+    """Keep a positive baseline: exact source-backed propositions may publish."""
+    claim = MaterialClaim(
+        claim_id="timeline:0",
+        claim_class="procedural_event",
+        text="Audiência realizada em 10/09/2026.",
+        evidence_refs=(f"m-{STEP_ID.hex}",),
+    )
+    result = verify_material_claims([claim], _context())
+    assert result["timeline:0"].status == "supported"
+    assert not verification_errors(result)
