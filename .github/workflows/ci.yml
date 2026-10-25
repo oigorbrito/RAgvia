@@ -82,6 +82,18 @@ jobs:
       - name: Static Python quality
         run: ruff check app scripts tests
 
+      - name: Checkout frozen donor for independent reference reproduction
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: oigorbrito/rag_resumo
+          ref: 0d0f8cbb495292a3f3d61fba75428f3136059ea8
+          path: .tmp/frozen-donor
+          persist-credentials: false
+
+      - name: Reproduce original donor generator and renderer
+        run: |
+          python scripts/verify_donor_reference.py --donor-path .tmp/frozen-donor --output /tmp/ragvia-frozen-donor-metadata.json
+
       - name: Unit tests
         run: pytest -q tests --ignore=tests/integration --hypothesis-seed=20260918
 
