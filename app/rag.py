@@ -618,7 +618,20 @@ def _provider_payload(context: dict[str, Any]) -> tuple[dict[str, Any], list[Any
                 for key, value in header.items()
                 if key not in _RENDER_ONLY_HEADER_FIELDS
             }
-        raw_steps = list(context.get("steps", []))
+        # Lexical annotations are not source evidence or instructions to the model.
+        raw_steps = []
+        for step in context.get("steps", []):
+            if not isinstance(step, dict):
+                raw_steps.append(step)
+                continue
+            copied = dict(step)
+            metadata = copied.get("metadata")
+            if isinstance(metadata, dict) and "source_parser" in metadata:
+                copied["metadata"] = {
+                    key: value for key, value in metadata.items()
+                    if key != "source_parser"
+                }
+            raw_steps.append(copied)
 
     if not _is_secret_context(context):
         raw_process["evidence_ref"] = context.get("_process_evidence_ref")
