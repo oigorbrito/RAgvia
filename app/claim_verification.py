@@ -64,13 +64,13 @@ _SYNTHESIS_PROGRESS_LABEL_RE = re.compile(
 # predicative assertion. This is a conservative syntactic gate, not a
 # general legal entailment engine. Verbatim sourced propositions bypass it.
 _ASSERTIVE_PREDICATE_RE = re.compile(
-    r"\\b(?:é|são|está|estão|comprova|demonstr\\w*|evidenci\\w*|"
-    r"configur\\w*|caracteriz\\w*|revel\\w*|constitui|atest\\w*|"
-    r"signific\\w*)\\b",
+    r"\b(?:é|são|está|estão|comprova|demonstr\w*|evidenci\w*|"
+    r"configur\w*|caracteriz\w*|revel\w*|constitui|atest\w*|"
+    r"signific\w*)\b",
     re.IGNORECASE,
 )
 _REGISTERED_ROLE_RE = re.compile(
-    r"^(?P<name>.+?)\\s+é\\s+parte\\s+(?P<role>autor|autora|ré|réu)$",
+    r"^(?P<name>.+?)\s+é\s+parte\s+(?P<role>autor|autora|ré|réu)$",
     re.IGNORECASE,
 )
 _SAO_PAULO = ZoneInfo("America/Sao_Paulo")
