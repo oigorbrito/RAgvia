@@ -60,6 +60,19 @@ _SYNTHESIS_PROGRESS_LABEL_RE = re.compile(
     r"(?=\bandamento\s+processual\s*:)" ,
     re.IGNORECASE,
 )
+# A cited CNJ, date, amount or party name does not prove an additional
+# predicative assertion. This is a conservative syntactic gate, not a
+# general legal entailment engine. Verbatim sourced propositions bypass it.
+_ASSERTIVE_PREDICATE_RE = re.compile(
+    r"\\b(?:é|são|está|estão|comprova|demonstr\\w*|evidenci\\w*|"
+    r"configur\\w*|caracteriz\\w*|revel\\w*|constitui|atest\\w*|"
+    r"signific\\w*)\\b",
+    re.IGNORECASE,
+)
+_REGISTERED_ROLE_RE = re.compile(
+    r"^(?P<name>.+?)\\s+é\\s+parte\\s+(?P<role>autor|autora|ré|réu)$",
+    re.IGNORECASE,
+)
 _SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 _MAX_EXCERPT_CHARS = 4000
 VERIFICATION_STATUSES = frozenset(
@@ -510,6 +523,32 @@ def _relation_status(
     return "supported", "deterministic_facts_present", fact_count
 
 
+def _registered_party_role_is_supported(
+    proposition: str,
+    context: dict[str, Any],
+    cited_evidence: Sequence[VerificationEvidence],
+) -> bool:
+    """Only the canonical side of a cited party can support this role phrase."""
+    if not any(item.kind == "process" for item in cited_evidence):
+        return False
+    match = _REGISTERED_ROLE_RE.fullmatch(proposition)
+    if match is None:
+        return False
+    target_name = _normalized_text(match.group("name"))
+    role = _normalized_text(match.group("role"))
+    required_side = "active" if role in {"autor", "autora"} else "passive"
+    for party in context.get("parties", []):
+        if not isinstance(party, dict):
+            continue
+        if _normalized_text(party.get("name")) != target_name:
+            continue
+        side = _normalized_text(party.get("side"))
+        return side in (
+            {"active", "ativo"} if required_side == "active" else {"passive", "passivo"}
+        )
+    return False
+
+
 def _deterministic_proposition_status(
     facts: _ClaimFacts,
     evidence: Sequence[VerificationEvidence],
@@ -718,6 +757,16 @@ def verify_material_claims(
             elif supporting_refs:
                 proposition_status = "supported"
                 proposition_reason = "exact_proposition_present_in_cited_source"
+            elif (
+                _ASSERTIVE_PREDICATE_RE.search(proposition)
+                and not _registered_party_role_is_supported(
+                    proposition, context, cited_evidence
+                )
+            ):
+                # Bare factual anchors cannot entail an unsourced predicate.
+                # Fail closed and let the single canonical correction pass retry.
+                proposition_status = "insufficient"
+                proposition_reason = "assertive_predicate_not_exactly_sourced"
             elif proposition_facts.count == 0:
                 proposition_status = "not_evaluated"
                 proposition_reason = "proposition_not_found_in_cited_sources"
