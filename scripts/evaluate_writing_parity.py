@@ -105,8 +105,18 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
     results.append(_result("Partes e polos explicitamente cadastrados", donor_parties, target_parties))
 
     donor_representatives = all(_text(name) in donor_document and _text(name) in donor_party for name in representatives)
+    represented_pairs = set()
+    for line in destination.splitlines():
+        match = re.fullmatch(
+            r"-\s*(.+?)\s+\(representa:\s*(.+?)\)", line.strip()
+        )
+        if match:
+            for represented in re.split(r"\s+e\s+", match.group(2)):
+                represented_pairs.add(
+                    (_text(match.group(1)).strip(), _text(represented).strip())
+                )
     target_representatives = all(
-        f"{_text(name)} (representa: {_text(party['nome'])})" in target
+        (_text(name).strip(), _text(party["nome"]).strip()) in represented_pairs
         for party in expected["partes"]
         for name in party["advogados"]
     )
@@ -224,8 +234,37 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
         target_no_personal_docs,
     ))
 
+    # A provider stub proves deterministic identity/source retention, not
+    # model-quality writing. Keep every other criterion and its gap visible.
+    critical_names = {
+        "Identificação CNJ",
+        "Partes e polos explicitamente cadastrados",
+        "Relações parte–representante registradas",
+        "Classe principal",
+        "Cobertura dos assuntos cadastrados",
+        "Data do ato separada de data/horário agendado",
+        "Ordem cronológica dos movimentos",
+        "Ausência de documentos pessoais no documento publicado",
+    }
+    critical_rows = [
+        row for row in results if row["requirement"] in critical_names
+    ]
+    if len(critical_rows) != len(critical_names):
+        raise ValueError("incomplete deterministic preservation rubric")
+    critical_passed = all(row["status"] == "COVERED" for row in critical_rows)
+    unresolved = [
+        row["requirement"]
+        for row in results
+        if row["status"] == "FAIL_DESTINATION_OMISSION"
+    ]
     return {
         "synthetic": True,
+        "deterministic_preservation_passed": critical_passed,
+        "deterministic_preservation_count": len(critical_rows),
+        "writing_quality_qualified": not unresolved,
+        "writing_quality_gaps": unresolved,
+        "rubric_count": len(results),
+        "rubric_covered": sum(row["status"] == "COVERED" for row in results),
         "donor_commit": DONOR_SHA,
         "donor_fixture_sha256": donor_record["provenance"]["fixture_sha256"],
         "destination_fixture_sha256": fixture_sha,

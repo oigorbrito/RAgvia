@@ -163,11 +163,24 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             runtime_parity = evaluate_writing_parity(destination_text=body["iaSummary"])
             assert runtime_parity["synthetic"] is True
             assert runtime_parity["destination_origin"] == "runtime_api"
-            assert runtime_parity["passed"], [
+            # The SDK transport is mocked. Gate deterministic published
+            # facts, but do not mislabel the mock's writing as Claude parity.
+            assert runtime_parity["deterministic_preservation_passed"], [
                 (item["requirement"], item["status"])
                 for item in runtime_parity["results"]
-                if item["status"] not in {"COVERED", "DIVERGENCE_JUSTIFIED"}
+                if item["status"] != "COVERED"
+                and item["requirement"] in {
+                    "Identificação CNJ",
+                    "Partes e polos explicitamente cadastrados",
+                    "Relações parte–representante registradas",
+                    "Classe principal",
+                    "Cobertura dos assuntos cadastrados",
+                    "Data do ato separada de data/horário agendado",
+                    "Ordem cronológica dos movimentos",
+                    "Ausência de documentos pessoais no documento publicado",
+                }
             ]
+            assert runtime_parity["rubric_count"] >= runtime_parity["deterministic_preservation_count"]
             assert runtime_parity["destination_document_sha256"] == __import__(
                 "hashlib"
             ).sha256(body["iaSummary"].encode("utf-8")).hexdigest()
