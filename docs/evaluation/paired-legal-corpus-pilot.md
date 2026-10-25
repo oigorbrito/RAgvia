@@ -75,3 +75,34 @@ retrieval como se fossem 30 resumos escritos pelo doador. O corpus piloto
 fecha apenas a infraestrutura de medição e o caso sintético referenciado,
 não as autorizações externas, direito de reutilização ou aceitação jurídica.
 Sem merge ou chamadas ao Claude/Judit reais.
+
+## Fechamento: revisão cega A/B, dados locais
+
+Depois de gerar o iaSummary do HEAD atual em PostgreSQL, executar localmente:
+
+    python scripts/blind_paired_legal_review.py prepare --case-id m01-doc01-scheduled-hearing --candidate /tmp/ragvia-paired-corpus/summary.md --commit HEAD_EXATO --out /tmp/pareamento-juridico-privado
+
+O comando cria A.md, B.md, review-form.json e PRIVATE-mapping.json com
+permissão restrita (0700 para a pasta, 0600 para os arquivos).
+Entregar aos dois avaliadores apenas A.md, B.md e review-form.json.
+Nunca divulgar PRIVATE-mapping.json antes da conclusão da avaliação.
+Não executar com documentos reais em infraestrutura pública/compartilhada.
+
+Cada avaliador preenche scores para ambos os lados A e B em cada uma das
+quatro dimensões, usando 0 (falha crítica), 1 (falha material),
+2 (aceitável com ressalvas) ou 3 (adequado). Identificadores reviewer_id
+devem ser distintos; registrar justificativas e evidências separadamente
+sob os controles de privacidade do projeto.
+
+Consolidar as notas no ambiente privado:
+
+    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --output /tmp/pareamento-juridico-privado/resultado.json
+
+O consolidado mostra as diferenças pareadas e a concordância de direção.
+Por definição, um único par não suporta inferência populacional:
+legal_quality_qualified e release_qualified permanecem false.
+
+A CI também reproduz a captura do doador a partir do commit Git original
+usando scripts/verify_donor_reference.py. Compara seções, documento e
+proveniência completos, mas publica só hashes. Nenhum código do doador
+é transportado para o runtime do RAgvia e nenhuma chamada paga é feita.
