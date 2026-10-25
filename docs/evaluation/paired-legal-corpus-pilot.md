@@ -106,3 +106,20 @@ A CI também reproduz a captura do doador a partir do commit Git original
 usando scripts/verify_donor_reference.py. Compara seções, documento e
 proveniência completos, mas publica só hashes. Nenhum código do doador
 é transportado para o runtime do RAgvia e nenhuma chamada paga é feita.
+
+
+## Acesso ao doador privado — gate separado
+
+O repositorio `oigorbrito/rag_resumo` e privado. A CI padrao do RAgvia usa
+um GITHUB_TOKEN restrito ao seu repositorio; por isso a tentativa de checkout
+do doador nas CIs #56/#57 falhou com Repository not found. Nao se trata de
+falha do gerador e nao existe evidencia de reproducao externa nesse teste.
+
+A workflow manual `donor-reference-reproduction.yml` so executa apos o
+dono provisionar no repositorio RAgvia a credencial de leitura
+`RAG_RESUMO_READ_TOKEN` com permissao **Contents: Read** exclusivamente
+sobre o repositorio privado do doador. Nao colocar token em input, logs,
+commit nem variaveis nao secretas. A workflow usa o commit congelado,
+verifica a saida original e publica apenas hashes. A CI padrao segue
+independente, e **reproducao externa do doador = PENDENTE** ate haver
+sucesso em uma execucao manual desse gate.
