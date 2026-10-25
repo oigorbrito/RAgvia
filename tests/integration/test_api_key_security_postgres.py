@@ -11,6 +11,8 @@ from app.api import app
 from app.api_key_auth import api_key_hash_and_fingerprint
 from app.db import create_pool
 from app.migrations import migrate
+from app.datajud_jobs import DATAJUD_TASK
+from app.queue import enqueue
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
@@ -159,6 +161,22 @@ async def test_api_keys_enforce_scope_rate_limit_lifecycle_and_safe_audit(monkey
                 scopes=(code_portfolio,),
                 expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
             )
+            # Stored DataJud history is scoped to the API key, even when
+            # DataJud lookup is disabled and no external calls are possible.
+            for datajud_code in (code_portfolio, code_explicit):
+                row = await enqueue(
+                    conn,
+                    task_name=DATAJUD_TASK,
+                    payload={
+                        "tenant_id": str(tenant_a),
+                        "code": datajud_code,
+                        "operation": "metadata_lookup",
+                        "purpose": "public_metadata_lookup",
+                        "classification_at_request": "unknown",
+                    },
+                    idempotency_key=f"test-scope-datajud:{datajud_code}",
+                )
+                assert row is not None
 
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -220,6 +238,26 @@ async def test_api_keys_enforce_scope_rate_limit_lifecycle_and_safe_audit(monkey
             assert no_scope_list.status_code == 200
             assert no_scope_list.json()["total"] == 0
             assert no_scope_list.json()["items"] == []
+
+            scoped_history = await client.get(
+                "/v1/processos/datajud/history", headers=explicit_headers
+            )
+            assert scoped_history.status_code == 200
+            assert {row["code"] for row in scoped_history.json()["items"]} == {
+                code_explicit
+            }
+            portfolio_history = await client.get(
+                "/v1/processos/datajud/history", headers=portfolio_headers
+            )
+            assert portfolio_history.status_code == 200
+            assert {row["code"] for row in portfolio_history.json()["items"]} == {
+                code_portfolio
+            }
+            denied_history = await client.get(
+                "/v1/processos/datajud/history", headers=denied_headers
+            )
+            assert denied_history.status_code == 200
+            assert denied_history.json()["items"] == []
 
             # API-key identity alone cannot authorize per-process status
             # or issue an acquisition authorization for a forbidden CNJ.

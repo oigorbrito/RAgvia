@@ -185,10 +185,27 @@ async def list_datajud_history(request: Request) -> JSONResponse:
         raise HTTPException(status_code=503, detail="Queue unavailable")
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT id, status::text AS status, payload, result, created_at
-               FROM jobs WHERE task_name=$1 AND payload->>'tenant_id'=$2
-               ORDER BY created_at DESC LIMIT 50""",
-            DATAJUD_TASK, str(tenant_id),
+            """SELECT j.id, j.status::text AS status, j.payload, j.result, j.created_at
+               FROM jobs j
+               WHERE j.task_name=$1 AND j.payload->>'tenant_id'=$2
+                 AND (
+                     $3::uuid IS NULL
+                     OR EXISTS (
+                         SELECT 1 FROM api_key_cnj_scopes scope
+                         WHERE scope.api_key_id=$3
+                           AND scope.process_code=j.payload->>'code'
+                     )
+                     OR EXISTS (
+                         SELECT 1 FROM api_keys key
+                         JOIN tenant_processes tp ON tp.tenant_id=key.tenant_id
+                         JOIN processes p ON p.id=tp.process_id
+                         WHERE key.id=$3 AND key.tenant_id::text=$2
+                           AND key.allow_portfolio=TRUE
+                           AND p.code=j.payload->>'code'
+                     )
+                 )
+               ORDER BY j.created_at DESC LIMIT 50""",
+            DATAJUD_TASK, str(tenant_id), principal.api_key_id,
         )
         items = []
         for row in rows:
