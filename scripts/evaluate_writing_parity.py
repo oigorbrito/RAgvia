@@ -48,7 +48,12 @@ def _result(
     }
 
 
-def evaluate() -> dict[str, Any]:
+def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
+    """Compare donor oracle with the supplied canonical published document.
+
+    No value means the archived M03 reference; integration callers must pass
+    the actual iaSummary returned by the current runtime/API.
+    """
     fixture_bytes = FIXTURE.read_bytes()
     fixture_sha = hashlib.sha256(fixture_bytes).hexdigest()
     donor_record = json.loads(DONOR.read_text(encoding="utf-8"))
@@ -57,7 +62,7 @@ def evaluate() -> dict[str, Any]:
     if donor_record.get("provenance", {}).get("fixture_sha256") != fixture_sha:
         raise ValueError("donor oracle was not generated from the current parity fixture")
     donor = donor_record["output"]
-    destination = DESTINATION.read_text(encoding="utf-8")
+    destination = DESTINATION.read_text(encoding="utf-8") if destination_text is None else destination_text
     expected = json.loads(EXPECTED.read_text(encoding="utf-8"))
     donor_intro = _text(donor["introducao"])
     donor_party = _text([item["descricao"] for item in donor["partes"]])
@@ -208,15 +213,24 @@ def evaluate() -> dict[str, Any]:
     target_limits = absent_facts and all(term in attention for term in ("não registra citação", "decisão", "sentença", "não se infere"))
     results.append(_result("Informação ausente sem afirmar ocorrência", donor_limits, target_limits))
 
-    no_personal_docs = not any(p.get("documento") and re.search(r"\d{8,}", p["documento"]) for p in donor["partes"]) and not re.search(r"\d{8,}", destination)
-    results.append(_result("Ausência de documentos pessoais no documento publicado", no_personal_docs, no_personal_docs))
+    donor_no_personal_docs = not any(
+        p.get("documento") and re.search(r"\d{8,}", p["documento"])
+        for p in donor["partes"]
+    )
+    target_no_personal_docs = not bool(re.search(r"\d{8,}", destination))
+    results.append(_result(
+        "Ausência de documentos pessoais no documento publicado",
+        donor_no_personal_docs,
+        target_no_personal_docs,
+    ))
 
     return {
         "synthetic": True,
         "donor_commit": DONOR_SHA,
         "donor_fixture_sha256": donor_record["provenance"]["fixture_sha256"],
         "destination_fixture_sha256": fixture_sha,
-        "destination_document_sha256": hashlib.sha256(DESTINATION.read_bytes()).hexdigest(),
+        "destination_document_sha256": hashlib.sha256(destination.encode("utf-8")).hexdigest(),
+        "destination_origin": "runtime_api" if destination_text is not None else "archived_m03",
         "comparison": "deterministic information coverage; wording equality not required",
         "results": results,
         "passed": all(item["status"] in {"COVERED", "DIVERGENCE_JUSTIFIED"} for item in results),
@@ -226,8 +240,15 @@ def evaluate() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument(
+        "--destination", type=Path,
+        help="current generated/published iaSummary document (required for live CI parity)",
+    )
     args = parser.parse_args()
-    result = evaluate()
+    result = evaluate(
+        destination_text=args.destination.read_text(encoding="utf-8")
+        if args.destination is not None else None
+    )
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"passed": result["passed"], "results": result["results"]}, ensure_ascii=False, indent=2))
     return 0 if result["passed"] else 1

@@ -32,6 +32,24 @@ def test_donor_and_destination_cover_the_same_synthetic_writing_requirements() -
     )
 
 
+def test_explicit_runtime_document_cannot_pass_with_stale_archived_reference() -> None:
+    archived = evaluation.DESTINATION.read_text(encoding="utf-8")
+    runtime_result = evaluation.evaluate(destination_text=archived)
+    assert runtime_result["passed"] is True
+    assert runtime_result["destination_origin"] == "runtime_api"
+    assert runtime_result["destination_document_sha256"] == evaluation.evaluate()[
+        "destination_document_sha256"
+    ]
+    altered = archived.replace("Pessoa Sintética Alfa", "Parte omitida")
+    result = evaluation.evaluate(destination_text=altered)
+    assert result["passed"] is False
+    assert result["destination_origin"] == "runtime_api"
+    assert result["destination_document_sha256"] != runtime_result["destination_document_sha256"]
+    assert any(
+        row["status"] == "FAIL_DESTINATION_OMISSION" for row in result["results"]
+    )
+
+
 def test_destination_omission_is_a_failed_comparison(tmp_path: Path, monkeypatch) -> None:
     original = evaluation.DESTINATION.read_text(encoding="utf-8")
     altered = original.replace("Pessoa Sintética Alfa", "Pessoa omitida")

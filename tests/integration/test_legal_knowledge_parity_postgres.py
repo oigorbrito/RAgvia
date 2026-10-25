@@ -19,6 +19,7 @@ from app.generation_authorization import PROPOSED_MODEL
 from app.migrations import migrate
 from app.tpu_glossary import load_legal_knowledge
 from app.worker import Worker, WorkerSettings
+from scripts.evaluate_writing_parity import evaluate as evaluate_writing_parity
 from tests.test_generation_authorization import configure_approval
 from tests.test_parser_parity import source
 
@@ -156,7 +157,20 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             assert body["summary"]["validation"]["passed"] is True
             assert body["summary"]["model"] == PROPOSED_MODEL
             assert body["iaSummary"] == body["summary"]["markdown"]
-            assert body["iaSummary"] == body["summary"]["markdown"]
+            # Compare the *published* document on this exact commit to the
+            # pinned donor oracle. The archived M03 markdown is not an
+            # acceptable substitute for a runtime parity regression gate.
+            runtime_parity = evaluate_writing_parity(destination_text=body["iaSummary"])
+            assert runtime_parity["synthetic"] is True
+            assert runtime_parity["destination_origin"] == "runtime_api"
+            assert runtime_parity["passed"], [
+                (item["requirement"], item["status"])
+                for item in runtime_parity["results"]
+                if item["status"] not in {"COVERED", "DIVERGENCE_JUSTIFIED"}
+            ]
+            assert runtime_parity["destination_document_sha256"] == __import__(
+                "hashlib"
+            ).sha256(body["iaSummary"].encode("utf-8")).hexdigest()
             assert "Contexto do processo:" in body["iaSummary"]
             assert "Andamento processual:" in body["iaSummary"]
             assert "3º O Juizado Especial Cível tem competência" in body["iaSummary"]
