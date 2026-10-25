@@ -168,6 +168,68 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
             assert "envio do processo de um setor" not in body["iaSummary"]
             for forbidden in ("source_parser", "Ignore a área", "provavelmente", "OAB/PR"):
                 assert forbidden not in body["iaSummary"]
+            # One acquired/versioned Judit process, one persisted summary:
+            # verify both public representations and source provenance on the
+            # same canonical output, not on a separately authored fixture.
+            owner_headers = {"Authorization": "Bearer m01-owner"}
+            summary_jsx_response = await client.get(
+                f"/v1/processos/{code}/resumo", headers=owner_headers
+            )
+            assert summary_jsx_response.status_code == 200
+            summary_jsx = summary_jsx_response.json()
+            assert summary_jsx["format"] == "jsx"
+            assert summary_jsx["validation"]["passed"] is True
+            assert summary_jsx["iaSummary"] == body["iaSummary"]
+            assert summary_jsx["cnj"] == code
+            assert summary_jsx["claim_evidence"]
+            assert all(
+                claim["verification_status"] == "supported"
+                for claim in summary_jsx["claim_evidence"]
+            )
+
+            summary_json_response = await client.get(
+                f"/v1/processos/{code}/resumo?format=json",
+                headers=owner_headers,
+            )
+            assert summary_json_response.status_code == 200
+            summary_json = summary_json_response.json()
+            assert summary_json["format"] == "json"
+            document = summary_json["iaSummary"]
+            assert document["process"]["cnj"] == code
+            assert document["summary"]["claims"]
+            assert "Contexto do processo:" in document["summary"]["synthesis"]
+            assert len(document["summary"]["timeline"]) == 13
+            assert all(
+                claim["verification"]["status"] == "supported"
+                for claim in document["summary"]["claims"]
+            )
+
+            source_response = await client.get(
+                f"/v1/processos/{code}/fontes", headers=owner_headers
+            )
+            assert source_response.status_code == 200
+            source_payload = source_response.json()
+            assert source_payload["cnj"] == code
+            assert source_payload["claim_evidence"]
+            assert any(
+                source["kind"] == "movement" and source["used_for_summary"]
+                for source in source_payload["sources"]
+            )
+            assert not any(
+                "evidence_excerpt" in source
+                for claim in source_payload["claim_evidence"]
+                for source in claim["sources"]
+            )
+            for endpoint in (
+                f"/v1/processos/{code}/resumo",
+                f"/v1/processos/{code}/resumo?format=json",
+                f"/v1/processos/{code}/fontes",
+            ):
+                forbidden = await client.get(
+                    endpoint, headers={"Authorization": "Bearer m01-other"}
+                )
+                assert forbidden.status_code in (403, 404)
+
             assert (await client.get(f"/processes/{code}", headers={"Authorization": "Bearer m01-other"})).status_code in (403, 404)
             assert (await client.post("/webhooks/judit/m01-synthetic-webhook", json=page)).status_code == 200
             async with pool.acquire() as conn:
