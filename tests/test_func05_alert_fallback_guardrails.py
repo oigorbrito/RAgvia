@@ -26,7 +26,7 @@ def test_donor_cadastro_alert_does_not_rewrite_source_or_provider_context() -> N
     # never overwrite the authoritative field or become an LLM instruction.
     assert result["header"]["area"] == "DIREITO DO TRABALHO"
     process, movements = _provider_payload(result)
-    provider_text = json.dumps([process, movements], ensure_ascii=False)
+    provider_text = json.dumps([process, movements], ensure_ascii=False, default=str)
     assert "source_parser" not in provider_text
     assert "lexical_annotations_not_verified_facts" not in provider_text
     for indicator in source_parser["indicators"]:
