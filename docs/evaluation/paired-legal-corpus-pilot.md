@@ -123,3 +123,11 @@ commit nem variaveis nao secretas. A workflow usa o commit congelado,
 verifica a saida original e publica apenas hashes. A CI padrao segue
 independente, e **reproducao externa do doador = PENDENTE** ate haver
 sucesso em uma execucao manual desse gate.
+
+A verificacao pre-merge pode ser acionada pela transicao manual da PR
+de Draft para Ready for review (evento ready_for_review). Enquanto Draft,
+a verificacao nao executa, preservando o gate de autorizacao. O dono deve
+provisionar primeiro o secret de acesso somente leitura. Se nao houver
+secret, a verificacao falha de maneira explicita e nao afeta a CI
+funcional independente. Uma execucao workflow_dispatch tambem estara
+disponivel quando a workflow existir na branch padrao.
