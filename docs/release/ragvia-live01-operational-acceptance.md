@@ -47,7 +47,9 @@ estrutural de fontes.
    comprova direitos, saldo Anthropic, contrato Judit ou limite externo;
    esses comprovantes são responsabilidade operacional prévia.
 5. Aceitação real controlada (apenas com API HTTPS ou loopback já em operação
-   e token autenticado na variável `RAGVIA_ACCEPTANCE_API_TOKEN`):
+   e token autenticado na variável `RAGVIA_ACCEPTANCE_API_TOKEN`).
+   Para APIs HTTPS remotas, também fixar exatamente a origem permitida em
+   `RAGVIA_ACCEPTANCE_API_ORIGIN`; em loopback não é necessária:
 
    ```powershell
    python -m scripts.accept_live_summary --process-id <UUID_PROCESSO> --version-id <UUID_VERSAO> --tenant-id <UUID_TENANT> --api-base-url https://api-exemplo-autorizada --execute
@@ -69,6 +71,9 @@ estrutural de fontes.
 - Sem credenciais, banco, permissão tenant, versão finalizada, aprovação
   financeira, API autenticada ou HTTPS/loopback: `BLOCKED`, zero chamadas
   intencionalmente efetuadas pelo executor.
+- Para execução real, o script também recusa um endpoint remoto não fixado
+  explicitamente e evita DataJud, anexos pagos Judit, embeddings e reranking
+  externos adicionais. Use somente o serviço de API controlado pelo operador.
 - Se resumo já publicado ou `approval_id` usado: **não** gera de novo.
 - As reservas são duráveis e não são revertidas após falhas. Dados
   processuais e credenciais não entram em logs/artefatos CI.

@@ -186,6 +186,13 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
         bearer = os.environ.get("RAGVIA_ACCEPTANCE_API_TOKEN", "").strip()
         if not bearer or not os.environ.get("ANTHROPIC_API_KEY", "").strip():
             raise AcceptanceBlocked("api_or_anthropic_credential_unavailable")
+        if (urlsplit(base_url).hostname not in {"127.0.0.1", "localhost", "::1"}
+                and os.getenv("RAGVIA_ACCEPTANCE_API_ORIGIN", "").rstrip("/") != base_url):
+            raise AcceptanceBlocked("remote_api_origin_not_explicitly_pinned")
+        if any(os.getenv(flag, "").strip().lower() in {"1", "true", "yes", "on"}
+               for flag in ("DATAJUD_ENABLED", "JUDIT_ATTACHMENTS_ENABLED",
+                            "ALLOW_EXTERNAL_EMBEDDINGS", "ALLOW_EXTERNAL_RERANKER")):
+            raise AcceptanceBlocked("unrelated_external_provider_must_be_disabled")
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
         raise AcceptanceBlocked("database_url_unavailable")
