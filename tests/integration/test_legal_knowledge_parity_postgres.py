@@ -63,7 +63,10 @@ def _writing_payload(process_json: dict, steps: list[dict]) -> dict:
         "synthesis": synthesis,
         "timeline": [item["text"] for item in timeline],
         "current_status": steps[-1]["text"],
-        "attention": [steps[-1]["text"]],
+        "attention": [
+            *list(process_json.get("source_warnings") or []),
+            steps[-1]["text"],
+        ],
         "decisions": [], "deadlines": [], "related_processes": [], "attachments": [],
     }
     refs = [process_json["evidence_ref"], *[step["evidence_ref"] for step in steps]]
@@ -72,7 +75,11 @@ def _writing_payload(process_json: dict, steps: list[dict]) -> dict:
         next(claim for claim in payload["claims"] if claim["claim_id"] == f"timeline:{index}")["evidence_refs"] = item["refs"]
     next(claim for claim in payload["claims"] if claim["claim_id"] == "synthesis")["evidence_refs"] = refs
     next(claim for claim in payload["claims"] if claim["claim_id"] == "current_status")["evidence_refs"] = [steps[-1]["evidence_ref"]]
-    next(claim for claim in payload["claims"] if claim["claim_id"] == "attention:0")["evidence_refs"] = [steps[-1]["evidence_ref"]]
+    for index in range(len(payload["attention"])):
+        next(
+            claim for claim in payload["claims"]
+            if claim["claim_id"] == f"attention:{index}"
+        )["evidence_refs"] = refs
     return payload
 
 

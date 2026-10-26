@@ -258,13 +258,35 @@ def _passive_party_attention_warnings(
     representatives: list[dict[str, Any]],
     steps: list[Step],
 ) -> list[str]:
-    has_passive_party = any(
-        str(party.get("side") or "").strip().casefold() == "passive"
-        for party in parties
+    passive_parties = [
+        party for party in parties
         if isinstance(party, dict)
-    )
-    if not has_passive_party or representatives:
+        and str(party.get("side") or "").strip().casefold() == "passive"
+    ]
+    if not passive_parties:
         return []
+
+    # An active party's lawyer does not establish representation of a
+    # passive party. Unknown lawyer-to-party links remain ambiguous and
+    # must not be treated as evidence of missing representation.
+    if representatives:
+        if any(
+            not isinstance(representative, dict)
+            or not str(representative.get("represents") or "").strip()
+            for representative in representatives
+        ):
+            return []
+        if any(not str(party.get("name") or "").strip() for party in passive_parties):
+            return []
+        represented = {
+            str(representative["represents"]).strip().casefold()
+            for representative in representatives
+        }
+        passive_names = {
+            str(party["name"]).strip().casefold() for party in passive_parties
+        }
+        if passive_names.issubset(represented):
+            return []
 
     for step in steps:
         title = (step.title or "").casefold()
