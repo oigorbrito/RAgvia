@@ -79,8 +79,6 @@ automatic fallback to paid POST is permitted. The workflow's two documented
 host probes can still run, but success requires independent verified
 authentication on at least one host.
 
-### Judit non-creating credential diagnostic
-
 Before any paid `POST /requests`, validate the provisioned Judit key with the provider-documented
 connectivity check:
 
