@@ -160,6 +160,28 @@ async def _read_persisted(database_url: str, scope: tuple[UUID, UUID, UUID],
     return stored, count
 
 
+async def _check_api_identity(base_url: str, bearer: str, tenant_id: UUID) -> None:
+    """Verify the bearer and exact tenant BEFORE the one-shot paid generation."""
+    async with httpx.AsyncClient(
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {bearer}"},
+        timeout=15,
+        follow_redirects=False,
+    ) as client:
+        response = await client.get("/v1/auth/verificar")
+    if response.status_code != 200:
+        raise AcceptanceBlocked("api_credential_not_authorized")
+    try:
+        identity = response.json()
+    except ValueError as exc:
+        raise AcceptanceBlocked("api_identity_invalid_json") from exc
+    if (not isinstance(identity, dict)
+            or identity.get("ok") is not True
+            or identity.get("authenticated") is not True
+            or identity.get("tenant_id") != str(tenant_id)):
+        raise AcceptanceBlocked("api_tenant_identity_mismatch")
+
+
 async def _api_read(base_url: str, code: str, bearer: str) -> tuple[dict, dict]:
     headers = {"Authorization": f"Bearer {bearer}"}
     path = "/v1/processos/" + quote(code, safe="") + "/resumo"
@@ -212,13 +234,9 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
             "account_limit_independently_verified_by_script": False,
         }
 
-    # Check the authenticated HTTP service BEFORE spending an approved call.
-    async with httpx.AsyncClient(base_url=base_url,
-                                 headers={"Authorization": f"Bearer {bearer}"},
-                                 timeout=15, follow_redirects=False) as client:
-        capability = await client.get("/v1/capabilities")
-        if capability.status_code != 200:
-            raise AcceptanceBlocked("api_not_ready_before_provider_call")
+    # /v1/capabilities may return HTTP 200 for unauthenticated callers.
+    # Validate actual bearer authentication AND tenant scope before spending.
+    await _check_api_identity(base_url, bearer, scope[2])
 
     pool = await create_pool(database_url, min_size=1, max_size=4)
     try:

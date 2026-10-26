@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from uuid import UUID
+
+import httpx
 
 import pytest
 
 from scripts.accept_live_summary import (
-    AcceptanceBlocked, _api_base_url, _assess_publication, _run,
+    AcceptanceBlocked, _api_base_url, _assess_publication, _check_api_identity, _run,
 )
 
 
@@ -112,3 +115,89 @@ async def test_preflight_never_calls_model_and_reports_zero_spend(
     result = await _run(args)
     assert result["provider_calls"] == 0
     assert result["status"] == "CONFIGURATION_VALID_NOT_LIVE_ACCEPTED"
+
+
+
+@pytest.mark.parametrize("status_code,body,expected_error", [
+    (401, {"detail": "unauthorized"}, "api_credential_not_authorized"),
+    (403, {"detail": "forbidden"}, "api_credential_not_authorized"),
+    (200, {"ok": True, "authenticated": True,
+           "tenant_id": str(UUID(int=999))}, "api_tenant_identity_mismatch"),
+    (200, {"ok": True, "authenticated": False,
+           "tenant_id": str(UUID(int=44))}, "api_tenant_identity_mismatch"),
+    (200, {"authenticated": True,
+           "tenant_id": str(UUID(int=44))}, "api_tenant_identity_mismatch"),
+])
+@pytest.mark.asyncio
+async def test_identity_gate_rejects_unauthorized_or_wrong_tenant(
+    monkeypatch: pytest.MonkeyPatch, status_code: int, body: dict, expected_error: str
+) -> None:
+    import scripts.accept_live_summary as acceptance
+    original_client = httpx.AsyncClient
+    observed = []
+
+    def respond(req: httpx.Request) -> httpx.Response:
+        observed.append((str(req.url), req.headers.get("authorization")))
+        return httpx.Response(status_code, json=body)
+
+    transport = httpx.MockTransport(respond)
+    monkeypatch.setattr(
+        acceptance.httpx, "AsyncClient",
+        lambda **kwargs: original_client(transport=transport, **kwargs),
+    )
+    with pytest.raises(AcceptanceBlocked, match=expected_error):
+        await _check_api_identity("http://localhost:8080", "synthetic-token", UUID(int=44))
+    assert observed == [
+        ("http://localhost:8080/v1/auth/verificar", "Bearer synthetic-token")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_identity_gate_accepts_matching_authorized_tenant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.accept_live_summary as acceptance
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(
+            200, json={"ok": True, "authenticated": True, "tenant_id": str(UUID(int=44))}
+        )
+    )
+    monkeypatch.setattr(
+        acceptance.httpx, "AsyncClient",
+        lambda **kwargs: original_client(transport=transport, **kwargs),
+    )
+    await _check_api_identity("http://localhost:8080", "synthetic-token", UUID(int=44))
+
+
+@pytest.mark.asyncio
+async def test_bad_api_identity_never_triggers_model_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.accept_live_summary as acceptance
+    monkeypatch.setenv("DATABASE_URL", "postgresql://synthetic-unused")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "synthetic-unused")
+    monkeypatch.setenv("RAGVIA_ACCEPTANCE_API_TOKEN", "synthetic-unused")
+    monkeypatch.setattr(
+        acceptance, "load_generation_permit",
+        lambda _: SimpleNamespace(approval_id="APR-SYNTHETIC", model="claude-sonnet-4-6"),
+    )
+
+    async def scope_check(*_args, **_kwargs):
+        return {"cnj": "0000000-00.0000.0.00.0000", "source_request_recorded": True}
+
+    async def unauthorized(*_args, **_kwargs):
+        raise AcceptanceBlocked("api_credential_not_authorized")
+
+    async def forbidden(*_args, **_kwargs):
+        pytest.fail("unauthorized API must never trigger paid provider generation")
+
+    monkeypatch.setattr(acceptance, "_check_scope", scope_check)
+    monkeypatch.setattr(acceptance, "_check_api_identity", unauthorized)
+    monkeypatch.setattr(acceptance, "generate_summary", forbidden)
+    args = SimpleNamespace(
+        process_id=UUID(int=1), version_id=UUID(int=2), tenant_id=UUID(int=3),
+        execute=True, api_base_url="http://localhost:8080",
+    )
+    with pytest.raises(AcceptanceBlocked, match="api_credential_not_authorized"):
+        await _run(args)

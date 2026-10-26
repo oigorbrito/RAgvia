@@ -55,6 +55,10 @@ estrutural de fontes.
    python -m scripts.accept_live_summary --process-id <UUID_PROCESSO> --version-id <UUID_VERSAO> --tenant-id <UUID_TENANT> --api-base-url https://api-exemplo-autorizada --execute
    ```
 
+   Antes de gastar, o executor consulta `GET /v1/auth/verificar` com o
+   bearer configurado e exige `authenticated=true` e o `tenant_id`
+   idêntico à aprovação. `GET /v1/capabilities` não serve para isso,
+   pois pode retornar HTTP 200 mesmo sem autenticação.
    Este comando é **one shot**. Nunca executar novamente automaticamente
    após erro, timeout ou resposta perdida: uma reserva pode já ter sido
    consumida. Conferir o ledger e o billing Anthropic antes de qualquer
