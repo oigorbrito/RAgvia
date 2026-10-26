@@ -96,39 +96,44 @@ não habilitar gatilhos pagos e verificar o estado das Actions em
 Um run de bootstrap bem-sucedido comprova o registro, **não** a
 autenticação nem a disponibilidade do serviço Judit.
 
-### Judit non-creating credential diagnostic
+### Judit non-creating credential diagnostic — LIVE-05
 
-**LIVE-02 validation rule:** `reachable_unverified` (including HTTP 400
-`HttpBadRequestError`) records server reachability only, not API-key validity.
-It must **not** produce a successful `--diagnose-judit` exit status or
-authorize the combined paid Judit/DataJud request path. Only `status=ok`
-with `auth_validated=true` passes the diagnostic gate. A 400 remains
-available in sanitized JSON for investigation; neither silent PASS nor
-automatic fallback to paid POST is permitted. The workflow's two documented
-host probes can still run, but success requires independent verified
-authentication on at least one host.
+**Live evidence:** [GitHub Actions run 40376251694](https://github.com/oigorbrito/RAgvia/actions/runs/40376251694)
+confirmed that the credential is present in Actions and both production host aliases respond.
+Both returned HTTP 400 `HttpBadRequestError` to
+`GET /requests?page=1&page_size=1`. That collection endpoint is **not
+documented** for authentication. Neither response proves the API key
+invalid, and running it again is not an effective acceptance test.
 
-Before any paid `POST /requests`, validate the provisioned Judit key with the provider-documented
-connectivity check:
+The documented read-only route is `GET /requests/{request_id}`, using
+the identifier of **one real request previously created by the authorized
+account**. The LIVE-05 diagnostic makes only **one GET per host**, performs
+no POST and never prints the raw ID. Official provider reference:
+[Judit integration guide, September 2026](https://judit.io/blog/como-consultar-processos-pela-judit-api-com-python-e-node-js/).
 
-```bash
-python scripts/provider_live_smoke.py --diagnose-judit
-```
+Required repository Actions secrets:
+- `JUDIT_API_KEY` (already provisioned in the observed run);
+- `PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID`: the exact canonical UUID for
+  an existing account-owned request. Use `gh secret set
+  PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID --repo oigorbrito/RAgvia --app actions`
+  interactively. Never paste the ID into a GitHub issue or workflow input.
 
-The check performs only the provider-documented `GET /requests?page=1&page_size=1`; it does not create a lawsuit request. The requests base URL is constrained to Judit's documented `requests.prod.judit.io` host or the `requests.prod.judit.io` compatibility alias observed in Judit's own examples and public integrations. GitHub Actions `mode=diagnose` probes both hosts independently, without any `POST /requests`, so host/account routing can be distinguished from payload or billing behavior.
+Run the same `workflow_dispatch mode=diagnose` after manual merge.
+Without an existing ID the diagnostic exits before network with
+`blocked_missing_existing_request_id`. A malformed ID exits before
+network with `invalid_existing_request_id`. A successful 200 with
+a valid status returns `ok` and `auth_validated=true`, proving
+**access to that existing request only**, not ability to create a new
+request, available balance or authorization for any other account.
+A 400/401/403/404/429 or transport error remains a FAIL, with sanitized
+machine-safe metadata. Repeating the same query is not a remedy.
 
-The diagnostic records only safe classifications such as `http_401`, `http_403`, `http_429`,
-`http_5xx`, `transport_error` or `invalid_response`; when the provider returns structured validation data, the diagnostic may expose only a short machine-safe `provider_error_code` plus allowlisted `field`/`rule` pairs from `error.data`. Free-form validation messages, raw provider response bodies and credentials are never logged. Live combined acceptance also performs this connectivity check before the paid Judit
-request. If it fails, the paid Judit request and DataJud smoke are both blocked.
-
-Operational interpretation follows Judit's published authentication guidance:
-- 401: missing/invalid/expired key, malformed `api-key` header, or account usage limit condition;
-- 403: valid key without permission for the resource or feature unavailable in the contracted plan;
-- 429: rate-limit condition; do not immediately repeat a paid acceptance run;
-- transport/5xx: treat as provider/network availability and do not infer credential invalidity.
-
-Judit documents that every submitted process request is accounted/billed according to contract even
-when the result is served from cache, so diagnostic GETs should be used before repeating a paid POST.
+If no preexisting ID is available, **do not fabricate one**. The
+operator must either obtain a prior request identifier from their Judit
+account/history or separately authorize **one** controlled creation
+using the already existing `judit-roundtrip` mode, a public authorized
+CNJ and an explicit cost/contract decision. Do not automatically
+create an order to turn a read-only diagnostic green.
 
 ### Controlled Judit-only smoke
 

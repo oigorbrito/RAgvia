@@ -8,12 +8,12 @@ import os
 from pathlib import Path
 from time import perf_counter
 from typing import Any
+from uuid import UUID
 
 from app.datajud_client import lookup_datajud_metadata
 from app.judit import normalize_cnj
 from app.judit_client import (
     JuditRequestError,
-    check_judit_connectivity,
     create_lawsuit_request,
     get_lawsuit_request_status,
     get_lawsuit_responses,
@@ -199,51 +199,63 @@ def load_replay(path: Path, *, code: str) -> dict[str, Any]:
 
 
 async def diagnose_judit() -> dict[str, Any]:
+    """Validate access to an existing request with a single documented GET.
+
+    GET /requests?page=1&page_size=1 is not an auth-validation endpoint:
+    Judit returned HTTP 400 on both production hosts in live run 40376251694.
+    Never create a request or treat a 400 as a key-validity signal.
+    """
     report = _base_report("judit")
+    report["auth_validated"] = False
     if not os.getenv("JUDIT_API_KEY", "").strip():
         report["status"] = "skipped_missing_credentials"
         return report
 
+    request_id = os.getenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", "").strip()
+    if not request_id:
+        report["status"] = "blocked_missing_existing_request_id"
+        return report
+    try:
+        if str(UUID(request_id)) != request_id:
+            raise ValueError("noncanonical UUID")
+    except (ValueError, AttributeError):
+        report["status"] = "invalid_existing_request_id"
+        return report
+
+    report["request_id_sha256"] = _hash_identifier(request_id)
     started = perf_counter()
     try:
-        await check_judit_connectivity()
+        status = await get_lawsuit_request_status(request_id)
     except JuditRequestError as exc:
-        elapsed_ms = (perf_counter() - started) * 1000
-        reachable_unverified = (
-            exc.http_status == 400
-            and exc.provider_error_code == "HttpBadRequestError"
-        )
         report.update(
             {
                 "executed": True,
                 "network_calls_performed": True,
-                "network_call_type": "non_creating_reachability_probe",
-                "status": "reachable_unverified" if reachable_unverified else "error",
-                "latency_ms": round(elapsed_ms, 3),
+                "network_call_type": "non_creating_existing_request_status_get",
+                "status": "error",
+                "latency_ms": round((perf_counter() - started) * 1000, 3),
                 "error_class": type(exc).__name__,
                 "error_code": exc.error_code,
                 "http_status": exc.http_status,
                 "retry_safe": exc.retry_safe,
                 "provider_error_code": exc.provider_error_code,
                 "provider_validation": exc.provider_validation,
-                "auth_validated": False,
             }
         )
         return report
 
-    elapsed_ms = (perf_counter() - started) * 1000
     report.update(
         {
             "executed": True,
             "network_calls_performed": True,
-            "network_call_type": "non_creating_reachability_probe",
+            "network_call_type": "non_creating_existing_request_status_get",
             "status": "ok",
             "auth_validated": True,
-            "latency_ms": round(elapsed_ms, 3),
+            "request_status": status.status,
+            "latency_ms": round((perf_counter() - started) * 1000, 3),
         }
     )
     return report
-
 
 async def _smoke_judit(
     code: str,
@@ -473,9 +485,8 @@ async def run_smoke(
             return report
 
         diagnostic = await diagnose_judit()
-        # Reachability (HTTP 400) is not a validated API credential.
-        # Do not advance to any creating/paid provider request unless the
-        # non-creating probe explicitly authenticated the account.
+        # Existing-request GET 200 validates access to that request only.
+        # Do not create any new requests unless this documented GET succeeds.
         if diagnostic["status"] != "ok" or diagnostic.get("auth_validated") is not True:
             return {
                 "provider": "both",
@@ -528,7 +539,7 @@ def main() -> int:
     parser.add_argument(
         "--diagnose-judit",
         action="store_true",
-        help="Validate Judit API-key connectivity with a non-creating GET and exit",
+        help="Verify access to one existing Judit request by documented GET; requires secret request ID",
     )
     parser.add_argument(
         "--judit-roundtrip",
@@ -543,7 +554,7 @@ def main() -> int:
     parser.add_argument(
         "--request-id",
         default=os.getenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", ""),
-        help="Existing Judit request id for --judit-observe; prefer environment injection",
+        help="Existing Judit request id for --judit-observe; diagnostic uses environment secret only",
     )
     parser.add_argument(
         "--judit-request-id-file",

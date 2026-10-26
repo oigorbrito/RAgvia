@@ -93,9 +93,14 @@ jobs:
         if: ${{ github.event.inputs.mode == 'diagnose' }}
         env:
           JUDIT_API_KEY: ${{ secrets.JUDIT_API_KEY }}
+          PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID: ${{ secrets.PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID }}
         run: |
           if [ -z "$JUDIT_API_KEY" ]; then
             echo "::error::JUDIT_API_KEY is not provisioned."
+            exit 1
+          fi
+          if [ -z "$PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID" ]; then
+            echo "::error::Existing PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID secret required for non-creating authentication check."
             exit 1
           fi
 
