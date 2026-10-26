@@ -68,13 +68,14 @@ async def test_load_context_surfaces_gap_warning_to_provider_context(monkeypatch
     context = await rag._load_context(_Pool(), uuid4(), uuid4())
 
     warning = "Há salto na numeração de movimentos da fonte: 7→9."
-    # Both independent source-scoped warnings must be visible to the provider.
-    absence = context["source_warnings"][1]
+    # Documentary limits are source context, not an unconditional validation gate.
+    assert context["source_warnings"] == [warning]
+    absence = context["source_documentary_limits"][0]
     assert "não registra citação, decisão ou sentença" in absence
     assert "não se infere" in absence
-    assert context["source_warnings"] == [warning, absence]
     provider_process, provider_steps = rag._provider_payload(context)
-    assert provider_process["source_warnings"] == [warning, absence]
+    assert provider_process["source_warnings"] == [warning]
+    assert provider_process["source_documentary_limits"] == [absence]
     assert len(provider_steps) == 2
 
 
