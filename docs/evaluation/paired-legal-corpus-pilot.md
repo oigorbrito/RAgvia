@@ -82,9 +82,9 @@ Depois de gerar o iaSummary do HEAD atual em PostgreSQL, executar localmente:
 
     python scripts/blind_paired_legal_review.py prepare --case-id m01-doc01-scheduled-hearing --candidate /tmp/ragvia-paired-corpus/summary.md --commit HEAD_EXATO --out /tmp/pareamento-juridico-privado
 
-O comando cria A.md, B.md, review-form.json e PRIVATE-mapping.json com
+O comando cria A.md, B.md, case-evidence.json, review-form.json e PRIVATE-mapping.json com
 permissão restrita (0700 para a pasta, 0600 para os arquivos).
-Entregar aos dois avaliadores apenas A.md, B.md e review-form.json.
+Entregar aos dois avaliadores apenas A.md, B.md, case-evidence.json e review-form.json.
 Nunca divulgar PRIVATE-mapping.json antes da conclusão da avaliação.
 Não executar com documentos reais em infraestrutura pública/compartilhada.
 
@@ -96,7 +96,7 @@ sob os controles de privacidade do projeto.
 
 Consolidar as notas no ambiente privado:
 
-    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --output /tmp/pareamento-juridico-privado/resultado.json
+    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --source-evidence /tmp/pareamento-juridico-privado/case-evidence.json --output /tmp/pareamento-juridico-privado/resultado.json
 
 O consolidado mostra as diferenças pareadas e a concordância de direção.
 Por definição, um único par não suporta inferência populacional:
@@ -192,6 +192,8 @@ por `annotations` para cada par documento × dimensão. São obrigatórios:
 - `document_location`: local do trecho avaliado no documento;
 - `source_refs`: lista de referências examinadas, por exemplo `movimento:5`.
 
+Na consolidação, o agregador relê os bytes de case-evidence.json, verifica SHA-256,
+identidade do caso, escopo sintético e hash da fixture congelada.
 O agregador exige dois IDs distintos, estrutura completa, notas 0–3
 inteiras, anotações não vazias e digest do pacote correspondente. Rejeita
 notas incompletas, justificativas em branco, localização ausente,
