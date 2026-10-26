@@ -299,6 +299,33 @@ def _passive_party_attention_warnings(
     return [PASSIVE_PARTY_NO_REPRESENTATIVE_OR_CITATION_WARNING]
 
 
+
+def _undocumented_process_acts_warning(steps: list[Step]) -> list[str]:
+    """A warning about the supplied recorte only, not the complete case file."""
+    if not steps:
+        return []
+    source = " ".join(f"{s.title or ''} {s.text or ''}".casefold() for s in steps)
+    missing = [
+        label
+        for label, pattern in (
+            ("citação", r"\bcita[çc][ãa]o\b"),
+            ("decisão", r"\bdecis[ãa]o\b"),
+            ("sentença", r"\bsenten[çc]a\b"),
+        )
+        if not re.search(pattern, source)
+    ]
+    if not missing:
+        return []
+    labels = (
+        missing[0] if len(missing) == 1
+        else ", ".join(missing[:-1]) + f" ou {missing[-1]}"
+    )
+    return [
+        f"O recorte de movimentos fornecidos não registra {labels}; "
+        "não se infere a ocorrência desses atos fora da documentação fornecida."
+    ]
+
+
 def _source_step_gap_warnings(steps: list[Any]) -> list[str]:
     if len(steps) < 2:
         return []
@@ -508,6 +535,7 @@ async def _load_context(
             steps,
         )
     )
+    source_warnings.extend(_undocumented_process_acts_warning(steps))
     source_warnings.extend(
         datajud_conflict_warning(str(field))
         for field in base.get("_datajud_conflict_fields", [])
