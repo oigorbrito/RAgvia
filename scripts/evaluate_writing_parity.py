@@ -81,6 +81,102 @@ def _linked_hearing_designation(timeline: str, *, act_date: str, scheduled: str)
         return True
     return False
 
+
+def _individual_source_movements_preserved(timeline: str, movements: list[dict[str, Any]]) -> bool:
+    """Reject missing, reordered or materially changed source events."""
+    lines = [_text(line).strip() for line in timeline.splitlines() if line.lstrip().startswith("- ")]
+    if len(lines) != len(movements):
+        return False
+    for line, movement in zip(lines, movements, strict=True):
+        prefix = rf"^-\s+em\s+{re.escape(movement['data'])}[.,]\s+"
+        if not re.match(prefix, line) or _text(movement["texto"]).strip() not in line:
+            return False
+    return True
+
+
+def _grouped_source_movements_preserved(timeline: str, movements: list[dict[str, Any]]) -> bool:
+    """Verify each dated group, recipient and deadline against frozen facts."""
+    dated: dict[str, list[str]] = {}
+    for line in timeline.splitlines():
+        normalized = _text(line).strip()
+        match = re.match(r"^-\s+em\s+(\d{2}/\d{2}/\d{4})[.,]", normalized)
+        if match:
+            dated.setdefault(match.group(1), []).append(normalized)
+
+    def matching(day: str, value: str) -> list[str]:
+        return [line for line in dated.get(day, []) if value in line]
+
+    for kind, fragment in (
+        ("distribuicao", "distribuído por sorteio"),
+        ("juizo_100_digital", "juízo 100% digital"),
+        ("audiencia_designada", "audiência de conciliação"),
+        ("juntada", "juntada de certidão"),
+    ):
+        for movement in (m for m in movements if m["tipo"] == kind):
+            if len(matching(movement["data"], fragment)) != 1:
+                return False
+    for day in {m["data"] for m in movements}:
+        count = sum(m["tipo"] == "remessa_interna" and m["data"] == day for m in movements)
+        if len(matching(day, "remessa interna")) != count:
+            return False
+        expected_admin = sum(
+            m["tipo"] in {"ato_ordinatorio", "publicacao_diario"} and m["data"] == day
+            for m in movements
+        )
+        actual_admin = sum(
+            int(match.group(1))
+            for line in matching(day, "de expediente administrativo")
+            if (match := re.search(r"(\d+)\s+registros?\s+de expediente administrativo", line))
+        )
+        if actual_admin != expected_admin:
+            return False
+
+    groups: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for movement in movements:
+        if movement["tipo"] == "intimacao":
+            key = (movement["data"], movement["detalhes"]["prazo_dias"])
+            groups.setdefault(key, []).append(movement)
+    for (day, deadline), group in groups.items():
+        matched = [
+            line for line in dated.get(day, [])
+            if re.search(rf"\b{len(group)}\s+intimações\b", line)
+            and re.search(rf"\bprazo registrado:\s*{deadline}\s+dias?\b", line)
+        ]
+        if len(matched) != 1:
+            return False
+        if any(
+            _text(m["detalhes"]["destinatario"].split(" (")[0]) not in matched[0]
+            for m in group
+        ):
+            return False
+    return True
+
+
+def _scoped_absence_documented(attention: str, document: str) -> bool:
+    """Treat missing records as scoped uncertainty, never proof of nonexistence."""
+    lines = [_text(line) for line in attention.splitlines()]
+    scoped = any(
+        all(word in line for word in ("citação", "decisão", "sentença"))
+        and re.search(r"\bnão\s+(?:registra|há|consta)\b|\bsem\s+registro\b", line)
+        and "recorte" in line
+        for line in lines
+    )
+    non_inference = any(
+        "não se infere" in line or "não permite inferir" in line
+        for line in lines
+    )
+    affirmative = (
+        r"\b(?:parte\s+ré|réu)\s+(?:foi|está)\s+citad[ao]\b",
+        r"\bcitação\s+(?:foi\s+)?(?:realizada|efetivada)\b",
+        r"\b(?:decisão|sentença)\s+(?:foi\s+)?(?:proferida|publicada)\b",
+        r"\bfoi\s+proferida\s+(?:uma\s+)?(?:decisão|sentença)\b",
+        r"\baudiência\s+(?:foi\s+)?(?:realizada|ocorreu|aconteceu)\b",
+    )
+    return bool(scoped and non_inference) and not any(
+        re.search(pattern, _text(document)) for pattern in affirmative
+    )
+
+
 def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
     """Compare donor oracle with the supplied canonical published document.
 
@@ -229,19 +325,13 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
     )
     results.append(_result("Data do ato separada de data/horário agendado", donor_temporal, target_temporal))
 
-    relevant = {"distribuicao", "juizo_100_digital", "audiencia_designada", "intimacao", "remessa_interna", "ato_ordinatorio", "publicacao_diario", "juntada"}
     donor_milestones = all(phrase in donor_events for phrase in (
         "distribuído por sorteio", "juízo 100% digital", "audiência de conciliação",
         "intimações eletrônicas", "remessas internas", "atos ordinatórios", "juntada",
     ))
     target_milestones = (
-        "distribuído por sorteio" in target_timeline
-        and "juízo 100% digital" in target_timeline
-        and "audiência de conciliação" in target_timeline
-        and "juntada de certidão" in target_timeline
-        and target_timeline.count("remessa interna") == sum(m["tipo"] == "remessa_interna" for m in expected["movimentos"])
-        and sum(int(match) for match in re.findall(r"(\d+) intimações", target_timeline)) == sum(m["tipo"] == "intimacao" for m in expected["movimentos"])
-        and sum(int(match) for match in re.findall(r"(\d+) registros? de expediente administrativo", target_timeline)) == sum(m["tipo"] in {"ato_ordinatorio", "publicacao_diario"} for m in expected["movimentos"])
+        _individual_source_movements_preserved(timeline, expected["movimentos"])
+        or _grouped_source_movements_preserved(timeline, expected["movimentos"])
     )
     results.append(_result("Marcos e agrupamento administrativo sem perda de eventos", donor_milestones, target_milestones))
 
@@ -261,7 +351,7 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
         and not any(m["tipo"] in {"decisao", "sentenca"} for m in expected["movimentos"])
     )
     donor_limits = "ainda não há registro de citação" in donor_intro
-    target_limits = absent_facts and all(term in attention for term in ("não registra citação", "decisão", "sentença", "não se infere"))
+    target_limits = absent_facts and _scoped_absence_documented(attention, destination)
     results.append(_result("Informação ausente sem afirmar ocorrência", donor_limits, target_limits))
 
     donor_no_personal_docs = not any(
