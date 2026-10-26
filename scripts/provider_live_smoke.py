@@ -46,7 +46,7 @@ def _persist_judit_request_id(path: Path | None, request_id: str) -> bool:
     if not normalized_request_id:
         raise RuntimeError("cannot persist an empty Judit request id")
 
-    if "\\n" in normalized_request_id or "\\r" in normalized_request_id:
+    if "\n" in normalized_request_id or "\r" in normalized_request_id:
         raise RuntimeError("invalid Judit request id for private custody")
     path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     # Exclusive create: never overwrite a previous paid request's identifier.
@@ -75,7 +75,7 @@ def _read_private_request_id(path: Path) -> str:
     if path.is_symlink() or not path.is_file():
         raise RuntimeError("private Judit request id file is missing or unsafe")
     identifier = path.read_text(encoding="utf-8").strip()
-    if not identifier or "\\n" in identifier or "\\r" in identifier:
+    if not identifier or "\n" in identifier or "\r" in identifier:
         raise RuntimeError("private Judit request id is incomplete")
     return identifier
 
