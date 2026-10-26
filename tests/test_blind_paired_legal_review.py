@@ -14,6 +14,10 @@ from scripts.evaluate_writing_parity import DESTINATION, EXPECTED, FIXTURE
 CASE = "m01-doc01-scheduled-hearing"
 
 
+def _documents(packet: Path) -> dict[str, bytes]:
+    return {side: (packet / f"{side}.md").read_bytes() for side in ("A", "B")}
+
+
 def _scoring(form: dict) -> dict:
     return {
         **form,
@@ -28,7 +32,7 @@ def _scoring(form: dict) -> dict:
                     side: {
                         key: {
                             "justification": "Comparison to frozen source facts",
-                            "document_location": "Movimentações section",
+                            "document_location": "linha:1",
                             "source_refs": ["movimento:5"],
                         }
                         for key in DIMENSIONS
@@ -70,6 +74,12 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
     assert source["fixture_sha256"] == hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
     assert form["source_evidence_sha256"] == hashlib.sha256(evidence_bytes).hexdigest()
     assert form["source_evidence_sha256"] == mapping["source_evidence_sha256"]
+    hashes = mapping["document_sha256_by_side"]
+    assert set(hashes) == {"A", "B"}
+    assert all(
+        hashes[side] == hashlib.sha256(_documents(packet)[side]).hexdigest()
+        for side in ("A", "B")
+    )
     with pytest.raises(FileExistsError, match="new, empty"):
         prepare(case_id=CASE, candidate_text=candidate, destination=packet, seed=b"k" * 32)
 
@@ -83,7 +93,7 @@ def test_aggregate_requires_two_independent_complete_reviews(tmp_path: Path) -> 
     mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
     form = json.loads((packet / "review-form.json").read_text())
-    accepted = aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=_scoring(form))
+    accepted = aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=_scoring(form))
     assert accepted["independent_reviewer_count"] == 2
     assert set(accepted["per_dimension"]) == set(DIMENSIONS)
     assert accepted["population_inference_supported"] is False
@@ -92,6 +102,9 @@ def test_aggregate_requires_two_independent_complete_reviews(tmp_path: Path) -> 
     assert accepted["source_reference_truth_independently_verified"] is False
     assert accepted["candidate_generation_verified_live"] is False
     assert accepted["annotation_completeness_checked"] is True
+    assert accepted["blinded_document_integrity_checked"] is True
+    assert accepted["source_reference_ids_resolved"] is True
+    assert accepted["document_location_bounds_checked"] is True
     assert accepted["source_evidence_sha256"] == hashlib.sha256(evidence_bytes).hexdigest()
     assert "Comparison to frozen" not in json.dumps(accepted)
     assert "judge-1" not in json.dumps(accepted)
@@ -99,27 +112,27 @@ def test_aggregate_requires_two_independent_complete_reviews(tmp_path: Path) -> 
     one = _scoring(form)
     one["reviews"] = one["reviews"][:1]
     with pytest.raises(ValueError, match="at least two"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=one)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=one)
 
     duplicate = _scoring(form)
     duplicate["reviews"][1]["reviewer_id"] = "judge-1"
     with pytest.raises(ValueError, match="unique"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=duplicate)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=duplicate)
 
     missing = _scoring(form)
     del missing["reviews"][0]["scores"]["A"]["readability"]
     with pytest.raises(ValueError, match="dimensions"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=missing)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=missing)
 
     invalid = _scoring(form)
     invalid["reviews"][0]["scores"]["B"]["factual_fidelity"] = True
     with pytest.raises(ValueError, match="integer"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=invalid)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=invalid)
 
     mismatch = _scoring(form)
     mismatch["case_id"] = "unknown-case"
     with pytest.raises(ValueError, match="same case"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=mismatch)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=mismatch)
 
 
 def test_review_evidence_is_mandatory_and_fail_closed(tmp_path: Path) -> None:
@@ -137,7 +150,7 @@ def test_review_evidence_is_mandatory_and_fail_closed(tmp_path: Path) -> None:
     bad_digest = _scoring(form)
     bad_digest["source_evidence_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="source-evidence digest"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=bad_digest)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=bad_digest)
 
     forged_evidence = evidence_bytes.replace(b'"schema_version": 1', b'"schema_version": 2', 1)
     assert forged_evidence != evidence_bytes
@@ -145,45 +158,121 @@ def test_review_evidence_is_mandatory_and_fail_closed(tmp_path: Path) -> None:
         aggregate(
             mapping=mapping,
             evidence_bytes=forged_evidence,
+            documents=_documents(packet),
             answers=_scoring(form),
         )
 
     missing_annotation = _scoring(form)
     del missing_annotation["reviews"][0]["annotations"]["A"]["factual_fidelity"]
     with pytest.raises(ValueError, match="four dimensions"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=missing_annotation)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=missing_annotation)
 
     missing_reason = _scoring(form)
     missing_reason["reviews"][0]["annotations"]["A"]["factual_fidelity"][
         "justification"
     ] = "   "
     with pytest.raises(ValueError, match="nonempty text"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=missing_reason)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=missing_reason)
 
     missing_location = _scoring(form)
     missing_location["reviews"][1]["annotations"]["B"]["readability"][
         "document_location"
     ] = ""
     with pytest.raises(ValueError, match="nonempty text"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=missing_location)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=missing_location)
 
     absent_refs = _scoring(form)
     absent_refs["reviews"][0]["annotations"]["A"]["material_omissions"][
         "source_refs"
     ] = []
     with pytest.raises(ValueError, match="source references"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=absent_refs)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=absent_refs)
 
     duplicate_refs = _scoring(form)
     duplicate_refs["reviews"][0]["annotations"]["A"]["material_omissions"][
         "source_refs"
     ] = ["movimento:5", "movimento:5"]
     with pytest.raises(ValueError, match="source references"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=duplicate_refs)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=duplicate_refs)
 
     extra_key = _scoring(form)
     extra_key["reviews"][0]["annotations"]["A"]["legal_grounding"][
         "unexpected"
     ] = "not a valid contract field"
     with pytest.raises(ValueError, match="fields incomplete"):
-        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, answers=extra_key)
+        aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=extra_key)
+
+
+def test_blinded_document_and_reference_attacks_are_rejected(tmp_path: Path) -> None:
+    packet = tmp_path / "packet"
+    original = DESTINATION.read_text(encoding="utf-8")
+    prepare(case_id=CASE, candidate_text=original, destination=packet, seed=b"z" * 32)
+    mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
+    evidence_bytes = (packet / "case-evidence.json").read_bytes()
+    form = json.loads((packet / "review-form.json").read_text())
+
+    def check(answers: dict, documents: dict[str, bytes] | None = None) -> dict:
+        return aggregate(
+            mapping=mapping, answers=answers, evidence_bytes=evidence_bytes,
+            documents=_documents(packet) if documents is None else documents,
+        )
+
+    clean = check(_scoring(form))
+    assert clean["source_reference_ids_resolved"]
+    assert clean["document_location_bounds_checked"]
+    assert clean["blinded_document_integrity_checked"]
+    assert clean["legal_quality_qualified"] is False
+
+    mutated_docs = _documents(packet)
+    mutated_docs["A"] += b"\nAlteracao apos cegamento\n"
+    with pytest.raises(ValueError, match="bytes differ"):
+        check(_scoring(form), mutated_docs)
+
+    mutated_docs = _documents(packet)
+    mutated_docs.pop("B")
+    with pytest.raises(ValueError, match="both original"):
+        check(_scoring(form), mutated_docs)
+
+    fake_source = _scoring(form)
+    fake_source["reviews"][0]["annotations"]["A"]["factual_fidelity"][
+        "source_refs"
+    ] = ["movimento:999"]
+    with pytest.raises(ValueError, match="nonexistent"):
+        check(fake_source)
+
+    changed_source_type = _scoring(form)
+    changed_source_type["reviews"][0]["annotations"]["A"]["factual_fidelity"][
+        "source_refs"
+    ] = ["movimento:inexistente"]
+    with pytest.raises(ValueError, match="nonexistent"):
+        check(changed_source_type)
+
+    out_of_bounds = _scoring(form)
+    out_of_bounds["reviews"][1]["annotations"]["B"]["readability"][
+        "document_location"
+    ] = "linha:999999"
+    with pytest.raises(ValueError, match="outside issued"):
+        check(out_of_bounds)
+
+    vague_location = _scoring(form)
+    vague_location["reviews"][1]["annotations"]["B"]["readability"][
+        "document_location"
+    ] = "Movimentações section"
+    with pytest.raises(ValueError, match="linha:N"):
+        check(vague_location)
+
+    legitimate_source = _scoring(form)
+    legitimate_source["reviews"][0]["annotations"]["B"]["material_omissions"][
+        "source_refs"
+    ] = ["parte:p1", "classe:c1", "assunto:a1", "campo:cnj"]
+    assert check(legitimate_source)["source_reference_ids_resolved"]
+
+
+def test_prepare_rejects_materially_invalid_candidate_before_creating_review(tmp_path: Path) -> None:
+    baseline = DESTINATION.read_text(encoding="utf-8")
+    assert "Pessoa Sintética Alfa" in baseline
+    bad = baseline.replace("Pessoa Sintética Alfa", "Parte omitida")
+    packet = tmp_path / "invalid"
+    with pytest.raises(ValueError, match="deterministic writing gate"):
+        prepare(case_id=CASE, candidate_text=bad, destination=packet, seed=b"z" * 32)
+    assert not packet.exists()
