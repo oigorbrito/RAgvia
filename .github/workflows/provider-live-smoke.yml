@@ -1,6 +1,13 @@
 name: provider-live-smoke
 
 on:
+  # Bootstrap discovery on the canonical branch without provider I/O.
+  # A change to this YAML after manual merge registers the workflow.
+  push:
+    branches:
+      - migration/ragvia-01-candidate
+    paths:
+      - .github/workflows/provider-live-smoke.yml
   workflow_dispatch:
     inputs:
       mode:
@@ -43,7 +50,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  register:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify workflow registration without providers
+        run: |
+          echo "provider-live-smoke registered; no credentials accessed or provider calls made"
+
   smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
