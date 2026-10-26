@@ -82,9 +82,9 @@ Depois de gerar o iaSummary do HEAD atual em PostgreSQL, executar localmente:
 
     python scripts/blind_paired_legal_review.py prepare --case-id m01-doc01-scheduled-hearing --candidate /tmp/ragvia-paired-corpus/summary.md --commit HEAD_EXATO --out /tmp/pareamento-juridico-privado
 
-O comando cria A.md, B.md, review-form.json e PRIVATE-mapping.json com
+O comando cria A.md, B.md, case-evidence.json, review-form.json e PRIVATE-mapping.json com
 permissão restrita (0700 para a pasta, 0600 para os arquivos).
-Entregar aos dois avaliadores apenas A.md, B.md e review-form.json.
+Entregar aos dois avaliadores apenas A.md, B.md, case-evidence.json e review-form.json.
 Nunca divulgar PRIVATE-mapping.json antes da conclusão da avaliação.
 Não executar com documentos reais em infraestrutura pública/compartilhada.
 
@@ -96,7 +96,7 @@ sob os controles de privacidade do projeto.
 
 Consolidar as notas no ambiente privado:
 
-    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --output /tmp/pareamento-juridico-privado/resultado.json
+    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --source-evidence /tmp/pareamento-juridico-privado/case-evidence.json --output /tmp/pareamento-juridico-privado/resultado.json
 
 O consolidado mostra as diferenças pareadas e a concordância de direção.
 Por definição, um único par não suporta inferência populacional:
@@ -176,3 +176,39 @@ A cobertura desses dois requisitos não dispensa a avaliação de agrupamento
 administrativo nem a declaração de informação ausente. O número de pares
 autênticos continua sendo um. A aprovação da rubrica textual jamais altera
 `legal_quality_qualified=false` ou `release_qualified=false`.
+
+## RAGVIA-REVIEW-03 — evidência e integridade da revisão cega
+
+O pacote privado agora inclui o arquivo `case-evidence.json`, que contém os
+fatos **sintéticos e congelados** do parser. Seu SHA-256 está registrado em
+`PRIVATE-mapping.json` e em `review-form.json`. O coordenador deve entregar
+ao revisor somente `A.md`, `B.md`, `case-evidence.json` e `review-form.json`.
+O mapeamento PRIVATE permanece fora dos materiais fornecidos aos revisores.
+
+Cada avaliação contém notas nas quatro dimensões para A e B, acompanhadas
+por `annotations` para cada par documento × dimensão. São obrigatórios:
+
+- `justification`: fundamentação textual da nota;
+- `document_location`: local do trecho avaliado no documento;
+- `source_refs`: lista de referências examinadas, por exemplo `movimento:5`.
+
+Na consolidação, o agregador relê os bytes de case-evidence.json, verifica SHA-256,
+identidade do caso, escopo sintético e hash da fixture congelada.
+O agregador exige dois IDs distintos, estrutura completa, notas 0–3
+inteiras, anotações não vazias e digest do pacote correspondente. Rejeita
+notas incompletas, justificativas em branco, localização ausente,
+referências duplicadas, atributos extras e digest divergente. Sua saída
+somente contém hashes, totais e diferenças pareadas — não nomes dos
+avaliadores, anotações, textos dos documentos ou dados Judit.
+
+**Limitações não negociáveis:** IDs distintos não comprovam a independência
+real dos avaliadores; referências digitadas não comprovam sua pertinência
+ou veracidade. O pacote atual usa fonte e candidato sintéticos, portanto
+não atesta geração Claude real ou qualidade jurídica. O coordenador precisa
+verificar a identidade, a independência, as fontes e a adjudicação
+externamente. As flags `reviewer_identity_independence_verified`,
+`source_reference_truth_independently_verified`,
+`candidate_generation_verified_live`, `legal_quality_qualified` e
+`release_qualified` permanecem falsas. Um par não permite inferência
+populacional ou fixação retroativa de limiares. Sem chamadas pagas,
+secret provisioning ou merge nesta etapa.
