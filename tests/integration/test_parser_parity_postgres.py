@@ -62,7 +62,7 @@ async def test_parser_annotations_survive_ingestion_but_never_cross_provider_bou
         hearing = next(s for s in steps if "scheduled_hearing" in s["source_temporal_facts"])
         assert hearing["source_temporal_facts"]["scheduled_hearing"] == {"date": "03/03/2027", "time": "15:00"}
         process_json = json.loads(
-            prompt.split("<processo_json>\\n")[1].split("\\n</processo_json>")[0]
+            prompt.split("<processo_json>\n")[1].split("\n</processo_json>")[0]
         )
         source_warnings = list(process_json.get("source_warnings") or [])
         payload = {
