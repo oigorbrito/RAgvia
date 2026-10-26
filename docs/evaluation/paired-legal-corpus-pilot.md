@@ -96,7 +96,7 @@ sob os controles de privacidade do projeto.
 
 Consolidar as notas no ambiente privado:
 
-    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --source-evidence /tmp/pareamento-juridico-privado/case-evidence.json --output /tmp/pareamento-juridico-privado/resultado.json
+    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --source-evidence /tmp/pareamento-juridico-privado/case-evidence.json --document-a /tmp/pareamento-juridico-privado/A.md --document-b /tmp/pareamento-juridico-privado/B.md --output /tmp/pareamento-juridico-privado/resultado.json
 
 O consolidado mostra as diferenças pareadas e a concordância de direção.
 Por definição, um único par não suporta inferência populacional:
@@ -212,3 +212,40 @@ externamente. As flags `reviewer_identity_independence_verified`,
 `release_qualified` permanecem falsas. Um par não permite inferência
 populacional ou fixação retroativa de limiares. Sem chamadas pagas,
 secret provisioning ou merge nesta etapa.
+
+## RAGVIA-REVIEW-04 — imutabilidade dos textos e resolução de referências
+
+Na preparação do pacote A/B, o candidato é recusado se o teste
+determinístico de escrita não passar ou se houver sinal estreito de
+afirmação factual indevida. Essa triagem é sintética, não certificação
+de que o texto foi produzido pelo Claude real.
+
+O mapeamento privado fixa hashes SHA-256 para os **dois documentos** A.md
+e B.md. A consolidação recebe explicitamente ambos os arquivos e recusa
+ausência, substituição, truncamento ou modificação dos bytes que foram
+entregues ao revisor. Os hashes de cada lado permanecem privados para
+reduzir o risco de identificação por comparação com o oráculo publicado.
+
+As anotações usam `document_location` no formato `linha:N` ou
+`linha:N-M`, contado no documento cego correspondente. A consolidação
+rejeita intervalos inexistentes, invertidos ou acima de dez linhas.
+A validação apenas confirma que o local existe; não valida se o trecho
+justifica juridicamente a avaliação.
+
+Os `source_refs` também devem resolver contra identificadores existentes
+em case-evidence.json: `movimento:N`, `parte:ID`, `classe:ID`,
+`assunto:ID` ou `campo:KEY` (campo escalar congelado). Referências
+inexistentes, inclusive `movimento:999`, impedem a consolidação.
+Isso prova apenas a existência do identificador, não a adequação da
+fonte à conclusão. A avaliação humana e a adjudicação permanecem
+estritamente externas; nenhum reviewer real foi inventado.
+
+O resultado agregado informa `blinded_document_integrity_checked`,
+`source_reference_ids_resolved` e `document_location_bounds_checked`,
+mas preserva `source_reference_truth_independently_verified=false`,
+`reviewer_identity_independence_verified=false`,
+`candidate_generation_verified_live=false`,
+`legal_quality_qualified=false` e `release_qualified=false`.
+
+Escopo: contrato de revisão do caso sintético congelado, sem chamadas
+pagas, sem alterações no workflow do doador e sem merge.
