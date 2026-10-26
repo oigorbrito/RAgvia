@@ -19,6 +19,19 @@ async def test_live_acceptance_preauth_gates_on_real_postgres(monkeypatch, tmp_p
     conn, scope = await setup_scope(monkeypatch, tmp_path)
     try:
         permit = load_generation_permit(scope)
+        with pytest.raises(AcceptanceBlocked, match="judit_request_not_correlated"):
+            await _check_scope(URL, scope, permit)
+        identity = await conn.fetchrow(
+            "SELECT p.code, v.source_request_id FROM processes p "
+            "JOIN process_versions v ON v.id=$2 WHERE p.id=$1",
+            scope[0], scope[1],
+        )
+        # A finalization flag alone does not prove Judit request/tenant linkage.
+        await conn.execute(
+            "INSERT INTO tenant_judit_requests (tenant_id, process_code, judit_request_id) "
+            "VALUES ($1,$2,$3)",
+            scope[2], identity["code"], identity["source_request_id"],
+        )
         eligible = await _check_scope(URL, scope, permit)
         assert eligible["source_request_recorded"] is True
 
@@ -42,6 +55,19 @@ async def test_live_acceptance_preauth_gates_on_real_postgres(monkeypatch, tmp_p
         with pytest.raises(AcceptanceBlocked, match="acquisition_not_finalized"):
             await _check_scope(URL, scope, permit)
         await conn.execute("UPDATE process_versions SET finalized=TRUE WHERE id=$1", scope[1])
+
+        # Deleting the correlation must block independently of tenant membership.
+        await conn.execute(
+            "DELETE FROM tenant_judit_requests WHERE tenant_id=$1 AND judit_request_id=$2",
+            scope[2], identity["source_request_id"],
+        )
+        with pytest.raises(AcceptanceBlocked, match="judit_request_not_correlated"):
+            await _check_scope(URL, scope, permit)
+        await conn.execute(
+            "INSERT INTO tenant_judit_requests (tenant_id, process_code, judit_request_id) "
+            "VALUES ($1,$2,$3)",
+            scope[2], identity["code"], identity["source_request_id"],
+        )
 
         # Reserve without invoking Anthropic; the original permit is one-shot.
         await permit.reserve_message(request())

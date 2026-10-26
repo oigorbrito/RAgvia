@@ -25,6 +25,10 @@ estrutural de fontes.
    isolada, ou importar por `scripts/replay_judit_webhooks.py` a captura
    privada **já obtida**. Conferir correlação durável de
    `process_versions.source_request_id`, finalização e `tenant_processes`.
+   O pré-gate também exige o vínculo idêntico
+   `tenant_judit_requests(tenant_id, process_code, judit_request_id)`
+   ao request da versão finalizada. Apenas preencher `finalized=true`
+   ou associar o tenant ao processo não comprova uma aquisição Judit.
    Não repetir o POST Judit para tentar corrigir a ingestão.
 3. Claude: habilitar **somente no worker/ambiente isolado** os controles
    de `app/generation_authorization.py`: `ANTHROPIC_PAID_ENABLED=true`,

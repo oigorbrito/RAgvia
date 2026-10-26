@@ -63,6 +63,11 @@ async def _check_scope(database_url: str, scope: tuple[UUID, UUID, UUID],
                        WHERE tp.process_id=p.id AND tp.tenant_id=$3
                    ) AS tenant_authorized,
                    EXISTS(
+                       SELECT 1 FROM tenant_judit_requests tjr
+                       WHERE tjr.tenant_id=$3 AND tjr.process_code=p.code
+                         AND tjr.judit_request_id=v.source_request_id
+                   ) AS judit_request_correlated,
+                   EXISTS(
                        SELECT 1 FROM process_summaries ps
                        WHERE ps.process_id=p.id AND ps.version_id=$2
                          AND COALESCE((ps.validation->>'passed')::boolean, FALSE)
@@ -87,6 +92,8 @@ async def _check_scope(database_url: str, scope: tuple[UUID, UUID, UUID],
         raise AcceptanceBlocked("secret_process_must_not_call_provider")
     if not row["finalized"] or not str(row["source_request_id"] or "").strip():
         raise AcceptanceBlocked("acquisition_not_finalized")
+    if row["judit_request_correlated"] is not True:
+        raise AcceptanceBlocked("judit_request_not_correlated_with_tenant")
     if row["already_published"]:
         raise AcceptanceBlocked("summary_already_published_no_repeat_generation")
     if row["approval_consumed"]:
