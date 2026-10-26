@@ -46,26 +46,83 @@ def _persist_judit_request_id(path: Path | None, request_id: str) -> bool:
     if not normalized_request_id:
         raise RuntimeError("cannot persist an empty Judit request id")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    fd: int | None = None
-    try:
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            fd = None
-            handle.write(normalized_request_id + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        os.chmod(path, 0o600)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+    if "\\n" in normalized_request_id or "\\r" in normalized_request_id:
+        raise RuntimeError("invalid Judit request id for private custody")
+    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    # Exclusive create: never overwrite a previous paid request's identifier.
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600),
+                   "w", encoding="utf-8") as handle:
+        handle.write(normalized_request_id + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(path, 0o600)
+    _sync_directory(path.parent)
     return True
+
+
+def _sync_directory(directory: Path) -> None:
+    """Make newly created directory entries durable on POSIX."""
+    if os.name == "nt":
+        return
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _read_private_request_id(path: Path) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("private Judit request id file is missing or unsafe")
+    identifier = path.read_text(encoding="utf-8").strip()
+    if not identifier or "\\n" in identifier or "\\r" in identifier:
+        raise RuntimeError("private Judit request id is incomplete")
+    return identifier
+
+
+def _prepare_judit_acquisition(path: Path | None, code: str) -> str | None:
+    """Reserve exactly one POST attempt before the network call.
+
+    A durable attempt without an ID means the POST outcome is UNKNOWN, never
+    permission to retry. A complete ID permits GET-only resume.
+    """
+    if path is None:
+        raise RuntimeError("private durable --judit-request-id-file is required before POST")
+    if path.is_symlink():
+        raise RuntimeError("private Judit request id path is unsafe")
+    marker = path.with_name(path.name + ".attempt.json")
+    if marker.is_symlink():
+        raise RuntimeError("Judit acquisition attempt marker is unsafe")
+    context = {
+        "schema_version": 1,
+        "cnj_sha256": _hash_identifier(normalize_cnj(code)),
+        "requests_host_sha256": _hash_identifier(
+            os.getenv("JUDIT_REQUESTS_BASE_URL", "https://requests.prod.judit.io").rstrip("/")
+        ),
+        "state": "post_outcome_may_be_unknown",
+    }
+    if marker.exists():
+        try:
+            recorded = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise RuntimeError("unreadable acquisition marker; block new POST") from exc
+        if recorded != context:
+            raise RuntimeError("acquisition marker does not match the CNJ/host; block new POST")
+        if path.exists():
+            return _read_private_request_id(path)
+        raise RuntimeError("acquisition already attempted; POST outcome unknown; no retry")
+    if path.exists():
+        raise RuntimeError("existing Judit identifier without acquisition marker; no overwrite")
+    path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    # O_EXCL acts as a cross-process one-shot claim: only one contender sends POST.
+    with os.fdopen(os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600),
+                   "w", encoding="utf-8") as handle:
+        json.dump(context, handle, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    _sync_directory(path.parent)
+    return None
 
 
 def _cnj_checksum_valid(normalized: str) -> bool:
@@ -272,6 +329,16 @@ async def _smoke_judit(
     if judit_attachments_enabled():
         raise RuntimeError("Judit live smoke requires JUDIT_ATTACHMENTS_ENABLED=false")
 
+    previous_request_id = _prepare_judit_acquisition(request_id_file, code)
+    if previous_request_id is not None:
+        report.update({
+            "status": "request_reused",
+            "request_id_sha256": _hash_identifier(previous_request_id),
+            "request_id_persisted": True,
+            "post_calls": 0,
+        })
+        return report
+
     started = perf_counter()
     result = await create_lawsuit_request(code)
     request_id_persisted = _persist_judit_request_id(
@@ -397,13 +464,22 @@ async def _smoke_judit_roundtrip(
         report["status"] = "skipped_missing_authorization"
         return report
 
-    created = await create_lawsuit_request(code)
-    request_id_persisted = _persist_judit_request_id(
-        request_id_file,
-        created.request_id,
-    )
-    report = await _observe_judit_request(created.request_id, post_calls=1)
+    previous_request_id = _prepare_judit_acquisition(request_id_file, code)
+    if previous_request_id is None:
+        created = await create_lawsuit_request(code)
+        request_id_persisted = _persist_judit_request_id(
+            request_id_file,
+            created.request_id,
+        )
+        request_id = created.request_id
+        post_calls = 1
+    else:
+        request_id = previous_request_id
+        request_id_persisted = True
+        post_calls = 0
+    report = await _observe_judit_request(request_id, post_calls=post_calls)
     report["request_id_persisted"] = request_id_persisted
+    report["request_reused"] = post_calls == 0
     observed_status = str(report.get("status") or "")
     report["status"] = {
         "observed_completed": "roundtrip_completed",
@@ -607,13 +683,29 @@ def main() -> int:
 
     if args.judit_observe:
         try:
+            observe_id = (
+                _read_private_request_id(args.judit_request_id_file)
+                if args.judit_request_id_file is not None
+                else args.request_id
+            )
             report = asyncio.run(
-                _observe_judit_request(args.request_id, post_calls=0)
+                _observe_judit_request(observe_id, post_calls=0)
             )
         except Exception as exc:
             report = _error_report("judit", exc)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if report["status"] == "observed_completed" else 1
+
+    creating_mode = args.judit_roundtrip or (
+        not args.judit_observe and not args.diagnose_judit
+        and args.replay_file is None and args.provider in {"judit", "both"}
+    )
+    if creating_mode and str(args.cnj).strip():
+        if os.getenv("GITHUB_ACTIONS", "").lower() == "true" or args.judit_request_id_file is None:
+            report = _base_report("judit")
+            report["status"] = "blocked_unsafe_acquisition_custody"
+            print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+            return 1
 
     if args.judit_roundtrip:
         if not str(args.cnj).strip():
@@ -668,7 +760,7 @@ def main() -> int:
         return 0 if report["status"] == "ok" else 1
     if args.provider == "datajud":
         return 0 if report["status"] in {"ok", "not_found"} else 1
-    return 0 if report["status"] == "request_created" else 1
+    return 0 if report["status"] in {"request_created", "request_reused"} else 1
 
 
 if __name__ == "__main__":
