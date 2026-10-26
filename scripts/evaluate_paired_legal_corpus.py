@@ -49,6 +49,37 @@ def git_blob_sha1(data: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
 
+def revision_metadata(executed_commit: str | None) -> dict[str, Any]:
+    """Distinguish PR source HEAD from the commit actually checked out by CI.
+
+    On pull_request events, actions/checkout defaults to a synthetic merge
+    commit. Recording GITHUB_SHA as the candidate HEAD would misstate the
+    provenance of the published integration evidence.
+    """
+    candidate_commit = executed_commit
+    if executed_commit and (event_path := os.getenv("GITHUB_EVENT_PATH")):
+        event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+        if not isinstance(event, dict):
+            raise ValueError("invalid GitHub event payload")
+        request = event.get("pull_request")
+        if request is not None:
+            head = request.get("head") if isinstance(request, dict) else None
+            candidate_commit = head.get("sha") if isinstance(head, dict) else None
+            if not isinstance(candidate_commit, str) or not re.fullmatch(
+                r"[0-9a-fA-F]{40}", candidate_commit
+            ):
+                raise ValueError("pull request event has no valid head SHA")
+    return {
+        "candidate_commit": candidate_commit,
+        "executed_checkout_commit": executed_commit,
+        "executed_exact_candidate_head": (
+            candidate_commit == executed_commit
+            if candidate_commit is not None and executed_commit is not None
+            else None
+        ),
+    }
+
+
 def frozen_case(case_id: str) -> dict[str, Any]:
     manifest = json.loads(CORPUS.read_text(encoding="utf-8"))
     if manifest.get("schema_version") != 1:
@@ -133,7 +164,7 @@ def evaluate_case(
         "fixture_sha256": entry["fixture_sha256"],
         "donor_commit": entry["donor_commit"],
         "donor_oracle_blob_sha1": entry["donor_oracle_blob_sha1"],
-        "candidate_commit": commit_sha,
+        **revision_metadata(commit_sha),
         "candidate_document_sha256": sha256(document.encode("utf-8")),
         "comparison": {
             "basis": "original_donor_template_vs_runtime_api_with_mocked_model",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from scripts.evaluate_paired_legal_corpus import evaluate_case, frozen_case
@@ -63,3 +65,41 @@ def test_claim_metadata_does_not_establish_legal_entailment() -> None:
 def test_unknown_case_is_not_invented_for_benchmark() -> None:
     with pytest.raises(ValueError, match="donor reference"):
         evaluate_case(case_id="synthetic-02", document="Resumo sintético")
+
+def test_pr_ci_artifact_separates_source_head_from_executed_merge(
+    tmp_path, monkeypatch
+) -> None:
+    source_head = "a" * 40
+    executed_merge = "b" * 40
+    event = tmp_path / "event.json"
+    event.write_text(
+        json.dumps({"pull_request": {"head": {"sha": source_head}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+
+    report = evaluate_case(
+        case_id=CASE,
+        document=DESTINATION.read_text(encoding="utf-8"),
+        commit_sha=executed_merge,
+    )
+
+    assert report["candidate_commit"] == source_head
+    assert report["executed_checkout_commit"] == executed_merge
+    assert report["executed_exact_candidate_head"] is False
+    assert report["comparison"]["deterministic_preservation_passed"] is True
+    assert report["legal_quality_qualified"] is False
+
+
+def test_pr_ci_artifact_rejects_missing_source_head(tmp_path, monkeypatch) -> None:
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"head": {}}}), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+
+    with pytest.raises(ValueError, match="valid head SHA"):
+        evaluate_case(
+            case_id=CASE,
+            document=DESTINATION.read_text(encoding="utf-8"),
+            commit_sha="b" * 40,
+        )
+
