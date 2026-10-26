@@ -68,9 +68,7 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
     assert source["source_scope"] == "frozen_synthetic_judit_parser_facts"
     assert source["facts"] == json.loads(EXPECTED.read_text(encoding="utf-8"))
     assert source["fixture_sha256"] == hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
-    assert form["source_evidence_sha256"] == hashlib.sha256(
-        (packet / "case-evidence.json").read_bytes()
-    ).hexdigest()
+    assert form["source_evidence_sha256"] == hashlib.sha256(evidence_bytes).hexdigest()
     assert form["source_evidence_sha256"] == mapping["source_evidence_sha256"]
     with pytest.raises(FileExistsError, match="new, empty"):
         prepare(case_id=CASE, candidate_text=candidate, destination=packet, seed=b"k" * 32)
