@@ -70,6 +70,8 @@ def test_snapshot_validation_keeps_only_lawsuit_and_get_provenance() -> None:
     (lambda d: d.update(all_pages_count=2), "incomplete_or_inconsistent_pages"),
     (lambda d: d.update(page_count=1), "incomplete_or_inconsistent_pages"),
     (lambda d: d["page_data"][0]["response_data"].update(secrecy_level=1), "restricted_lawsuit"),
+    (lambda d: d["page_data"][0]["response_data"].update(secrecy_level=0.1), "unknown_secrecy_level"),
+    (lambda d: d["page_data"][0].update(cached="false"), "ambiguous_cached_flag"),
     (lambda d: d["page_data"][0]["response_data"]["steps"][0].update(private=True), "private_or_unknown_step"),
     (lambda d: d["page_data"][0]["response_data"]["attachments"][0].pop("private"), "private_or_unknown_attachment"),
     (lambda d: d["page_data"][1].update(request_id=str(uuid4())), "inconsistent_request_id"),
