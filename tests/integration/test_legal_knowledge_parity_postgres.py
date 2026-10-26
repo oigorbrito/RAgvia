@@ -188,6 +188,8 @@ async def test_legal_knowledge_flows_through_authorized_pipeline_with_provenance
                 }
             ]
             assert runtime_parity["rubric_count"] >= runtime_parity["deterministic_preservation_count"]
+            assert runtime_parity["writing_rubric_passed"], runtime_parity["writing_quality_gaps"]
+            assert "não registra citação, decisão ou sentença" in body["iaSummary"].casefold()
             assert runtime_parity["destination_document_sha256"] == __import__(
                 "hashlib"
             ).sha256(body["iaSummary"].encode("utf-8")).hexdigest()
