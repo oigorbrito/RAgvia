@@ -181,6 +181,8 @@ def test_main_provider_exception_emits_sanitized_json_error(
     async def fake_run_smoke(provider: str, code: str, *, judit_request_id_file: Path):
         raise RuntimeError("provider body with secret-value")
 
+    # CI runs under GITHUB_ACTIONS=true, whereas this unit exercises the local operator path.
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setattr(smoke, "run_smoke", fake_run_smoke)
     monkeypatch.setattr(
         sys,
