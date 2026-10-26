@@ -1,0 +1,32 @@
+# RAGVIA-only PostgreSQL identity overlay. Do not use with RagV/Rpy or homologation.
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: ragvia
+      POSTGRES_USER: ragvia
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ragvia -d ragvia"]
+    volumes: !override
+      - ragvia_pgdata:/var/lib/postgresql/data
+  migrate:
+    environment:
+      DATABASE_URL: postgresql://ragvia:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private RAGVIA env file}@postgres:5432/ragvia
+  api:
+    environment:
+      DATABASE_URL: postgresql://ragvia:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private RAGVIA env file}@postgres:5432/ragvia
+  worker-1:
+    environment:
+      DATABASE_URL: postgresql://ragvia:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private RAGVIA env file}@postgres:5432/ragvia
+  worker-2:
+    environment:
+      DATABASE_URL: postgresql://ragvia:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private RAGVIA env file}@postgres:5432/ragvia
+  scheduler:
+    environment:
+      DATABASE_URL: postgresql://ragvia:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private RAGVIA env file}@postgres:5432/ragvia
+  demo-seed:
+    environment:
+      DATABASE_URL: postgresql://ragvia:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the private RAGVIA env file}@postgres:5432/ragvia
+volumes:
+  ragvia_pgdata:
+    external: true
+    name: ragvia_pgdata
