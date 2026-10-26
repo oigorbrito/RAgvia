@@ -67,6 +67,35 @@ A result other than `status=ok` blocks every provider smoke for that CNJ until t
 corrected. This preflight exists specifically to prevent repeated host/payload experiments when the
 test identifier itself is invalid.
 
+### Registro do workflow manual no GitHub Actions
+
+Se `gh workflow run provider-live-smoke.yml` retornar HTTP 404, mas
+`.github/workflows/provider-live-smoke.yml` já existir na branch padrão,
+investigar a lista de workflows registrados:
+
+```powershell
+gh api "repos/oigorbrito/RAgvia/actions/workflows?per_page=100" --jq '.workflows[] | {id,name,path,state}'
+```
+
+O trigger de `push` introduzido em LIVE-03 observa **somente alterações
+no próprio arquivo de workflow na branch canônica**. Nesse evento, o job
+`register` registra uma execução de controle sem fazer checkout,
+ler credenciais ou acessar Judit/Claude. O job `smoke` está guardado por
+`github.event_name == 'workflow_dispatch'` e não executa em push.
+Após o merge **manual** desta alteração, confirmar um run
+`provider-live-smoke` de evento `push`, validar a presença do workflow
+na lista e somente então usar:
+
+```powershell
+gh workflow run provider-live-smoke.yml --repo oigorbrito/RAgvia --ref migration/ragvia-01-candidate -f mode=diagnose
+```
+
+Se o arquivo continuar ausente do registro, não criar pedidos Judit,
+não habilitar gatilhos pagos e verificar o estado das Actions em
+`gh api repos/oigorbrito/RAgvia/actions/workflows` e o painel do GitHub.
+Um run de bootstrap bem-sucedido comprova o registro, **não** a
+autenticação nem a disponibilidade do serviço Judit.
+
 ### Judit non-creating credential diagnostic
 
 **LIVE-02 validation rule:** `reachable_unverified` (including HTTP 400
