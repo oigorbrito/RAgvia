@@ -4,33 +4,33 @@
 
 The first paid Judit request must be executed on a persistent, access-restricted
 operator machine, **not on an ephemeral GitHub Actions runner**. The
-\`provider-live-smoke.yml\` workflow keeps GET-only \`diagnose\` and
-\`judit-observe\`, public DataJud and offline modes, but refuses Judit POST
-modes \`judit\`, \`judit-roundtrip\`, and \`live\`. The CLI also refuses to
+`provider-live-smoke.yml` workflow keeps GET-only `diagnose` and
+`judit-observe`, public DataJud and offline modes, but refuses Judit POST
+modes `judit`, `judit-roundtrip`, and `live`. The CLI also refuses to
 POST in GitHub Actions, even if a temporary file path is supplied.
 
 This procedure does not authorize expenditure. Before any real POST, the
 operator must independently establish the public non-secret CNJ, authorization
 to obtain that judicial record, account/contract permissions, the approved cost
-and expected attachments policy. \`PROVIDER_ACCEPTANCE_AUTHORIZED=true\`
+and expected attachments policy. `PROVIDER_ACCEPTANCE_AUTHORIZED=true`
 is a technical gate, **not** financial approval.
 
 ## Durable boundary and failure contract
 
-Use the existing \`--judit-request-id-file\` option with a PRIVATE path
+Use the existing `--judit-request-id-file` option with a PRIVATE path
 outside the Git worktree. The implementation:
 
 1. Checks authorization, credentials and disabled paid attachments.
-2. Exclusively creates and fsyncs \`<id-file>.attempt.json\` before entering
+2. Exclusively creates and fsyncs `<id-file>.attempt.json` before entering
    the Judit POST. The marker contains only a hash of CNJ, a hash of the
    selected host and a constant state, not the raw CNJ, ID or credentials.
    Competing processes cannot both acquire the same attempt marker.
-3. On HTTP success, immediately writes the original ID to \`<id-file>\`
+3. On HTTP success, immediately writes the original ID to `<id-file>`
    using exclusive creation and fsync, before the first status/response GET.
    On POSIX, directory entries are fsynced. The file is never overwritten.
 4. On a subsequent invocation with the **same path/CNJ/host**, the saved
    ID is reused and only status/response GETs are performed. An isolated
-   \`--judit-observe --judit-request-id-file\` is also GET-only.
+   `--judit-observe --judit-request-id-file` is also GET-only.
 5. If the attempt marker exists but the ID is absent, incomplete or
    unavailable, the outcome is UNKNOWN. No automatic retry or second POST,
    even after timeout, an HTTP error, interruption, or runner termination.
@@ -66,9 +66,9 @@ Back up the **entire private directory** to an access-controlled durable
 backup before any further operational changes; the two files must remain
 together. On Windows, Python chmod alone does not replace NTFS ACLs.
 
-Provide \`JUDIT_API_KEY\` through the operator's local secret manager, never
+Provide `JUDIT_API_KEY` through the operator's local secret manager, never
 in chat, GitHub inputs, command-line arguments or shell history.
-Set \`PROVIDER_ACCEPTANCE_CNJ\` to the actual approved public CNJ by private
+Set `PROVIDER_ACCEPTANCE_CNJ` to the actual approved public CNJ by private
 operator configuration, and verify the chosen environment:
 
 ~~~powershell
@@ -78,7 +78,7 @@ python scripts/provider_live_smoke.py --preflight-cnj
 ~~~
 
 After independent contract/cost authorization, and **once only**, set
-\`PROVIDER_ACCEPTANCE_AUTHORIZED=true\` in the private environment and execute:
+`PROVIDER_ACCEPTANCE_AUTHORIZED=true` in the private environment and execute:
 
 ~~~powershell
 python scripts/provider_live_smoke.py --judit-roundtrip --judit-request-id-file $requestFile
@@ -107,12 +107,12 @@ Get-Content -Raw -LiteralPath $requestFile | gh secret set PROVIDER_ACCEPTANCE_J
 
 The operator must verify the secret is configured, with appropriate access
 rights; do not post the ID in issues, PRs, logs, URLs or public artifacts.
-Only then use \`diagnose\` / \`judit-observe\` (read-only GET).
+Only then use `diagnose` / `judit-observe` (read-only GET).
 
 The request ID alone does **not** prove application ingestion. Continue
 using the authenticated callback or captured private provider response,
-then check \`tenant_judit_requests\`, \`tenant_processes\` and
-\`process_versions.source_request_id\`, with finalized, public case data.
+then check `tenant_judit_requests`, `tenant_processes` and
+`process_versions.source_request_id`, with finalized, public case data.
 Never create a fresh Judit request to repair ingest. Claude authorization,
 PostgreSQL persistence, API render, billing and human legal review remain
 separate acceptance gates as defined by LIVE-01. This PR has no live
