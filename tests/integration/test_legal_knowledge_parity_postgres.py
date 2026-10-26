@@ -65,6 +65,7 @@ def _writing_payload(process_json: dict, steps: list[dict]) -> dict:
         "current_status": steps[-1]["text"],
         "attention": [
             *list(process_json.get("source_warnings") or []),
+            *list(process_json.get("source_documentary_limits") or []),
             steps[-1]["text"],
         ],
         "decisions": [], "deadlines": [], "related_processes": [], "attachments": [],
