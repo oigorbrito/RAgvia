@@ -40,3 +40,9 @@ tmp/
 
 # Windows installer builds
 /dist-installer/
+
+# LIVE-06 private Judit custody; keep original IDs outside the Git worktree
+.ragvia-private/
+provider-acceptance-private/
+judit-first-request.id
+judit-first-request.id.attempt.json

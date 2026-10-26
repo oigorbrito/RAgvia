@@ -40,6 +40,7 @@ def test_judit_missing_credentials_skips_without_network(monkeypatch: pytest.Mon
 
 def test_judit_live_path_uses_existing_adapter_and_hashes_request_id(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     observed: list[str] = []
 
@@ -52,7 +53,7 @@ def test_judit_live_path_uses_existing_adapter_and_hashes_request_id(
     monkeypatch.setenv("JUDIT_ATTACHMENTS_ENABLED", "false")
     monkeypatch.setattr(smoke, "create_lawsuit_request", fake_create)
 
-    report = asyncio.run(smoke.run_smoke("judit", "0000000-00.2026.8.21.0001"))
+    report = asyncio.run(smoke.run_smoke("judit", "0000000-00.2026.8.21.0001", judit_request_id_file=tmp_path / "id"))
 
     if report["status"] != "request_created":
         raise AssertionError(f"unexpected report: {report!r}")
@@ -175,10 +176,13 @@ def test_main_missing_cnj_emits_json_skip_and_zero_exit(
 def test_main_provider_exception_emits_sanitized_json_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
-    async def fake_run_smoke(provider: str, code: str):
+    async def fake_run_smoke(provider: str, code: str, *, judit_request_id_file: Path):
         raise RuntimeError("provider body with secret-value")
 
+    # CI runs under GITHUB_ACTIONS=true, whereas this unit exercises the local operator path.
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setattr(smoke, "run_smoke", fake_run_smoke)
     monkeypatch.setattr(
         sys,
@@ -189,6 +193,8 @@ def test_main_provider_exception_emits_sanitized_json_error(
             "judit",
             "--cnj",
             "0000000-00.2026.8.21.0001",
+            "--judit-request-id-file",
+            str(tmp_path / "id"),
         ],
     )
 
@@ -304,6 +310,7 @@ def test_both_preflight_requires_all_credentials_before_any_network(
 
 def test_both_live_path_runs_judit_and_datajud_in_same_acceptance(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     observed: list[str] = []
 
@@ -336,7 +343,7 @@ def test_both_live_path_runs_judit_and_datajud_in_same_acceptance(
     monkeypatch.setattr(smoke, "lookup_datajud_metadata", fake_lookup)
     monkeypatch.setattr(smoke, "diagnose_judit", fake_diagnostic)
 
-    report = asyncio.run(smoke.run_smoke("both", "0000000-00.2026.8.21.0001"))
+    report = asyncio.run(smoke.run_smoke("both", "0000000-00.2026.8.21.0001", judit_request_id_file=tmp_path / "id"))
 
     if report["status"] != "ok" or report["executed"] is not True:
         raise AssertionError(f"unexpected report: {report!r}")
@@ -774,6 +781,7 @@ def test_observe_judit_reports_payload_received_while_provider_is_pending(
 
 def test_judit_roundtrip_preserves_pending_payload_outcome(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     async def fake_create(_code: str):
         return SimpleNamespace(request_id="provider-request-123")
@@ -794,7 +802,7 @@ def test_judit_roundtrip_preserves_pending_payload_outcome(
     monkeypatch.setattr(smoke, "create_lawsuit_request", fake_create)
     monkeypatch.setattr(smoke, "_observe_judit_request", fake_observe)
 
-    report = asyncio.run(smoke._smoke_judit_roundtrip("0000000-00.2026.8.21.0001"))
+    report = asyncio.run(smoke._smoke_judit_roundtrip("0000000-00.2026.8.21.0001", request_id_file=tmp_path / "id"))
 
     assert report["status"] == "roundtrip_payload_received_pending_completion"
     assert report["lawsuit_response_count"] == 2
