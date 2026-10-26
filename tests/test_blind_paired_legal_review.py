@@ -56,7 +56,8 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
     }
     assert packet.stat().st_mode & 0o077 == 0
     assert all(f.stat().st_mode & 0o077 == 0 for f in packet.iterdir())
-    labels = json.loads((packet / "PRIVATE-mapping.json").read_text())["labels"]
+    mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
+    labels = mapping["labels"]
     assert (packet / (labels["donor"] + ".md")).read_text() == json.loads(
         DONOR.read_text(encoding="utf-8")
     )["document"]
