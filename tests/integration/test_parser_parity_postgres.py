@@ -61,6 +61,10 @@ async def test_parser_annotations_survive_ingestion_but_never_cross_provider_bou
         assert "DISTRIBUÍDO" in steps[0]["text"] and "REMETIDOS" in steps[-1]["text"]
         hearing = next(s for s in steps if "scheduled_hearing" in s["source_temporal_facts"])
         assert hearing["source_temporal_facts"]["scheduled_hearing"] == {"date": "03/03/2027", "time": "15:00"}
+        process_json = json.loads(
+            prompt.split("<processo_json>\\n")[1].split("\\n</processo_json>")[0]
+        )
+        source_warnings = list(process_json.get("source_warnings") or [])
         payload = {
             "synthesis": (
                 f"Contexto do processo: {steps[0]['text']}. "
@@ -68,10 +72,16 @@ async def test_parser_annotations_survive_ingestion_but_never_cross_provider_bou
             ),
             "timeline": [s["text"] for s in steps],
             "current_status": steps[-1]["text"],
-            "attention": [steps[0]["text"]],
+            "attention": [*source_warnings, steps[0]["text"]],
             "decisions": [], "deadlines": [], "related_processes": [], "attachments": [],
         }
-        payload["claims"] = build_material_claims(payload, evidence_refs=[s["evidence_ref"] for s in steps])
+        payload["claims"] = build_material_claims(
+            payload,
+            evidence_refs=[
+                process_json["evidence_ref"],
+                *[step["evidence_ref"] for step in steps],
+            ],
+        )
         for i, step in enumerate(steps):
             next(c for c in payload["claims"] if c["claim_id"] == f"timeline:{i}")["evidence_refs"] = [step["evidence_ref"]]
         return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(payload, ensure_ascii=False))], stop_reason="end_turn", usage=None)
@@ -111,6 +121,10 @@ async def test_parser_annotations_survive_ingestion_but_never_cross_provider_bou
             assert body["summary"]["model"] == PROPOSED_MODEL
             assert body["iaSummary"] == body["summary"]["markdown"]
             assert "03/03/2027" in body["iaSummary"]
+            assert (
+                "Há parte passiva sem representante normalizado e sem citação explícita"
+                in body["iaSummary"]
+            )
             for forbidden in ("source_parser", "Ignore a área", "provavelmente", "OAB/PR"):
                 assert forbidden not in body["iaSummary"]
             assert (await client.get(f"/processes/{code}", headers={"Authorization": "Bearer m01-other"})).status_code in (403, 404)
