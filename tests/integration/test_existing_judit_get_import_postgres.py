@@ -86,9 +86,11 @@ async def test_get_snapshot_postgres_stages_once_with_no_webhooks_or_generation(
         assert version["finalized"] is False
         assert version["current_version_id"] is None
         assert version["judit_callback_id"] is None
-        payload = json.dumps(version["source_payload"])
-        assert "EXTERNAL_SUMMARY_NOT_FOR_INGESTION" not in payload
-        assert '"webhook_authenticated": false' in payload
+        payload = version["source_payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        assert "EXTERNAL_SUMMARY_NOT_FOR_INGESTION" not in json.dumps(payload)
+        assert payload["ingest_provenance"]["webhook_authenticated"] is False
         assert await conn.fetchval(
             "SELECT count(*) FROM process_versions WHERE judit_request_id=$1",
             snapshot.request_id,
@@ -121,5 +123,6 @@ async def test_get_snapshot_postgres_stages_once_with_no_webhooks_or_generation(
             )
     finally:
         await conn.execute("DELETE FROM processes WHERE code=$1", cnj)
-        await conn.execute("DELETE FROM tenants WHERE id=$1", tenant_id)
+        # The tenant is intentionally retained by the immutable access log.
+        # Integration CI uses a disposable database; do not bypass audit retention.
         await conn.close()
