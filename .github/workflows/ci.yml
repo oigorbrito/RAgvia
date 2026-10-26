@@ -115,7 +115,10 @@ jobs:
       - name: Install browser smoke tooling
         run: |
           python -m pip install playwright==1.55.0
-          python -m playwright install --with-deps chromium
+          # GitHub-hosted Ubuntu already carries the headless browser runtime libs.
+          # Avoid apt mirror traffic during PR validation; smoke fails explicitly
+          # if a required native dependency is missing on a future runner image.
+          python -m playwright install chromium
 
       - name: Frontend browser smoke
         run: python tests/frontend_browser_smoke.py
