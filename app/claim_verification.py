@@ -394,6 +394,13 @@ def verification_evidence_catalog(
                 if isinstance(context.get("source_warnings"), list)
                 else []
             ),
+            # Documentary-limit statements are computed from the cited recorte.
+            # Exact text is verifiable as process provenance, not free inference.
+            "source_documentary_limits": (
+                context.get("source_documentary_limits")
+                if isinstance(context.get("source_documentary_limits"), list)
+                else []
+            ),
         }
         process_amounts: set[Decimal] = set()
         header = process_payload["header"]
