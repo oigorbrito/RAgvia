@@ -176,8 +176,9 @@ def test_main_missing_cnj_emits_json_skip_and_zero_exit(
 def test_main_provider_exception_emits_sanitized_json_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
-    async def fake_run_smoke(provider: str, code: str):
+    async def fake_run_smoke(provider: str, code: str, *, judit_request_id_file: Path):
         raise RuntimeError("provider body with secret-value")
 
     monkeypatch.setattr(smoke, "run_smoke", fake_run_smoke)
@@ -190,6 +191,8 @@ def test_main_provider_exception_emits_sanitized_json_error(
             "judit",
             "--cnj",
             "0000000-00.2026.8.21.0001",
+            "--judit-request-id-file",
+            str(tmp_path / "id"),
         ],
     )
 
