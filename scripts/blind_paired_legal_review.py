@@ -21,28 +21,82 @@ DIMENSIONS = tuple(HUMAN_LABELS)
 SIDES = ("A", "B")
 
 
+def _allowed_source_refs(facts: dict[str, Any]) -> set[str]:
+    """Resolve only identifiers present in the frozen synthetic case."""
+    refs = {
+        f"campo:{key}"
+        for key, value in facts.items()
+        if isinstance(value, (str, int, float, bool))
+    }
+    for field, prefix, identity in (
+        ("partes", "parte", "id"),
+        ("classes", "classe", "id"),
+        ("assuntos", "assunto", "id"),
+        ("movimentos", "movimento", "numero"),
+    ):
+        records = facts.get(field)
+        if not isinstance(records, list):
+            raise ValueError(f"source evidence has no valid {field}")
+        for record in records:
+            if not isinstance(record, dict):
+                raise ValueError(f"invalid source evidence row in {field}")
+            value = record.get(identity)
+            if (type(value) not in (int, str)
+                    or not str(value).strip()
+                    or (type(value) is int and value < 1)):
+                raise ValueError(f"invalid source identifier in {field}")
+            ref = f"{prefix}:{value}"
+            if ref in refs:
+                raise ValueError("duplicate identifier in frozen source evidence")
+            refs.add(ref)
+    return refs
+
+
 def _write(path: Path, value: Any, *, as_text: bool = False) -> None:
+    """Preserve identical UTF-8 bytes and hashes on POSIX and Windows."""
+    data = (value if as_text else json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    raw = data.encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(value if as_text else json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(raw)
 
 
 def prepare(
     *, case_id: str, candidate_text: str, destination: Path,
+    private_mapping: Path,
     candidate_commit: str | None = None, seed: bytes | None = None,
 ) -> dict[str, Any]:
     record = evaluate_case(
         case_id=case_id, document=candidate_text, commit_sha=candidate_commit
     )
+    if (
+        not record["comparison"]["deterministic_preservation_passed"]
+        or not record["comparison"]["writing_rubric_passed"]
+        or record["narrow_risk_signals"]
+    ):
+        raise ValueError("candidate fails frozen deterministic writing gate")
     donor_text = json.loads(DONOR.read_text(encoding="utf-8"))["document"]
     if not isinstance(donor_text, str) or not donor_text.strip() or not candidate_text.strip():
         raise ValueError("both paired documents must be nonempty")
+    # Never place the identifying donor/candidate mapping inside the deliverable
+    # reviewer directory. Validate the private destination before writing anything.
+    reviewer_root = destination.resolve()
+    private_location = private_mapping.resolve()
+    if private_location == reviewer_root or reviewer_root in private_location.parents:
+        raise ValueError("private mapping must be outside reviewer packet")
+    if private_mapping.exists() or private_mapping.is_symlink():
+        raise FileExistsError("private mapping already exists")
+    if (not private_mapping.parent.is_dir()
+            or private_mapping.parent.is_symlink()):
+        raise ValueError("private mapping parent must be an existing real directory")
+    if os.name != "nt" and private_mapping.parent.stat().st_mode & 0o077:
+        raise PermissionError("private mapping parent must have private permissions (0700)")
     if destination.is_symlink():
         raise ValueError("review destination must not be a symlink")
     if not destination.exists():
         destination.mkdir(parents=True, mode=0o700)
-    if destination.stat().st_mode & 0o077:
+    if os.name != "nt" and destination.stat().st_mode & 0o077:
         raise PermissionError("review destination must have private permissions (0700)")
     if any(destination.iterdir()):
         raise FileExistsError("review packet must use a new, empty directory")
@@ -52,8 +106,13 @@ def prepare(
     blind_token = hmac.digest(randomness, case_id.encode("utf-8"), "sha256")
     candidate_side = "A" if blind_token[0] & 1 else "B"
     donor_side = "B" if candidate_side == "A" else "A"
-    for side, value in ((donor_side, donor_text), (candidate_side, candidate_text)):
-        _write(destination / (side + ".md"), value, as_text=True)
+    blind_documents = {donor_side: donor_text, candidate_side: candidate_text}
+    document_hashes = {
+        side: hashlib.sha256(blind_documents[side].encode("utf-8")).hexdigest()
+        for side in SIDES
+    }
+    for side in SIDES:
+        _write(destination / (side + ".md"), blind_documents[side], as_text=True)
     # The independent source facts, not just two summaries, travel to reviewers.
     source_record = {
         "schema_version": 1,
@@ -74,12 +133,13 @@ def prepare(
         "donor_commit": record["donor_commit"],
         "candidate_commit": candidate_commit,
         "document_sha256": record["candidate_document_sha256"],
+        "document_sha256_by_side": document_hashes,
         "source_evidence_sha256": evidence_sha,
         "fixture_sha256": record["fixture_sha256"],
         "candidate_generation_verified_live": False,
         "labels": {"donor": donor_side, "candidate": candidate_side},
     }
-    _write(destination / "PRIVATE-mapping.json", mapping)
+    _write(private_mapping, mapping)
     _write(destination / "review-form.json", {
         "schema_version": 1,
         "case_id": case_id,
@@ -93,8 +153,13 @@ def prepare(
             "Scores: 0 critical, 1 material issue, 2 acceptable with caveats, "
             "3 adequate. For EACH side and EACH dimension, provide an "
             "annotation containing nonempty justification, document_location, "
-            "and source_refs. Review independence and source truth require "
-            "external checking. Do not claim live-model legal quality."
+            "and source_refs. Use document_location format linha:N or "
+            "linha:N-M referring to actual A.md or B.md line numbers. "
+            "source_refs must match source identifiers present in case-evidence "
+            "(movimento:N, parte:ID, classe:ID, assunto:ID, campo:KEY). "
+            "This verifies references EXIST, not that their legal meaning is correct. "
+            "Review independence and source truth require external checking. "
+            "Do not claim live-model legal quality."
         ),
         "reviews": [],
     })
@@ -105,6 +170,7 @@ def prepare(
 def aggregate(
     *, mapping: dict[str, Any], answers: dict[str, Any],
     evidence_bytes: bytes,
+    documents: dict[str, bytes],
 ) -> dict[str, Any]:
     if (mapping.get("schema_version") != 1 or answers.get("schema_version") != 1
             or mapping.get("case_id") != answers.get("case_id")
@@ -138,6 +204,33 @@ def aggregate(
         or not isinstance(source_record.get("facts"), dict)
     ):
         raise ValueError("source-evidence identity is inconsistent")
+    # A/B must be exactly the documents issued at packet preparation.
+    hashes = mapping.get("document_sha256_by_side")
+    if not isinstance(hashes, dict) or set(hashes) != set(SIDES):
+        raise ValueError("blinded document hashes are missing")
+    if not isinstance(documents, dict) or set(documents) != set(SIDES):
+        raise ValueError("both original blinded documents are required")
+    lines_by_side: dict[str, int] = {}
+    for side in SIDES:
+        raw = documents[side]
+        expected = hashes[side]
+        if (
+            not isinstance(raw, bytes)
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+            or hashlib.sha256(raw).hexdigest() != expected
+        ):
+            raise ValueError(f"blinded document {side} bytes differ from issued packet")
+        try:
+            decoded = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("blinded document is not UTF-8") from exc
+        if not decoded.strip():
+            raise ValueError("blinded document is empty")
+        lines_by_side[side] = len(decoded.splitlines())
+    if hashes[labels["candidate"]] != mapping.get("document_sha256"):
+        raise ValueError("candidate document digest differs from blind mapping")
+    valid_refs = _allowed_source_refs(source_record["facts"])
     reviews = answers.get("reviews")
     if not isinstance(reviews, list) or len(reviews) < 2:
         raise ValueError("at least two independent reviewers required")
@@ -184,6 +277,14 @@ def aggregate(
                         or len(value) > 2048
                     ):
                         raise ValueError("annotation requires bounded nonempty text")
+                location = item["document_location"].strip()
+                match = re.fullmatch(r"linha:([1-9]\d*)(?:-([1-9]\d*))?", location)
+                if match is None:
+                    raise ValueError("document location must be linha:N or linha:N-M")
+                start = int(match.group(1))
+                end = int(match.group(2) or match.group(1))
+                if not (1 <= start <= end <= lines_by_side[side] and end - start < 10):
+                    raise ValueError("document location outside issued document")
                 refs = item["source_refs"]
                 if (
                     not isinstance(refs, list)
@@ -197,6 +298,8 @@ def aggregate(
                     or len(set(refs)) != len(refs)
                 ):
                     raise ValueError("annotation needs nonduplicate source references")
+                if any(ref not in valid_refs for ref in refs):
+                    raise ValueError("review cites a nonexistent frozen source reference")
     by_dimension = {}
     for dimension in DIMENSIONS:
         differences = [
@@ -216,6 +319,9 @@ def aggregate(
         "case_id": mapping["case_id"],
         "blind_id": mapping["blind_id"],
         "source_evidence_sha256": evidence_sha,
+        "blinded_document_integrity_checked": True,
+        "source_reference_ids_resolved": True,
+        "document_location_bounds_checked": True,
         "independent_reviewer_count": len(identities),
         "reviewer_identity_independence_verified": False,
         "annotation_completeness_checked": True,
@@ -237,10 +343,14 @@ def main() -> int:
     make.add_argument("--candidate", type=Path, required=True)
     make.add_argument("--commit")
     make.add_argument("--out", type=Path, required=True)
+    make.add_argument("--private-mapping", type=Path, required=True,
+                      help="Existing secured directory, outside reviewer packet")
     collect = modes.add_parser("aggregate")
     collect.add_argument("--mapping", type=Path, required=True)
     collect.add_argument("--answers", type=Path, required=True)
     collect.add_argument("--source-evidence", type=Path, required=True)
+    collect.add_argument("--document-a", type=Path, required=True)
+    collect.add_argument("--document-b", type=Path, required=True)
     collect.add_argument("--output", type=Path, required=True)
     args = cli.parse_args()
     if args.operation == "prepare":
@@ -248,6 +358,7 @@ def main() -> int:
             case_id=args.case_id,
             candidate_text=args.candidate.read_text(encoding="utf-8"),
             destination=args.out,
+            private_mapping=args.private_mapping,
             candidate_commit=args.commit,
         )
         print(json.dumps(result, ensure_ascii=False))
@@ -258,6 +369,10 @@ def main() -> int:
         mapping=mapping,
         answers=answers,
         evidence_bytes=args.source_evidence.read_bytes(),
+        documents={
+            "A": args.document_a.read_bytes(),
+            "B": args.document_b.read_bytes(),
+        },
     )
     _write(args.output, result)
     print(json.dumps({
