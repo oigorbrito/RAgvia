@@ -155,3 +155,24 @@ The verifier is invoked using python -m scripts.verify_donor_reference
 so Python resolves imports from the project root without assuming an
 editable install. All outputs are hash-only. Donor reexecution stays
 PENDING until the actual gated job completes successfully.
+
+
+## Qualificação estrita de equivalência textual do piloto
+
+Para a rubrica sintética, o avaliador aceita uma diferença editorial
+verificável: a citação da classe pode começar por `Art. 3º` ou `3º`,
+desde que **todo** o trecho substantivo congelado da classe e o trecho
+do assunto estejam presentes. Alterações no conteúdo jurídico permanecem
+`FAIL_DESTINATION_OMISSION`.
+
+A data de designação e a data/horário agendados devem coexistir **no mesmo
+movimento de audiência designada**, com indicação explícita de agendamento.
+Datas isoladas, designação negada e texto que descreva a audiência como
+realizada não recebem cobertura. Isso não é inferência jurídica nem
+reconhecimento semântico aberto: são variantes restritas e testadas por
+mutações adversariais.
+
+A cobertura desses dois requisitos não dispensa a avaliação de agrupamento
+administrativo nem a declaração de informação ausente. O número de pares
+autênticos continua sendo um. A aprovação da rubrica textual jamais altera
+`legal_quality_qualified=false` ou `release_qualified=false`.

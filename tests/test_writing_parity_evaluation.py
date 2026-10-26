@@ -64,3 +64,61 @@ def test_destination_omission_is_a_failed_comparison(tmp_path: Path, monkeypatch
     )
     assert result["passed"] is False
     assert missing_party["status"] == "FAIL_DESTINATION_OMISSION"
+
+def _criterion(result: dict, requirement: str) -> str:
+    return next(
+        row["status"] for row in result["results"]
+        if row["requirement"] == requirement
+    )
+
+
+def test_legal_source_citation_allows_only_optional_article_prefix() -> None:
+    archived = evaluation.DESTINATION.read_text(encoding="utf-8")
+    prefix_free = archived.replace(
+        "Art. 3º O Juizado Especial Cível tem competência",
+        "3º O Juizado Especial Cível tem competência",
+    )
+    assert prefix_free != archived
+    criterion = "Explicações de classe/assunto sustentadas por conteúdo recuperado"
+    assert _criterion(evaluation.evaluate(destination_text=prefix_free), criterion) == "COVERED"
+
+    changed_substance = prefix_free.replace(
+        "competência para conciliação", "competência para nomeação"
+    )
+    assert changed_substance != prefix_free
+    assert _criterion(
+        evaluation.evaluate(destination_text=changed_substance), criterion
+    ) == "FAIL_DESTINATION_OMISSION"
+
+
+def test_scheduled_hearing_source_wording_preserves_temporal_meaning() -> None:
+    archived = evaluation.DESTINATION.read_text(encoding="utf-8")
+    original_line = next(
+        line for line in archived.splitlines()
+        if line.startswith("- Em 01/09/2026") and "foi designada audiência" in line
+    )
+    raw_line = (
+        "- Em 01/09/2026. AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA - "
+        "LOCAL CONCILIAÇÃO JUIZADO CÍVEL - 03/03/2027 15:00"
+    )
+    source_wording = archived.replace(original_line, raw_line)
+    criterion = "Data do ato separada de data/horário agendado"
+    assert _criterion(
+        evaluation.evaluate(destination_text=source_wording), criterion
+    ) == "COVERED"
+
+    held = source_wording.replace(
+        "AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA",
+        "AUDIÊNCIA DE CONCILIAÇÃO REALIZADA",
+    )
+    assert _criterion(
+        evaluation.evaluate(destination_text=held), criterion
+    ) == "FAIL_DESTINATION_OMISSION"
+
+    disconnected = source_wording.replace(
+        " - 03/03/2027 15:00", ""
+    ) + "\n- Data avulsa: 03/03/2027 15:00\n"
+    assert _criterion(
+        evaluation.evaluate(destination_text=disconnected), criterion
+    ) == "FAIL_DESTINATION_OMISSION"
+

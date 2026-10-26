@@ -48,6 +48,39 @@ def _result(
     }
 
 
+
+def _linked_hearing_designation(timeline: str, *, act_date: str, scheduled: str) -> bool:
+    """Check a documented designation linking act date to future date/time.
+
+    An isolated mention of both dates cannot prove temporal separation.
+    Accept the source wording as well as the prose rendition, but never
+    infer that a scheduled hearing actually took place.
+    """
+    match = re.fullmatch(r"(\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2})", scheduled)
+    if match is None:
+        raise ValueError("invalid scheduled hearing in frozen fixture")
+    future_date, future_time = (re.escape(item) for item in match.groups())
+    act = re.escape(act_date)
+    for line in timeline.splitlines():
+        normalized = _text(line)
+        if not re.search(rf"^\s*-\s*em\s+{act}(?:\b|[.,])", normalized):
+            continue
+        if not re.search(r"\baudi[eê]ncia\b", normalized):
+            continue
+        if not re.search(r"\bdesignad[ao]s?\b", normalized):
+            continue
+        if re.search(r"\bn[aã]o\s+(?:foi\s+)?designad[ao]", normalized):
+            continue
+        if not re.search(rf"{future_date}\s+(?:às\s+)?{future_time}\b", normalized):
+            continue
+        if re.search(
+            r"\baudi[eê]ncia\b.{0,140}\b(?:realizad[ao]s?|ocorreu|aconteceu)\b",
+            normalized,
+        ):
+            continue
+        return True
+    return False
+
 def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
     """Compare donor oracle with the supplied canonical published document.
 
@@ -178,14 +211,22 @@ def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
         and len(donor["assuntos"]) == len(expected["assuntos"])
         and all(bool(_text(item["explicacao"]).strip()) for item in donor["classes"] + donor["assuntos"])
     )
-    target_explanations = _text(class_quote) in target and _text(subject_quote) in target
+    # The source may be quoted with or without the optional "Art." label.
+    # Every substantive word of both frozen citations must still be present.
+    class_citation = (
+        _text(class_quote) in target
+        or _text(class_quote.removeprefix("Art. ")) in target
+    )
+    target_explanations = class_citation and _text(subject_quote) in target
     results.append(_result("Explicações de classe/assunto sustentadas por conteúdo recuperado", donor_explanations, target_explanations))
 
     act_date = expected["movimentos"][0]["data"]
     hearing = next(item for item in expected["movimentos"] if item["tipo"] == "audiencia_designada")
     scheduled = hearing["detalhes"]["data_agendada"]
     donor_temporal = act_date in donor["movimentacoes"] and scheduled in donor["movimentacoes"]
-    target_temporal = act_date in timeline and scheduled in timeline and "não confirmação de realização" in timeline
+    target_temporal = _linked_hearing_designation(
+        timeline, act_date=act_date, scheduled=scheduled
+    )
     results.append(_result("Data do ato separada de data/horário agendado", donor_temporal, target_temporal))
 
     relevant = {"distribuicao", "juizo_100_digital", "audiencia_designada", "intimacao", "remessa_interna", "ato_ordinatorio", "publicacao_diario", "juntada"}
