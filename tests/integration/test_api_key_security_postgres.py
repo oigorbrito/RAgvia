@@ -11,6 +11,8 @@ from app.api import app
 from app.api_key_auth import api_key_hash_and_fingerprint
 from app.db import create_pool
 from app.migrations import migrate
+from app.datajud_jobs import DATAJUD_TASK
+from app.queue import enqueue
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
@@ -159,6 +161,22 @@ async def test_api_keys_enforce_scope_rate_limit_lifecycle_and_safe_audit(monkey
                 scopes=(code_portfolio,),
                 expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
             )
+            # Stored DataJud history is scoped to the API key, even when
+            # DataJud lookup is disabled and no external calls are possible.
+            for datajud_code in (code_portfolio, code_explicit):
+                row = await enqueue(
+                    conn,
+                    task_name=DATAJUD_TASK,
+                    payload={
+                        "tenant_id": str(tenant_a),
+                        "code": datajud_code,
+                        "operation": "metadata_lookup",
+                        "purpose": "public_metadata_lookup",
+                        "classification_at_request": "unknown",
+                    },
+                    idempotency_key=f"test-scope-datajud:{datajud_code}",
+                )
+                assert row is not None
 
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -193,6 +211,73 @@ async def test_api_keys_enforce_scope_rate_limit_lifecycle_and_safe_audit(monkey
                 headers={"Authorization": f"Bearer {token_request}"},
             )
             assert requested.status_code == 202
+
+            # One tenant has an acquired process and a pending request.
+            # Scope filtering must happen before count, limit and offset.
+            explicit_headers = {"Authorization": f"Bearer {token_request}"}
+            portfolio_headers = {"Authorization": f"Bearer {token_portfolio}"}
+            denied_headers = {"Authorization": f"Bearer {token_denied}"}
+            scoped_list = await client.get("/v1/processos?limit=1", headers=explicit_headers)
+            assert scoped_list.status_code == 200
+            assert scoped_list.json()["total"] == 1
+            assert [item["code"] for item in scoped_list.json()["items"]] == [code_explicit]
+            scoped_next = await client.get(
+                "/v1/processos?limit=1&offset=1", headers=explicit_headers
+            )
+            assert scoped_next.status_code == 200
+            assert scoped_next.json()["total"] == 1
+            assert scoped_next.json()["items"] == []
+
+            portfolio_list = await client.get("/v1/processos", headers=portfolio_headers)
+            assert portfolio_list.status_code == 200
+            assert portfolio_list.json()["total"] == 1
+            assert [item["code"] for item in portfolio_list.json()["items"]] == [
+                code_portfolio
+            ]
+            no_scope_list = await client.get("/v1/processos", headers=denied_headers)
+            assert no_scope_list.status_code == 200
+            assert no_scope_list.json()["total"] == 0
+            assert no_scope_list.json()["items"] == []
+
+            scoped_history = await client.get(
+                "/v1/processos/datajud/history", headers=explicit_headers
+            )
+            assert scoped_history.status_code == 200
+            assert {row["code"] for row in scoped_history.json()["items"]} == {
+                code_explicit
+            }
+            portfolio_history = await client.get(
+                "/v1/processos/datajud/history", headers=portfolio_headers
+            )
+            assert portfolio_history.status_code == 200
+            assert {row["code"] for row in portfolio_history.json()["items"]} == {
+                code_portfolio
+            }
+            denied_history = await client.get(
+                "/v1/processos/datajud/history", headers=denied_headers
+            )
+            assert denied_history.status_code == 200
+            assert denied_history.json()["items"] == []
+
+            # API-key identity alone cannot authorize per-process status
+            # or issue an acquisition authorization for a forbidden CNJ.
+            for suffix in ("status", "precheck"):
+                forbidden = await client.get(
+                    f"/v1/processos/{code_portfolio}/{suffix}",
+                    headers=explicit_headers,
+                )
+                assert forbidden.status_code == 404
+            forbidden_authorization = await client.post(
+                f"/v1/processos/{code_portfolio}/authorizations",
+                headers=explicit_headers,
+                json={"source": "judit", "operation": "refresh"},
+            )
+            assert forbidden_authorization.status_code == 404
+            allowed_status = await client.get(
+                f"/v1/processos/{code_portfolio}/status",
+                headers=portfolio_headers,
+            )
+            assert allowed_status.status_code == 200
 
             denied = await client.post(
                 f"/processes/{code_forbidden}/request",

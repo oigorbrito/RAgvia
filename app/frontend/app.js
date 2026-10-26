@@ -259,10 +259,103 @@ function relativeElapsed(value) {
   return new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' }).format(-amount, unit);
 }
 
+function splitSummaryIntroduction(line) {
+  const contextLabels = [...line.matchAll(/Contexto do processo:/gi)];
+  if (contextLabels.length !== 1 || !/^Contexto do processo:\s*/i.test(line)) return null;
+  const progressLabels = [...line.matchAll(/\s+Andamento processual:\s*/gi)];
+  if (progressLabels.length !== 1) return null;
+  const marker = progressLabels[0].index;
+  const context = line.slice(line.indexOf(':') + 1, marker).trim();
+  const progress = line.slice(marker + progressLabels[0][0].length).trim();
+  return context && progress ? { context, progress } : null;
+}
+
+function formatSummaryDate(value) {
+  const raw = String(value || '').trim();
+  let date;
+  let match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    date = new Date(Date.UTC(year, month - 1, day, 12));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return raw;
+  } else if ((match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/))) {
+    const day = Number(match[1]), month = Number(match[2]), year = Number(match[3]);
+    date = new Date(Date.UTC(year, month - 1, day, 12));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return raw;
+  } else date = new Date(raw);
+  if (!Number.isFinite(date.getTime())) return raw;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.day}/${values.month}/${values.year}`;
+}
+
+function formatSummaryHeaderEntry(line) {
+  const match = line.match(/^[-*]\s+([^:]+):\s*(.*)$/);
+  if (!match) return null;
+  const label = match[1].trim();
+  let value = match[2].trim();
+  if (label === 'Processo') value = formatCnj(value);
+  else if (label === 'Valor') value = formatAmount(value).replace(/[\u00a0\u202f]/g, ' ');
+  else if (label === 'Instância' && /^\d+$/.test(value)) value = `${value}ª instância`;
+  else if (/^Data de distribuição/i.test(label)) value = formatSummaryDate(value);
+  return { label, value };
+}
+
+function appendMovementText(target, value) {
+  const dates = [...value.matchAll(/\b\d{2}\/\d{2}\/\d{4}\b/g)];
+  let cursor = 0;
+  for (const match of dates) {
+    target.appendChild(document.createTextNode(value.slice(cursor, match.index)));
+    const date = document.createElement('time');
+    date.className = 'summary-date-highlight';
+    date.textContent = match[0];
+    const parts = match[0].split('/');
+    const iso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    const check = new Date(`${iso}T12:00:00Z`);
+    if (Number.isFinite(check.getTime()) && check.toISOString().slice(0, 10) === iso) date.dateTime = iso;
+    target.appendChild(date);
+    cursor = match.index + match[0].length;
+  }
+  target.appendChild(document.createTextNode(value.slice(cursor)));
+}
+
+function appendSummaryListItem(item, sectionHeading, header) {
+  const li = document.createElement('li');
+  if (header) {
+    li.className = 'summary-header-field';
+    const label = document.createElement('strong');
+    label.textContent = `${header.label}:`;
+    const value = document.createElement('span');
+    value.textContent = header.value;
+    li.append(label, document.createTextNode(' '), value);
+  } else if (sectionHeading === 'Partes' && item.includes(' — polo cadastrado: ')) {
+    const [name, ...details] = item.split(' — polo cadastrado: ');
+    const emphasized = document.createElement('strong');
+    emphasized.className = 'summary-entity';
+    emphasized.textContent = name;
+    li.append(emphasized, document.createTextNode(` — polo cadastrado: ${details.join(' — polo cadastrado: ')}`));
+  } else if (sectionHeading === 'Representantes' && (header = item.match(/^(.*?) \(representa: (.+)\)$/))) {
+    const emphasized = document.createElement('strong');
+    emphasized.className = 'summary-entity';
+    emphasized.textContent = header[1];
+    li.append(emphasized, document.createTextNode(` (representa: ${header[2]})`));
+  } else if (sectionHeading === 'Assuntos') {
+    const emphasized = document.createElement('strong');
+    emphasized.className = 'summary-entity';
+    emphasized.textContent = item;
+    li.appendChild(emphasized);
+  } else if (sectionHeading === 'Movimentações') appendMovementText(li, item);
+  else li.textContent = item;
+  return li;
+}
+
 function renderMarkdown(md, target) {
   clear(target);
   let container = target,
-    list = null;
+    list = null,
+    sectionHeading = null;
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) {
@@ -272,6 +365,7 @@ function renderMarkdown(md, target) {
     const headerOpen = line.match(/^<ProcessHeader\s+className=(["'])process-header\1\s*>$/);
     if (headerOpen) {
       list = null;
+      sectionHeading = null;
       const section = document.createElement('section');
       section.className = 'summary-process-header';
       section.setAttribute('data-component','ProcessHeader');
@@ -281,6 +375,7 @@ function renderMarkdown(md, target) {
     }
     if (/^<\/ProcessHeader>$/.test(line)) {
       list = null;
+      sectionHeading = null;
       container = target;
       continue;
     }
@@ -297,6 +392,7 @@ function renderMarkdown(md, target) {
     const h = line.match(/^(#{1,3})\s+(.+)$/);
     if (h) {
       list = null;
+      sectionHeading = h[2];
       const el = document.createElement(`h${Math.min(h[1].length + 1, 4)}`);
       el.textContent = h[2];
       container.appendChild(el);
@@ -308,27 +404,53 @@ function renderMarkdown(md, target) {
         list = document.createElement('ul');
         container.appendChild(list);
       }
-      const item = document.createElement('li');
-      item.textContent = b[1];
-      list.appendChild(item);
+      list.appendChild(appendSummaryListItem(b[1], sectionHeading, container.classList.contains('summary-process-header') ? formatSummaryHeaderEntry(line) : null));
       continue;
     }
     list = null;
-    const p = document.createElement('p');
-    p.textContent = line;
-    container.appendChild(p);
+    const introduction = sectionHeading === null ? splitSummaryIntroduction(line) : null;
+    if (introduction) {
+      for (const [kind, label, text] of [
+        ['context', 'Contexto do processo:', introduction.context],
+        ['progress', 'Andamento processual:', introduction.progress],
+      ]) {
+        const paragraph = document.createElement('p');
+        paragraph.className = `summary-introduction summary-introduction-${kind}`;
+        const emphasis = document.createElement('strong');
+        emphasis.textContent = label;
+        paragraph.append(emphasis, document.createTextNode(` ${text}`));
+        target.appendChild(paragraph);
+      }
+      continue;
+    }
+    const paragraph = document.createElement('p');
+    if (sectionHeading === 'Classe') {
+      const emphasis = document.createElement('strong');
+      emphasis.className = 'summary-entity';
+      emphasis.textContent = line;
+      paragraph.appendChild(emphasis);
+    } else paragraph.textContent = line;
+    container.appendChild(paragraph);
   }
 }
 
 function summaryPlainText(md) {
   const lines = [];
+  let inHeader = false;
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) {
       lines.push('');
       continue;
     }
-    if (/^<ProcessHeader\s+className=(["'])process-header\1\s*>$/.test(line) || /^<\/ProcessHeader>$/.test(line)) continue;
+    if (/^<ProcessHeader\s+className=(["'])process-header\1\s*>$/.test(line)) {
+      inHeader = true;
+      continue;
+    }
+    if (/^<\/ProcessHeader>$/.test(line)) {
+      inHeader = false;
+      continue;
+    }
     const party = line.match(/^<Party\s+name=(["'])([^"'<>]+)\1\s*\/>$/);
     if (party) {
       lines.push(party[2]);
@@ -341,7 +463,14 @@ function summaryPlainText(md) {
     }
     const b = line.match(/^[-*]\s+(.+)$/);
     if (b) {
-      lines.push(`- ${b[1]}`);
+      const header = inHeader ? formatSummaryHeaderEntry(line) : null;
+      lines.push(`- ${header ? `${header.label}: ${header.value}` : b[1]}`);
+      continue;
+    }
+    const introduction = splitSummaryIntroduction(line);
+    if (introduction) {
+      lines.push(`Contexto do processo: ${introduction.context}`);
+      lines.push(`Andamento processual: ${introduction.progress}`);
       continue;
     }
     lines.push(line);
@@ -530,7 +659,7 @@ function renderProcess(data) {
 
   if (currentSummary) {
     renderMarkdown(currentSummary, body);
-    const created = formatDate(data.summary.created_at);
+    const created = formatDate(data.summary?.created_at);
     provenance.textContent = demoSummary ? (created ? `Resumo sintético local publicado em ${created}. Nenhum provedor externo foi utilizado.` : 'Resumo sintético local. Nenhum provedor externo foi utilizado.') : (created ? `Resumo gerado por IA e publicado em ${created}.` : 'Resumo gerado por IA para a versão atual.');
   } else {
     clear(body);

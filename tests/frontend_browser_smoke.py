@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import threading
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from playwright.sync_api import Page, Route, sync_playwright
+from playwright.sync_api import Page, Route, expect, sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,11 +113,11 @@ def configure_ready_api(page: Page, payload: dict) -> list[dict]:
     return requests
 
 
-def fill_lookup(page: Page) -> None:
+def fill_lookup(page: Page, *, token: str = TOKEN, code: str = VALID_CODE) -> None:
     if page.locator("#auth-panel").is_hidden():
         page.locator("#access-trigger").click()
-    page.locator("#bearer-token").fill(TOKEN)
-    page.locator("#process-code").fill(VALID_CODE)
+    page.locator("#bearer-token").fill(token)
+    page.locator("#process-code").fill(code)
     page.locator("#search-submit").click()
 
 
@@ -201,13 +205,17 @@ def run(*, api_response: dict | None = None) -> None:
                 "## Partes\n"
                 "<Party name=\"Parte Sintética\" />\n"
                 "<img src=x onerror=alert(1)>"
+                "<script>window.__summary_xss = true</script>"
+                "<strong onmouseover=alert(1)>malicious</strong>"
             )
             configure_ready_api(page, ready_payload(markdown=malicious))
             fill_lookup(page)
             page.locator("#result").wait_for(state="visible")
             rendered = page.locator("#summary-body").inner_text()
             _require("<img src=x onerror=alert(1)>" in rendered, "unsupported markup must remain inert text")
-            _require(page.locator("#summary-body img").count() == 0, "summary must not create an image node")
+            _require("<script>window.__summary_xss = true</script>" in rendered, "script markup must remain inert text")
+            _require(page.locator("#summary-body img, #summary-body script, #summary-body strong[onmouseover]").count() == 0, "summary must not create executable or event-handler nodes")
+            _require(page.evaluate("window.__summary_xss === undefined"), "summary script content must not execute")
             _require(
                 page.locator('[data-component="ProcessHeader"]').count() == 1,
                 "allowlisted process header must render",
@@ -269,6 +277,36 @@ def run(*, api_response: dict | None = None) -> None:
                 _require("<ProcessHeader" not in copied, "clipboard must contain readable text")
                 _require(page_errors == [], "canonical summary must not cause browser errors")
                 print("canonical PostgreSQL API response -> browser presentation/copy: PASS (synthetic)")
+            # A format-only iaSummary response has no legacy summary object.
+            # Use a fresh page to ensure a rendering failure cannot be masked
+            # by a previous successful result or silently caught as networking.
+            isolated = browser.new_page()
+            isolated_errors: list[str] = []
+            isolated.on("pageerror", lambda exc: isolated_errors.append(str(exc)))
+            isolated.goto(origin, wait_until="networkidle")
+            isolated_response = ready_payload(
+                markdown="Não deve depender do campo summary."
+            )
+            isolated_response["summary"] = None
+            isolated_response["iaSummary"] = (
+                "# Resumo do processo\n\n"
+                "Resumo jurídico sintético disponível somente por iaSummary."
+            )
+            configure_ready_api(isolated, isolated_response)
+            fill_lookup(isolated)
+            expect(isolated.locator("#result")).to_be_visible(timeout=5000)
+            _require(
+                "disponível somente por iaSummary"
+                in isolated.locator("#summary-body").inner_text(),
+                "iaSummary-only content must be visible without legacy summary",
+            )
+            _require(
+                isolated.locator("#status-title").inner_text()
+                != "Sem conexão com o serviço",
+                "rendering must not be misdiagnosed as a network failure",
+            )
+            _require(isolated_errors == [], "iaSummary-only browser must not throw")
+            isolated.close()
             browser.close()
     finally:
         server.shutdown()
@@ -276,11 +314,182 @@ def run(*, api_response: dict | None = None) -> None:
         thread.join(timeout=5)
 
 
+def _format_header_entry(label: str, value: str) -> str:
+    if label == "Processo":
+        digits = re.sub(r"\D", "", value)[:20]
+        if len(digits) == 20:
+            value = f"{digits[:7]}-{digits[7:9]}.{digits[9:13]}.{digits[13]}.{digits[14:16]}.{digits[16:]}"
+    elif label == "Instância" and value.isdigit():
+        value = f"{value}ª instância"
+    elif label == "Valor":
+        normalized = value.strip().removeprefix("R$").strip().replace(".", "").replace(",", ".")
+        try:
+            value = f"R$ {float(normalized):,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+        except ValueError:
+            pass
+    elif label.startswith("Data de distribuição"):
+        try:
+            if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+                parsed = datetime.fromisoformat(value)
+            else:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo:
+                    parsed = parsed.astimezone(ZoneInfo("America/Sao_Paulo"))
+            value = parsed.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+    return f"{label}: {value}"
+
+
+def _expected_clipboard(markdown: str) -> str:
+    lines = []
+    in_header = False
+    for raw in markdown.splitlines():
+        line = raw.strip()
+        if not line:
+            lines.append("")
+        elif line.startswith('<ProcessHeader className="process-header">'):
+            in_header = True
+        elif line == "</ProcessHeader>":
+            in_header = False
+        elif match := re.match(r"^<Party\s+name=([\"'])([^\"'<>]+)\1\s*/>$", line):
+            lines.append(match.group(2))
+        elif match := re.match(r"^#{1,3}\s+(.+)$", line):
+            lines.append(match.group(1))
+        elif match := re.match(r"^[-*]\s+(.+)$", line):
+            value = match.group(1)
+            if in_header and (header := re.match(r"^([^:]+):\s*(.*)$", value)):
+                value = _format_header_entry(header.group(1).strip(), header.group(2).strip())
+            lines.append(f"- {value}")
+        elif match := re.match(r"^Contexto do processo:\s*(.+?)\s+Andamento processual:\s*(.+)$", line, re.IGNORECASE):
+            lines.append(f"Contexto do processo: {match.group(1).strip()}")
+            lines.append(f"Andamento processual: {match.group(2).strip()}")
+        else:
+            lines.append(line)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def run_connected_api(*, api_origin: str, api_response: dict, token: str, screenshot_out: Path | None = None) -> dict:
+    _require(api_response.get("summary", {}).get("validation", {}).get("passed") is True,
+             "connected API artifact must be validated")
+    _require(api_response.get("iaSummary") == api_response.get("summary", {}).get("markdown"),
+             "API Markdown must equal the validated summary")
+    code = api_response["code"]
+    requests: list[dict] = []
+    responses: list[dict] = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1440, "height": 900})
+        context.grant_permissions(["clipboard-read", "clipboard-write"])
+        page = context.new_page()
+        page.on("request", lambda request: requests.append({
+            "url": request.url,
+            "authorization": request.headers.get("authorization"),
+        }))
+        page.on("response", lambda response: responses.append({
+            "url": response.url, "status": response.status,
+        }))
+        page_errors: list[str] = []
+        page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+        page.goto(api_origin, wait_until="networkidle")
+        fill_lookup(page, token=token, code=code)
+        try:
+            page.locator("#result").wait_for(state="visible", timeout=10000)
+        except Exception as exc:
+            safe_responses = [item for item in responses if "/processes/" in item["url"]]
+            raise AssertionError(
+                f"connected API did not render the process; responses={safe_responses}; page_errors={page_errors}"
+            ) from exc
+        summary_body = page.locator("#summary-body")
+        summary_body.wait_for(state="visible")
+        rendered = summary_body.inner_text()
+        context_paragraph = summary_body.locator(".summary-introduction-context")
+        progress_paragraph = summary_body.locator(".summary-introduction-progress")
+        _require(context_paragraph.count() == 1, "process context must render as its own paragraph")
+        _require(progress_paragraph.count() == 1, "procedural progress must render as its own paragraph")
+        _require("Contexto do processo:" in context_paragraph.inner_text(), "context paragraph label must remain visible")
+        _require("Andamento processual:" in progress_paragraph.inner_text(), "progress paragraph label must remain visible")
+        header_text = summary_body.locator(".summary-process-header").inner_text()
+        _require("Data de distribuição registrada: 01/09/2026" in header_text, "distribution date must be localized in the process header")
+        _require("1ª instância" in header_text and "R$ 30.000,00" in header_text, "header values must use Portuguese presentation formats")
+        _require("Processo:" in header_text and "Classe:" in header_text and "Tribunal:" in header_text, "process header labels must remain in Portuguese")
+        _require("2026-09-01T" not in header_text, "raw ISO timestamp must not be shown in the process header")
+        _require(rendered.count("Pessoa Sintética Beta") == 1, "one representative serving multiple parties must not be repeated")
+        _require("className=" not in rendered and "<ProcessHeader" not in rendered and "<Party" not in rendered, "internal JSX/HTML syntax must not be visible")
+        _require("schema_version" not in rendered and '"process":' not in rendered and '"summary":' not in rendered, "raw structured JSON must not be visible")
+        movement_list = summary_body.get_by_role("heading", name="Movimentações").locator("xpath=following-sibling::ul[1]")
+        movement_dates = [item.locator("time").first.inner_text() for item in movement_list.locator("li").all()]
+        _require(movement_dates[0] == "01/09/2026" and movement_dates[-1] == "02/09/2026", "summary chronology must remain in source order")
+        _require(summary_body.locator(".summary-date-highlight[datetime]").count() >= 1, "movement dates must be semantically highlighted")
+        for phrase in (
+            "Contexto do processo:", "Andamento processual:", "Partes",
+            "Representantes", "Classe", "Assuntos", "Movimentações",
+            "Pontos de atenção", "Pessoa Sintética Alfa", "03/03/2027",
+        ):
+            _require(phrase in rendered, f"browser document is missing {phrase!r}")
+        page.locator("#copy-summary").click()
+        from playwright.sync_api import expect
+        expect(page.locator("#copy-summary")).to_contain_text("copiado")
+        copied = page.evaluate("navigator.clipboard.readText()")
+        expected_copy = _expected_clipboard(api_response["iaSummary"])
+        _require(copied.replace("\r\n", "\n") == expected_copy, "clipboard must preserve the exact API text apart from platform line endings")
+        for fact in ("01/09/2026", "03/03/2027", "15:00", "Pessoa Sintética Alfa"):
+            _require(fact in copied, f"clipboard changed or omitted {fact!r}")
+        _require(all(request["authorization"] != f"Bearer {token}" or "/processes/" in request["url"] for request in requests),
+                 "Bearer token must only accompany the authenticated process request")
+        _require(any(request["url"].startswith(api_origin) and "/processes/" in request["url"] for request in requests),
+                 "browser must fetch the process from the connected local API")
+        _require(page_errors == [], f"browser errors: {page_errors}")
+        if screenshot_out:
+            screenshot_out.parent.mkdir(parents=True, exist_ok=True)
+            expect(page.locator("#copy-summary")).to_have_text("Copiar resumo", timeout=4000)
+            page.evaluate("document.activeElement && document.activeElement.blur()")
+            page.screenshot(path=str(screenshot_out), full_page=True)
+        evidence = {
+            "evidence_kind": "synthetic_local_api_browser_smoke",
+            "fixture": "tests/fixtures/judit/parser_parity_synthetic.json",
+            "fixture_sha256": hashlib.sha256((ROOT / "tests/fixtures/judit/parser_parity_synthetic.json").read_bytes()).hexdigest(),
+            "browser": "Playwright Chromium",
+            "browser_version": browser.version,
+            "viewport": {"width": 1440, "height": 900},
+            "screenshot": str(screenshot_out).replace("\\", "/") if screenshot_out else None,
+            "process_code": code,
+            "summary_sha256": hashlib.sha256(api_response["iaSummary"].encode("utf-8")).hexdigest(),
+            "rendered_text_sha256": hashlib.sha256(rendered.encode("utf-8")).hexdigest(),
+            "clipboard_text_sha256": hashlib.sha256(copied.encode("utf-8")).hexdigest(),
+            "checks": [
+                "PostgreSQL API response is validated and iaSummary equals validated Markdown",
+                "Context and procedural progress render as separate labeled paragraphs",
+                "Process header uses localized CNJ, amount, instance, and distribution date values",
+                "Party/representative relations render without repeating a representative",
+                "Class, subjects, chronological movements, and attention sections are present",
+                "No raw JSX/HTML or JSON is visible; adversarial markup does not execute",
+                "Clipboard retains the complete readable summary projection",
+                "Browser fetches the process from the local API with authorization scoped to process requests",
+            ],
+            "result": "PASS",
+        }
+        browser.close()
+    print("local API -> browser presentation/copy: PASS (synthetic)")
+    return evidence
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-response", type=Path,
-                        help="Synthetic response exported by test_pipeline_e2e")
+                        help="Synthetic response exported by the PostgreSQL canonical E2E")
+    parser.add_argument("--api-origin", help="Connect the browser directly to this local FastAPI origin")
+    parser.add_argument("--api-token", help="Synthetic test-only Bearer token for the connected API")
+    parser.add_argument("--evidence-out", type=Path, help="Optional path for sanitized browser-smoke evidence JSON")
+    parser.add_argument("--screenshot-out", type=Path, help="Optional full-page screenshot of the synthetic connected API result")
     args = parser.parse_args()
     response = json.loads(args.api_response.read_text(encoding="utf-8")) if args.api_response else None
     run(api_response=response)
+    if args.api_origin:
+        if not response or not args.api_token:
+            parser.error("--api-origin requires --api-response and --api-token")
+        evidence = run_connected_api(api_origin=args.api_origin.rstrip("/"), api_response=response, token=args.api_token, screenshot_out=args.screenshot_out)
+        if args.evidence_out:
+            args.evidence_out.parent.mkdir(parents=True, exist_ok=True)
+            args.evidence_out.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("frontend browser smoke: PASS")

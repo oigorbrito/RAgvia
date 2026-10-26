@@ -121,8 +121,11 @@ def readiness_report(
             "credentials_present_in_repository": False,
         },
         "anthropic": {
-            "state": "ready_to_provision",
-            "live_requirement": "ANTHROPIC_API_KEY + authorized non-secret process",
+            "state": "blocked_pending_financial_approval",
+            "live_requirement": (
+                "worker-only credential + ANTHROPIC_PAID_ENABLED=true + private scoped approval "
+                "+ authorized model/budget/account/external-limit evidence + durable reservation"
+            ),
             "credentials_present_in_repository": False,
         },
         "datajud": {

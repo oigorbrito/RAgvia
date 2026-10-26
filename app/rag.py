@@ -10,6 +10,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import asyncpg
+from anthropic import transform_schema
 
 from app.attachment_context import load_attachment_context, resolve_generation_tenant
 from app.attachment_signals import attachment_status_warnings
@@ -40,6 +41,7 @@ from app.json_utils import decode_json_list, decode_json_object
 from app.prompts import PROCESS_SUMMARY_SYSTEM_PROMPT
 from app.providers import (
     anthropic_client,
+    anthropic_model,
     anthropic_settings,
     call_with_retries,
     is_retryable_anthropic_error,
@@ -68,7 +70,12 @@ from app.summary_policy import (
     restricted_summary_payload,
 )
 from app.tasks import PermanentTaskError, task
-from app.tpu_glossary import resolve_process_tpu_definitions
+from app.tpu_glossary import (
+    load_legal_knowledge,
+    normalize_legal_term,
+    resolve_legal_knowledge,
+    resolve_process_tpu_definitions,
+)
 from app.unicode_security import model_view_text, model_view_value
 from app.validation import ValidationResult, validar
 
@@ -79,15 +86,15 @@ OPUS_STEP_THRESHOLD = 100
 SHORT_SUMMARY_STEP_MAX = 15
 MEDIUM_SUMMARY_STEP_MAX = 60
 MAX_TOKENS = 4000
-PROMPT_VERSION = "process-summary-v6"
+PROMPT_VERSION = "process-summary-v7"
 _RENDER_ONLY_HEADER_FIELDS = frozenset(
-    {"phase", "status", "distribution_date", "judge", "court_unit"}
+    {"phase", "status", "distribution_date", "judge", "court_unit", "source_parser"}
 )
 _HEARING_DESIGNATION_RE = re.compile(
     r"\bAUDI[ÊE]NCIA\b.{0,240}?\bDESIGNAD[AO]\b", re.IGNORECASE
 )
 _DATE_TIME_RE = re.compile(
-    r"(?P<date>\d{2}/\d{2}/\d{4})(?:\s+(?:às|as)\s+(?P<time>\d{2}:\d{2}))?",
+    r"(?P<date>\d{2}/\d{2}/\d{4})(?:\s+(?:(?:às|as)\s+)?(?P<time>\d{2}:\d{2}))?",
     re.IGNORECASE,
 )
 _NEGATED_HEARING_RE = re.compile(
@@ -229,6 +236,8 @@ def _serialize_steps(ranked: list[Any]) -> list[dict[str, Any]]:
         {
             "evidence_ref": movement_evidence_ref(item.step.id),
             "step_number": item.step.step_number,
+            **({"source_step_number": item.step.source_step_number}
+               if getattr(item.step, "source_step_number", None) is not None else {}),
             "occurred_at": _provider_datetime(item.step.occurred_at),
             "title": (
                 model_view_text(str(item.step.title)).text
@@ -249,13 +258,35 @@ def _passive_party_attention_warnings(
     representatives: list[dict[str, Any]],
     steps: list[Step],
 ) -> list[str]:
-    has_passive_party = any(
-        str(party.get("side") or "").strip().casefold() == "passive"
-        for party in parties
+    passive_parties = [
+        party for party in parties
         if isinstance(party, dict)
-    )
-    if not has_passive_party or representatives:
+        and str(party.get("side") or "").strip().casefold() == "passive"
+    ]
+    if not passive_parties:
         return []
+
+    # An active party's lawyer does not establish representation of a
+    # passive party. Unknown lawyer-to-party links remain ambiguous and
+    # must not be treated as evidence of missing representation.
+    if representatives:
+        if any(
+            not isinstance(representative, dict)
+            or not str(representative.get("represents") or "").strip()
+            for representative in representatives
+        ):
+            return []
+        if any(not str(party.get("name") or "").strip() for party in passive_parties):
+            return []
+        represented = {
+            str(representative["represents"]).strip().casefold()
+            for representative in representatives
+        }
+        passive_names = {
+            str(party["name"]).strip().casefold() for party in passive_parties
+        }
+        if passive_names.issubset(represented):
+            return []
 
     for step in steps:
         title = (step.title or "").casefold()
@@ -266,6 +297,33 @@ def _passive_party_attention_warnings(
             return []
 
     return [PASSIVE_PARTY_NO_REPRESENTATIVE_OR_CITATION_WARNING]
+
+
+
+def _undocumented_process_acts_warning(steps: list[Step]) -> list[str]:
+    """A warning about the supplied recorte only, not the complete case file."""
+    if not steps:
+        return []
+    source = " ".join(f"{s.title or ''} {s.text or ''}".casefold() for s in steps)
+    missing = [
+        label
+        for label, pattern in (
+            ("citação", r"\bcita[çc][ãa]o\b"),
+            ("decisão", r"\bdecis[ãa]o\b"),
+            ("sentença", r"\bsenten[çc]a\b"),
+        )
+        if not re.search(pattern, source)
+    ]
+    if not missing:
+        return []
+    labels = (
+        missing[0] if len(missing) == 1
+        else ", ".join(missing[:-1]) + f" ou {missing[-1]}"
+    )
+    return [
+        f"O recorte de movimentos fornecidos não registra {labels}; "
+        "não se infere a ocorrência desses atos fora da documentação fornecida."
+    ]
 
 
 def _source_step_gap_warnings(steps: list[Any]) -> list[str]:
@@ -338,6 +396,88 @@ async def _load_process(
     }
 
 
+async def _retrieve_supplemental_knowledge(
+    pool: asyncpg.Pool,
+    *,
+    context: dict[str, Any],
+    steps: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    entries = load_legal_knowledge()
+    class_code = context.get("header", {}).get("class_code")
+    class_name = str(context.get("class_name") or "")
+    subjects = context.get("subjects") or []
+    official_keys = {
+        (item.get("kind"), str(item.get("code") or ""))
+        for item in context.get("tpu_glossary", [])
+        if isinstance(item, dict)
+    }
+    terms: list[tuple[str, str]] = []
+    concept_queries: list[str] = []
+    if context.get("parties"):
+        concept_queries.append("POLO ATIVO E POLO PASSIVO")
+    if context.get("representatives"):
+        concept_queries.append("ADVOGADO")
+    if context.get("header", {}).get("amount") is not None:
+        concept_queries.append("VALOR DA CAUSA")
+    if "juizado especial" in normalize_legal_term(class_name):
+        concept_queries.append("PRAZOS NO JUIZADO ESPECIAL")
+    deterministic = resolve_legal_knowledge(
+        class_code=class_code, class_name=class_name, subjects=subjects,
+        movements=steps, entries=entries, concept_queries=concept_queries,
+    )
+    if class_name and ("class", str(class_code or "")) not in official_keys and not any(item.get("kind") == "class" for item in deterministic):
+        terms.append(("class", class_name))
+    for subject in subjects:
+        if not isinstance(subject, dict):
+            continue
+        name = str(subject.get("name") or "").strip()
+        if name and ("subject", str(subject.get("code") or "")) not in official_keys and not any(item.get("kind") == "subject" and normalize_legal_term(name) in {normalize_legal_term(item["name"]), *(normalize_legal_term(a) for a in item.get("aliases", []))} for item in deterministic):
+            terms.append(("subject", name))
+    for step in steps:
+        text = str(step.get("text") or step.get("title") or "").strip()
+        if text and not any(item.get("kind") == "movement" and (normalize_legal_term(item["name"]) in normalize_legal_term(text) or any(normalize_legal_term(alias) in normalize_legal_term(text) for alias in item.get("aliases", []))) for item in deterministic):
+            terms.append(("movement", text))
+    for term in concept_queries:
+        if not any(item.get("kind") == "concept" and normalize_legal_term(term) in {normalize_legal_term(item["name"]), *(normalize_legal_term(a) for a in item.get("aliases", []))} for item in deterministic):
+            terms.append(("concept", term))
+
+    terms = list(dict.fromkeys(terms))
+    scores: dict[str, dict[str, float]] = {}
+    if terms:
+        from app.embedding_runtime import embedding_space_runtime_enabled, get_active_embedding_runtime
+        if embedding_space_runtime_enabled():
+            runtime = get_active_embedding_runtime()
+            if runtime.space.provider == "bge":
+                async with pool.acquire() as conn:
+                    for kind, query in terms:
+                        candidates = [entry for entry in entries if entry.kind == kind]
+                        vector = await runtime.embed_query(query)
+                        rows = await conn.fetch(
+                            "SELECT indexed.entry_id, 1-(indexed.embedding <=> $1::vector) AS similarity FROM legal_knowledge_embeddings indexed JOIN unnest($4::text[], $5::text[]) requested(entry_id, embedding_content_sha256) ON requested.entry_id=indexed.entry_id AND requested.embedding_content_sha256=indexed.embedding_content_sha256 WHERE indexed.provider=$2 AND indexed.model=$3 ORDER BY indexed.embedding <=> $1::vector, indexed.entry_id LIMIT 10",
+                            vector, runtime.space.provider, runtime.space.model,
+                            [entry.id for entry in candidates],
+                            [entry.embedding_sha256 for entry in candidates],
+                        )
+                        scores[normalize_legal_term(query)] = {str(row["entry_id"]): max(0.0, float(row["similarity"])) for row in rows}
+    resolved = resolve_legal_knowledge(
+        class_code=class_code, class_name=class_name, subjects=subjects,
+        movements=steps, entries=entries, semantic_scores=scores,
+        concept_queries=concept_queries,
+    )
+    resolved = [item for item in resolved if (item.get("kind"), str(item.get("code") or "")) not in official_keys]
+    sources = [
+        {
+            "kind": item["kind"] if item["kind"] in {"class", "subject", "movement", "concept"} else "concept",
+            "code": item["code"], "tpu_version": item["tpu_version"],
+            "publisher": item["publisher"], "source": item["source"],
+            "source_ref": item["source_ref"], "definition_sha256": item["definition_sha256"],
+            "source_order": len(context.get("_glossary_sources", [])) + index,
+        }
+        for index, item in enumerate(resolved)
+    ]
+    return resolved, sources
+
+
 async def _load_context(
     pool: asyncpg.Pool,
     process_id: UUID,
@@ -364,9 +504,11 @@ async def _load_context(
             "_glossary_sources": [],
         }
 
+    base["_require_context_and_progress"] = True
     definitions = resolve_process_tpu_definitions(
         class_code=base["header"].get("class_code"),
         subjects=base["subjects"],
+        class_name=base["class_name"],
     )
     if definitions:
         base["tpu_glossary"] = [definition.as_context() for definition in definitions]
@@ -393,6 +535,9 @@ async def _load_context(
             steps,
         )
     )
+    source_documentary_limits = _undocumented_process_acts_warning(steps)
+    if source_documentary_limits:
+        base["source_documentary_limits"] = source_documentary_limits
     source_warnings.extend(
         datajud_conflict_warning(str(field))
         for field in base.get("_datajud_conflict_fields", [])
@@ -428,6 +573,12 @@ async def _load_context(
             base, list(source.get("unicode_security_flags") or [])
         )
     base["steps"] = _serialize_steps(ranked)
+    knowledge, knowledge_sources = await _retrieve_supplemental_knowledge(
+        pool, context=base, steps=base["steps"]
+    )
+    if knowledge:
+        base["legal_knowledge"] = knowledge
+    base["_glossary_sources"] = [*base.get("_glossary_sources", []), *knowledge_sources]
 
     base["_attachment_sources"] = []
     if tenant_id is not None:
@@ -519,7 +670,20 @@ def _provider_payload(context: dict[str, Any]) -> tuple[dict[str, Any], list[Any
                 for key, value in header.items()
                 if key not in _RENDER_ONLY_HEADER_FIELDS
             }
-        raw_steps = list(context.get("steps", []))
+        # Lexical annotations are not source evidence or instructions to the model.
+        raw_steps = []
+        for step in context.get("steps", []):
+            if not isinstance(step, dict):
+                raw_steps.append(step)
+                continue
+            copied = dict(step)
+            metadata = copied.get("metadata")
+            if isinstance(metadata, dict) and "source_parser" in metadata:
+                copied["metadata"] = {
+                    key: value for key, value in metadata.items()
+                    if key != "source_parser"
+                }
+            raw_steps.append(copied)
 
     if not _is_secret_context(context):
         raw_process["evidence_ref"] = context.get("_process_evidence_ref")
@@ -573,6 +737,7 @@ def _validate_provider_summary(text: str, context: dict[str, Any]) -> Validation
         require_attention_section=True,
         required_attention_phrases=list(context.get("source_warnings", [])),
         require_document_title=True,
+        require_context_and_progress=bool(context.get("_require_context_and_progress")),
         allowed_headings=(
             "Resumo do processo",
             "Partes",
@@ -627,7 +792,7 @@ def summary_volume_instruction(step_count: int) -> str:
 
 
 def _generation_model(context: dict[str, Any]) -> str:
-    return (
+    return anthropic_model(
         OPUS_MODEL
         if int(context.get("step_count") or 0) > OPUS_STEP_THRESHOLD
         else SONNET_MODEL
@@ -739,7 +904,7 @@ async def _generate(
         "output_config": {
             "format": {
                 "type": "json_schema",
-                "schema": SUMMARY_OUTPUT_SCHEMA,
+                "schema": transform_schema(SUMMARY_OUTPUT_SCHEMA),
             }
         },
     }
@@ -890,11 +1055,24 @@ async def _persist_summary(
                                 if verification is not None
                                 else "not_evaluated"
                             ),
+                            "verification_reason": (
+                                verification.reason
+                                if verification is not None
+                                else "semantic_verifier_not_run"
+                            ),
                             "sources": (
                                 [
                                     {
                                         "evidence_ref": relation.evidence_ref,
                                         "verification_status": relation.status,
+                                        "verification_reason": relation.reason,
+                                        "evidence_excerpt_sha256": (
+                                            relation.evidence_excerpt_sha256
+                                        ),
+                                        "page_start": relation.page_start,
+                                        "page_end": relation.page_end,
+                                        "char_start": relation.char_start,
+                                        "char_end": relation.char_end,
                                     }
                                     for relation in verification.relations
                                 ]
@@ -1090,14 +1268,19 @@ async def generate_summary(
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise RuntimeError("ANTHROPIC_API_KEY is required")
-        client = anthropic_client(api_key)
+        client = anthropic_client(api_key, authorization_scope=(process_id, version_id, tenant_id))
         model = _generation_model(context)
 
-        text = await _generate(client, context)
-        result = _validate_provider_summary(text, context)
-        if not result.passed:
-            text = await _generate(client, context, result.errors)
+        try:
+            text = await _generate(client, context)
             result = _validate_provider_summary(text, context)
+            if not result.passed:
+                text = await _generate(client, context, result.errors)
+                result = _validate_provider_summary(text, context)
+        finally:
+            close = getattr(client, "close", None)
+            if close is not None:
+                await close()
 
         telemetry = context.get("_generation_telemetry", {})
         if isinstance(telemetry, dict):

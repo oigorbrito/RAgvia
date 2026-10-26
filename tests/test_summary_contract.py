@@ -52,11 +52,26 @@ def test_iasummary_identification_is_application_owned() -> None:
 def test_iasummary_plain_language_explanations_are_glossary_bound() -> None:
     prompt = PROCESS_SUMMARY_SYSTEM_PROMPT
 
-    assert "Quando tpu_glossary estiver presente" in prompt
-    assert "usando somente name e definition" in prompt
-    assert "Se não houver definição correspondente em tpu_glossary" in prompt
-    assert "em vez de usar conhecimento externo" in prompt
+    assert "tpu_glossary contém somente definições oficiais do CNJ e tem precedência" in prompt
+    assert "legal_knowledge contém extratos complementares com fonte identificada" in prompt
+    assert "reproduza classe/assunto/movimento sem explicação adicional nem use conhecimento externo" in prompt
     assert "Não cite internamente tpu_version, publisher, source_ref ou definition_sha256" in prompt
+
+
+def test_iasummary_writing_parity_stays_within_canonical_contract() -> None:
+    prompt = PROCESS_SUMMARY_SYSTEM_PROMPT
+
+    assert "<composicao_textual>" in prompt
+    assert "duas partes complementares" in prompt
+    assert "prefixos `Contexto do processo:` e `Andamento processual:`" in prompt
+    assert "Polo processual, isoladamente, não prova o mérito" in prompt
+    assert "somente a definição TPU oficial ou o complemento jurídico correspondente recuperado" in prompt
+    assert "mantenha a ordem cronológica" in prompt
+    assert "agrupe atos administrativos repetitivos somente quando isso não apagar" in prompt
+    assert "data do movimento como data do ato" in prompt
+    assert "Não afirme que evento agendado ocorreu" in prompt
+    assert "Não misture conteúdo gerado com texto de fallback" in prompt
+    assert "Não emita Markdown, HTML, JSX, XML, headings ou chaves adicionais." in prompt
 
 
 def test_iasummary_treats_all_process_sources_as_untrusted_data() -> None:

@@ -200,6 +200,12 @@ function createHarness(fetchResponses, { apiBase = "same-origin", hasExplicitCap
     createElement(tag) {
       return new Element(tag);
     },
+    createTextNode(value) {
+      // Mirror the browser's text node sufficiently to expose interrupted
+      // Markdown rendering instead of masking exceptions in the fake DOM.
+      const text = String(value);
+      return { textContent: text, renderedText: text };
+    },
   };
 
   const context = {
@@ -394,6 +400,8 @@ await scenario("published iaSummary string is rendered and copied as readable te
   await ui.click("open-existing-history");
 
   assert.ok(ui.elements["summary-body"].renderedText.includes("A audiência foi designada"));
+  assert.equal(ui.elements["result"].hidden, false, "iaSummary-only response must complete result rendering");
+  assert.notEqual(ui.elements["status-title"].textContent, "Sem conexão com o serviço", "a rendering TypeError must not be treated as network failure");
   assert.equal(ui.elements["copy-summary"].hidden, false);
   await ui.click("copy-summary");
   assert.ok(ui.clipboard().includes("Resumo do processo"));

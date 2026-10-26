@@ -123,6 +123,12 @@ def test_empty_steps_warning_must_be_inside_attention_section() -> None:
     },
     }
 
+    context["_parsed_summary"]["synthesis"] = rag.EMPTY_STEPS_WARNING
+    context["_parsed_summary"]["current_status"] = rag.EMPTY_STEPS_WARNING
+    context["_parsed_summary"]["attention"] = [rag.EMPTY_STEPS_WARNING]
+    for claim in context["_parsed_summary"]["claims"]:
+        claim["text"] = rag.EMPTY_STEPS_WARNING
+
     invalid = rag._validate_provider_summary(
         "# Resumo do processo\n\n## Síntese\nNenhum movimento processual foi fornecido no payload.\n\n"
         "## Pontos de atenção\nNenhuma divergência factual identificada.",
@@ -184,6 +190,12 @@ async def test_empty_steps_warning_is_sent_to_single_correction_attempt(monkeypa
         ],
     },
     }
+    context["_parsed_summary"]["synthesis"] = rag.EMPTY_STEPS_WARNING
+    context["_parsed_summary"]["current_status"] = rag.EMPTY_STEPS_WARNING
+    context["_parsed_summary"]["attention"] = [rag.EMPTY_STEPS_WARNING]
+    for claim in context["_parsed_summary"]["claims"]:
+        claim["text"] = rag.EMPTY_STEPS_WARNING
+
     generation_errors: list[list[str] | None] = []
     persisted: dict = {}
 
@@ -210,7 +222,7 @@ async def test_empty_steps_warning_is_sent_to_single_correction_attempt(monkeypa
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(rag, "_load_publishable_summary", fake_existing)
     monkeypatch.setattr(rag, "_load_context", fake_context)
-    monkeypatch.setattr(rag, "anthropic_client", lambda api_key: object())
+    monkeypatch.setattr(rag, "anthropic_client", lambda api_key, **kwargs: object())
     monkeypatch.setattr(rag, "_generate", fake_generate)
     monkeypatch.setattr(rag, "_persist_summary", fake_persist)
 

@@ -12,11 +12,12 @@ from app.claim_evidence import (
     load_summary_claim_evidence,
     validate_claim_evidence,
 )
+from app.claim_verification import verification_errors, verify_material_claims
 from app.db import create_pool
 from app.json_utils import decode_json_object
 from app.processes import finalize_version, stage_version
 from app.rag import _load_context, _persist_summary, _validate_provider_summary
-from app.summary_output import structured_summary_document
+from app.summary_output import render_structured_summary, structured_summary_document
 
 DEMO_TOKEN = os.getenv("RPY_DEMO_BEARER_TOKEN", "dev-local-token")
 DEMO_CODE = "0000000-00.2026.8.21.0001"
@@ -156,28 +157,39 @@ async def seed_demo(database_url: str) -> None:
         context = await _load_context(
             pool, process_id, version_id, tenant_id=tenant_id
         )
-        summary = (
-            f"# Resumo do processo\n\n"
-            f"Processo {DEMO_CODE}. Situação processual registrada.\n\n"
-            "## Pontos de atenção\n"
-            "Nenhuma divergência objetiva identificada."
+        demo_steps = list(context.get("steps") or [])
+        demo_class = str(context.get("class_name") or "")
+        demo_current = (
+            str(demo_steps[-1].get("text") or "")
+            if demo_steps
+            else demo_class
         )
         demo_payload = {
-            "synthesis": f"Processo {DEMO_CODE}. Situação processual registrada.",
+            "synthesis": (
+                f"Contexto do processo: {demo_class}. "
+                f"Andamento processual: {demo_current}"
+            ),
             "timeline": [],
-            "current_status": "Situação processual registrada.",
-            "attention": ["Nenhuma divergência objetiva identificada."],
+            "current_status": demo_current,
+            "attention": [demo_current],
             "decisions": [],
             "deadlines": [],
             "related_processes": [],
             "attachments": [],
         }
+        demo_evidence_refs = [context["_process_evidence_ref"]]
+        demo_evidence_refs.extend(
+            str(source["evidence_ref"])
+            for source in context.get("_selected_sources", [])
+            if source.get("evidence_ref")
+        )
         demo_payload["claims"] = build_material_claims(
             demo_payload,
-            evidence_refs=[context["_process_evidence_ref"]],
+            evidence_refs=demo_evidence_refs,
         )
         context["_parsed_summary"] = demo_payload
         structured_output = structured_summary_document(demo_payload, context)
+        summary = render_structured_summary(demo_payload, context)
         result = _validate_provider_summary(summary, context)
         if not result.passed:
             raise RuntimeError(
@@ -188,6 +200,9 @@ async def seed_demo(database_url: str) -> None:
         claims, claim_errors = validate_claim_evidence(demo_payload, context)
         if claim_errors:
             raise RuntimeError("synthetic demo claim evidence failed validation")
+        claim_verification = verify_material_claims(claims, context)
+        if verification_errors(claim_verification):
+            raise RuntimeError("synthetic demo claim support failed validation")
 
         async with pool.acquire() as conn:
             await _persist_summary(
@@ -211,6 +226,7 @@ async def seed_demo(database_url: str) -> None:
                 structured_output=structured_output,
                 claims=claims,
                 evidence_sources=evidence_catalog(context),
+                claim_verification=claim_verification,
             )
 
         print("RPY LOCAL DEMO: READY")

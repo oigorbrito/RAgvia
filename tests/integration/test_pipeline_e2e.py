@@ -19,20 +19,29 @@ from app.worker import Worker, WorkerSettings
 
 
 def _prime_fake_structured_summary(context: dict) -> None:
+    steps = list(context.get("steps") or [])
+    fallback = str(context.get("source_warnings", [context.get("class_name") or ""])[0])
+    first = str(steps[0].get("text") or fallback) if steps else fallback
+    last = str(steps[-1].get("text") or fallback) if steps else fallback
     payload = {
-        "synthesis": "Síntese factual de teste.",
+        "synthesis": (
+            f"Contexto do processo: {first}. Andamento processual: {last}"
+        ),
         "timeline": [],
-        "current_status": "Situação atual registrada nos autos.",
-        "attention": ["Nenhuma divergência objetiva identificada."],
+        "current_status": last,
+        "attention": list(context.get("source_warnings") or [fallback]),
         "decisions": [],
         "deadlines": [],
         "related_processes": [],
         "attachments": [],
     }
-    payload["claims"] = build_material_claims(
-        payload,
-        evidence_refs=[str(context["_process_evidence_ref"])],
+    refs = [str(context["_process_evidence_ref"])]
+    refs.extend(
+        str(source["evidence_ref"])
+        for source in context.get("_selected_sources", [])
+        if source.get("evidence_ref")
     )
+    payload["claims"] = build_material_claims(payload, evidence_refs=refs)
     context["_parsed_summary"] = payload
     context["_structured_summary"] = structured_summary_document(payload, context)
 
@@ -89,7 +98,7 @@ async def test_judit_to_summary_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
 - Tribunal: TJRS
 </ProcessHeader>
 
-O processo contém registros de distribuição, citação e sentença.
+Contexto do processo: processo sintético com distribuição, citação e sentença registradas. Andamento processual: o último movimento fornecido é uma sentença.
 
 ## Classe
 Procedimento Comum
@@ -108,6 +117,7 @@ Nenhuma divergência objetiva identificada.
 """
 
     monkeypatch.setattr(rag, "_generate", fake_generate)
+    monkeypatch.setattr(rag, "anthropic_client", lambda *args, **kwargs: object())
 
     transport = httpx.ASGITransport(app=app)
     try:
@@ -220,9 +230,9 @@ Nenhuma divergência objetiva identificada.
             assert summary is not None
             assert code in summary["markdown"]
             validation = decode_json_object(summary["validation"], label="summary validation")
-            assert validation["passed"] is True
+            assert validation["passed"] is True, validation
             assert summary["model"] == "claude-sonnet-5"
-            assert summary["prompt_version"] == "process-summary-v6"  # nosec B101 - pytest assertion
+            assert summary["prompt_version"] == "process-summary-v7"  # nosec B101 - pytest assertion
 
             await conn.execute(
                 "INSERT INTO tenants (id, name) VALUES ($1, 'e2e tenant')",

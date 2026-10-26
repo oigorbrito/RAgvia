@@ -1,4 +1,5 @@
 from app.rag import _provider_payload, _validate_provider_summary
+from app.validation import validar
 
 
 def _context() -> dict:
@@ -10,6 +11,14 @@ def _context() -> dict:
         "parties": [{"name": "Maria da Silva"}],
         "secrecy_level": 0,
         "header": {"distribution_date": "2026-09-10"},
+        "legal_knowledge": [
+            {
+                "definition": (
+                    "Síntese factual. Situação atual registrada. "
+                    "Nenhuma divergência objetiva identificada."
+                )
+            }
+        ],
         "step_count": 200,
         "_process_evidence_ref": "p-00000000000000000000000000000001",
         "_selected_sources": [],
@@ -72,10 +81,12 @@ def test_render_only_metadata_is_not_sent_to_provider() -> None:
     context["representatives"] = [
         {"name": "PRIVATE_REPRESENTATIVE_SENTINEL"}
     ]
+    context["_require_context_and_progress"] = True
 
     process, _ = _provider_payload(context)
 
     assert "representatives" not in process  # nosec B101 - pytest assertion
+    assert "_require_context_and_progress" not in process  # nosec B101 - pytest assertion
     assert process["header"] == {"instance": 1}  # nosec B101 - pytest assertion
     assert not any(  # nosec B101 - pytest assertion
         sentinel in repr(process)
@@ -117,6 +128,27 @@ def test_wired_validation_rejects_retrieved_count_as_total() -> None:
     assert "movement count mismatch: stated 20, expected 200" in result.errors
 
 
+def test_wired_validation_rejects_unsupported_consequence_inside_synthesis() -> None:
+    context = _context()
+    synthesis = (
+        "Síntese factual. A lei assegura automaticamente a procedência do pedido."
+    )
+    context["_parsed_summary"]["synthesis"] = synthesis
+    context["_parsed_summary"]["claims"][0]["text"] = synthesis
+
+    result = _validate_provider_summary(
+        (
+            "# Resumo do processo\n"
+            f"{synthesis}\n\n"
+            "## Pontos de atenção\nNenhuma divergência objetiva identificada."
+        ),
+        context,
+    )
+
+    assert result.passed is False
+    assert any("synthesis" in error for error in result.errors)
+
+
 def test_wired_validation_rejects_date_not_sent_to_provider() -> None:
     result = _validate_provider_summary(
         (
@@ -127,6 +159,34 @@ def test_wired_validation_rejects_date_not_sent_to_provider() -> None:
     )
     assert result.passed is False
     assert "date not present in source context: 2026-09-16" in result.errors
+
+
+def test_m03_synthesis_requires_explicit_context_and_progress_labels() -> None:
+    header = (
+        "# Resumo do processo\n"
+        "<ProcessHeader className=\"process-header\">\n"
+        "- Processo: 0000000-00.2026.8.21.0001\n"
+        "</ProcessHeader>\n"
+    )
+    attention = "\n\n## Pontos de atenção\nRecorte sintético limitado."
+    common = {
+        "code": "0000000-00.2026.8.21.0001",
+        "parties": [],
+        "require_document_title": True,
+        "require_context_and_progress": True,
+    }
+
+    valid = validar(
+        **common,
+        text=(header + "Contexto do processo: classe e assunto registrados. "
+              "Andamento processual: distribuição registrada." + attention),
+    )
+    missing = validar(
+        **common,
+        text=header + "Resumo sem separação semântica." + attention,
+    )
+    assert valid.passed
+    assert "synthesis must contain labeled context and procedural progress" in missing.errors
 
 
 def test_wired_validation_requires_nonempty_attention_section() -> None:

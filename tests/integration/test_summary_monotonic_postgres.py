@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.claim_verification import verify_material_claims
 from app.claim_evidence import (
     build_material_claims,
     evidence_catalog,
@@ -186,6 +187,14 @@ async def test_new_prompt_revision_may_replace_valid_summary_only_with_valid_out
                 "court": None,
                 "header": {},
                 "parties": [],
+                "legal_knowledge": [
+                    {
+                        "definition": (
+                            "Resumo válido. Situação atual. "
+                            "Nenhuma divergência objetiva identificada."
+                        )
+                    }
+                ],
                 "_process_evidence_ref": process_evidence_ref(version_id),
                 "_selected_sources": [],
                 "_attachment_sources": [],
@@ -206,6 +215,8 @@ async def test_new_prompt_revision_may_replace_valid_summary_only_with_valid_out
             )
             claims, errors = validate_claim_evidence(payload, context)
             assert errors == []
+            claim_verification = verify_material_claims(claims, context)
+            assert all(item.status == "supported" for item in claim_verification.values())
             structured_output = structured_summary_document(payload, context)
             catalog = evidence_catalog(context)
 
@@ -220,6 +231,7 @@ async def test_new_prompt_revision_may_replace_valid_summary_only_with_valid_out
                 structured_output=structured_output,
                 claims=claims,
                 evidence_sources=catalog,
+                claim_verification=claim_verification,
             )
             rejected = await _persist_summary(
                 conn,
@@ -241,6 +253,7 @@ async def test_new_prompt_revision_may_replace_valid_summary_only_with_valid_out
                 structured_output=structured_output,
                 claims=claims,
                 evidence_sources=catalog,
+                claim_verification=claim_verification,
             )
             stored = await conn.fetchrow(
                 "SELECT markdown, validation, prompt_version, generation_ms FROM process_summaries WHERE process_id = $1 AND version_id = $2",

@@ -748,6 +748,18 @@ async def list_processos_v1(request: Request, limit: int = 20, offset: int = 0) 
                 JOIN processes p ON p.id = tp.process_id
                 LEFT JOIN tenant_judit_requests r ON r.tenant_id = tp.tenant_id AND r.process_code = p.code
                 WHERE tp.tenant_id = $1
+                  AND (
+                      $4::uuid IS NULL
+                      OR EXISTS (
+                          SELECT 1 FROM api_key_cnj_scopes scope
+                          WHERE scope.api_key_id = $4 AND scope.process_code = p.code
+                      )
+                      OR EXISTS (
+                          SELECT 1 FROM api_keys key
+                          WHERE key.id = $4 AND key.tenant_id = $1
+                            AND key.allow_portfolio = TRUE
+                      )
+                  )
 
                 UNION
 
@@ -764,6 +776,14 @@ async def list_processos_v1(request: Request, limit: int = 20, offset: int = 0) 
                 LEFT JOIN processes p ON p.code = r.process_code
                 LEFT JOIN tenant_processes tp ON tp.process_id = p.id AND tp.tenant_id = r.tenant_id
                 WHERE r.tenant_id = $1 AND tp.process_id IS NULL
+                  AND (
+                      $4::uuid IS NULL
+                      OR EXISTS (
+                          SELECT 1 FROM api_key_cnj_scopes scope
+                          WHERE scope.api_key_id = $4
+                            AND scope.process_code = r.process_code
+                      )
+                  )
             )
             SELECT code, court, class_name, updated_at, acquisition_status, requested_at, last_acquisition_at
             FROM combined
@@ -773,6 +793,7 @@ async def list_processos_v1(request: Request, limit: int = 20, offset: int = 0) 
             principal.tenant_id,
             limit,
             offset,
+            principal.api_key_id,
         )
 
         total = await conn.fetchval(
@@ -782,16 +803,37 @@ async def list_processos_v1(request: Request, limit: int = 20, offset: int = 0) 
                 FROM tenant_processes tp
                 JOIN processes p ON p.id = tp.process_id
                 WHERE tp.tenant_id = $1
+                  AND (
+                      $2::uuid IS NULL
+                      OR EXISTS (
+                          SELECT 1 FROM api_key_cnj_scopes scope
+                          WHERE scope.api_key_id = $2 AND scope.process_code = p.code
+                      )
+                      OR EXISTS (
+                          SELECT 1 FROM api_keys key
+                          WHERE key.id = $2 AND key.tenant_id = $1
+                            AND key.allow_portfolio = TRUE
+                      )
+                  )
 
                 UNION
 
                 SELECT r.process_code AS code
                 FROM tenant_judit_requests r
                 WHERE r.tenant_id = $1
+                  AND (
+                      $2::uuid IS NULL
+                      OR EXISTS (
+                          SELECT 1 FROM api_key_cnj_scopes scope
+                          WHERE scope.api_key_id = $2
+                            AND scope.process_code = r.process_code
+                      )
+                  )
             )
             SELECT COUNT(*) FROM combined
             """,
             principal.tenant_id,
+            principal.api_key_id,
         )
 
         await log_access(
@@ -833,6 +875,9 @@ async def get_processo_status_v1(code: str, request: Request) -> dict:
         raise HTTPException(status_code=400, detail="invalid process code") from None
 
     principal = await principal_from_request_unscoped(request)
+    principal = await authorize_api_key_process(
+        request, principal=principal, process_code=canonical_code
+    )
     operation = request.query_params.get("operation")
     pool: asyncpg.Pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -864,6 +909,9 @@ async def create_processo_authorization_v1(code: str, request: Request) -> dict:
         raise HTTPException(status_code=400, detail="invalid process code") from None
 
     principal = await principal_from_request_unscoped(request)
+    principal = await authorize_api_key_process(
+        request, principal=principal, process_code=canonical_code
+    )
     body_data: dict[str, Any] = {}
     if request.headers.get("content-type", "").startswith("application/json"):
         try:

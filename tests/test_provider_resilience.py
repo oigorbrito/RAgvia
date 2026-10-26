@@ -132,12 +132,13 @@ def test_provider_clients_disable_sdk_retries(monkeypatch) -> None:
 
     def fake_anthropic(**kwargs):
         captured["anthropic"] = kwargs
-        return object()
+        return type("Stub", (), {"close": None})()
 
     def fake_openai(**kwargs):
         captured["openai"] = kwargs
         return object()
 
+    monkeypatch.setattr(providers, "load_generation_permit", lambda scope: object())
     monkeypatch.setattr(providers.anthropic, "AsyncAnthropic", fake_anthropic)
     monkeypatch.setattr(providers.openai, "AsyncOpenAI", fake_openai)
     monkeypatch.setenv("ANTHROPIC_TIMEOUT_SECONDS", "7")

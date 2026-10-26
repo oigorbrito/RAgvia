@@ -1,0 +1,66 @@
+name: donor-reference-reproduction
+
+on:
+  # Optional audit only. Never block the RAgvia PR lifecycle on donor access.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: donor-reference-reproduction
+  cancel-in-progress: false
+
+jobs:
+  reproduce:
+    environment: donor-attestation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check private donor access is explicitly provisioned
+        env:
+          DONOR_READ_TOKEN: ${{ secrets.RAG_RESUMO_READ_TOKEN }}
+        run: |
+          if [ -z "$DONOR_READ_TOKEN" ]; then
+            echo "::error::Private donor cannot be reproduced without RAG_RESUMO_READ_TOKEN (read-only access to oigorbrito/rag_resumo)."
+            exit 1
+          fi
+          echo "Private donor access configured; token is not printed."
+
+      - name: Checkout exact RAgvia candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Checkout exact private donor revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: oigorbrito/rag_resumo
+          ref: 0d0f8cbb495292a3f3d61fba75428f3136059ea8
+          token: ${{ secrets.RAG_RESUMO_READ_TOKEN }}
+          path: .tmp/frozen-donor
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.14"
+
+      - name: Install bounded deterministic donor dependencies
+        run: |
+          python -m pip install numpy==2.5.4
+
+      - name: Re-execute donor and verify archived evidence
+        run: |
+          python -m scripts.verify_donor_reference \
+            --donor-path .tmp/frozen-donor \
+            --output /tmp/ragvia-frozen-donor-metadata.json
+
+      - name: Upload hash-only donor reproduction report
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frozen-donor-reproduction-metadata
+          path: /tmp/ragvia-frozen-donor-metadata.json
+          retention-days: 30

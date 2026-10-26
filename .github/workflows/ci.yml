@@ -129,9 +129,20 @@ jobs:
         run: sh scripts/verify_backup_restore.sh
 
       - name: PostgreSQL integration tests (no skips)
+        env:
+          RAGV_M01_ARTIFACT_DIR: /tmp/ragvia-paired-corpus
         run: |
           pytest -q tests/integration --junitxml=/tmp/postgres-integration.xml
           python -c "from pathlib import Path; from scripts.validate_candidate_postgres import check_results; print(check_results(Path('/tmp/postgres-integration.xml')))"
+          python -c "import json; from pathlib import Path; r=json.loads(Path('/tmp/ragvia-paired-corpus/paired-legal-case.json').read_text()); print(json.dumps({'case_id': r['case_id'], 'covered': r['comparison']['covered'], 'total': r['comparison']['total'], 'unresolved': r['comparison']['unresolved'], 'legal_quality_qualified': r['legal_quality_qualified']}, ensure_ascii=False))"
+
+      - name: Paired legal pilot evidence (metadata only)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ragvia-paired-legal-metadata
+          path: /tmp/ragvia-paired-corpus/paired-legal-case.json
+          if-no-files-found: warn
 
       - name: Offline release smoke
         timeout-minutes: 10

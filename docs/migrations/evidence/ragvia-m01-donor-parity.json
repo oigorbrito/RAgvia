@@ -1,0 +1,19 @@
+{
+  "donor_sha": "0d0f8cbb495292a3f3d61fba75428f3136059ea8",
+  "destination_base": "d50b5aedf900aca553be6636fbf3055b15a3da68",
+  "constant_sets": 3,
+  "classifier_comparisons": 20,
+  "normalization_comparisons": 6,
+  "side_comparisons": 4,
+  "currency_comparisons": 6,
+  "timezone_comparisons": 3,
+  "full_synthetic_oracle": "PASS",
+  "result": "PASS",
+  "scope": "synthetic deterministic parity only; no provider calls",
+  "donor_parser_blob_sha256": "8a2566249855ec36407188452a285f5a9d03cc19c7d2f48eaf7e2c19c3aea181",
+  "source_fixture_canonical_json_sha256": "d784b3d5b18adc900c316ff8b86b1819b03f51c414e84ed99e626a8fed288263",
+  "oracle_canonical_json_sha256": "a0874217d0ea3ca51cb05db4118817a5335bf469c0d95de01a878651fc233d3b",
+  "donor_personal_token_overlap": false,
+  "personal_tokens_checked": 10,
+  "fixture_hash_method": "canonical UTF-8 JSON sorted keys, compact separators, independent of checkout line endings"
+}

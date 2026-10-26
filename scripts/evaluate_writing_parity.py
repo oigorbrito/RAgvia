@@ -1,0 +1,472 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import html
+import json
+import re
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = ROOT / "tests/fixtures/judit/parser_parity_synthetic.json"
+EXPECTED = ROOT / "tests/fixtures/judit/parser_parity_expected.json"
+DONOR = ROOT / "docs/evaluation/evidence/m03-donor-template.json"
+DESTINATION = ROOT / "docs/evaluation/evidence/m03-synthetic-summary.md"
+OUTPUT = ROOT / "docs/evaluation/evidence/m03-writing-coverage.json"
+DONOR_SHA = "0d0f8cbb495292a3f3d61fba75428f3136059ea8"
+
+
+def _text(value: Any) -> str:
+    if isinstance(value, list):
+        value = " ".join(str(item) for item in value)
+    return html.unescape(re.sub(r"<[^>]+>", " ", str(value or ""))).casefold()
+
+
+def _result(
+    requirement: str,
+    donor_present: bool,
+    destination_present: bool,
+    *,
+    divergence: str | None = None,
+) -> dict[str, Any]:
+    if not donor_present:
+        status = "FAIL_DONOR_REFERENCE_MISSING"
+    elif destination_present:
+        status = "COVERED"
+    elif divergence:
+        status = "DIVERGENCE_JUSTIFIED"
+    else:
+        status = "FAIL_DESTINATION_OMISSION"
+    return {
+        "requirement": requirement,
+        "donor_present": donor_present,
+        "destination_present": destination_present,
+        "status": status,
+        **({"justification": divergence} if divergence else {}),
+    }
+
+
+
+def _linked_hearing_designation(timeline: str, *, act_date: str, scheduled: str) -> bool:
+    """Check a documented designation linking act date to future date/time.
+
+    An isolated mention of both dates cannot prove temporal separation.
+    Accept the source wording as well as the prose rendition, but never
+    infer that a scheduled hearing actually took place.
+    """
+    match = re.fullmatch(r"(\d{2}/\d{2}/\d{4}) às (\d{2}:\d{2})", scheduled)
+    if match is None:
+        raise ValueError("invalid scheduled hearing in frozen fixture")
+    future_date, future_time = (re.escape(item) for item in match.groups())
+    act = re.escape(act_date)
+    for line in timeline.splitlines():
+        normalized = _text(line)
+        if not re.search(rf"^\s*-\s*em\s+{act}(?:\b|[.,])", normalized):
+            continue
+        if not re.search(r"\baudi[eê]ncia\b", normalized):
+            continue
+        if not re.search(r"\bdesignad[ao]s?\b", normalized):
+            continue
+        if re.search(r"\bn[aã]o\s+(?:foi\s+)?designad[ao]", normalized):
+            continue
+        if not re.search(rf"{future_date}\s+(?:às\s+)?{future_time}\b", normalized):
+            continue
+        if re.search(
+            r"\baudi[eê]ncia\b.{0,140}\b(?:realizad[ao]s?|ocorreu|aconteceu)\b",
+            normalized,
+        ):
+            continue
+        return True
+    return False
+
+
+def _individual_source_movements_preserved(timeline: str, movements: list[dict[str, Any]]) -> bool:
+    """Require a one-to-one ordered event mapping with all material source fields."""
+    lines = [_text(line).strip() for line in timeline.splitlines() if line.lstrip().startswith("- ")]
+    if len(lines) != len(movements):
+        return False
+
+    indicators = {
+        "distribuicao": ("distribuído", "sorteio"),
+        "juizo_100_digital": ("juízo 100% digital",),
+        "remessa_interna": ("remetidos os autos",),
+        "audiencia_designada": ("audiência", "conciliação", "designada"),
+        "intimacao": ("intimação", "prazo"),
+        "ato_ordinatorio": ("ato ordinatório", "diário eletrônico"),
+        "publicacao_diario": ("disponibilizado", "djen"),
+        "juntada": ("juntada", "certidão"),
+    }
+    for line, movement in zip(lines, movements, strict=True):
+        day = movement["data"]
+        if not re.match(rf"^-\s+em\s+{re.escape(day)}[.,]\s+", line):
+            return False
+        kind = movement["tipo"]
+        if kind not in indicators or not all(token in line for token in indicators[kind]):
+            return False
+        details = movement.get("detalhes") or {}
+        if kind == "remessa_interna":
+            match = re.search(r"(unidade-[a-z])\s*->\s*(unidade-[a-z])", _text(movement["texto"]))
+            if match is None or not re.search(
+                rf"{re.escape(match.group(1))}\s*->\s*{re.escape(match.group(2))}", line
+            ):
+                return False
+        if kind == "audiencia_designada":
+            scheduled = details["data_agendada"].replace(" às ", " ")
+            if not all(value in line for value in scheduled.split()):
+                return False
+        if kind == "intimacao":
+            recipient = _text(details["destinatario"].split(" (")[0])
+            deadline = details["prazo_dias"]
+            if recipient not in line or not re.search(rf"\bprazo:\s*{deadline}\s+dias?\b", line):
+                return False
+            event = details.get("referente_evento")
+            if event is not None and not re.search(rf"\bevento\s+{event}\b", line):
+                return False
+            publication = details.get("disponibilizacao_diario")
+            if publication and publication not in line:
+                return False
+        if kind in {"ato_ordinatorio", "publicacao_diario"}:
+            original = _text(movement["texto"])
+            refs = re.search(r"refer\.\s+aos\s+eventos:\s*([\d,\s]+)", original)
+            if refs and not all(
+                re.search(rf"\b{num.strip()}\b", line)
+                for num in refs.group(1).split(",") if num.strip()
+            ):
+                return False
+    return True
+
+
+def _grouped_source_movements_preserved(timeline: str, movements: list[dict[str, Any]]) -> bool:
+    """Verify each dated group, recipient and deadline against frozen facts."""
+    dated: dict[str, list[str]] = {}
+    for line in timeline.splitlines():
+        normalized = _text(line).strip()
+        match = re.match(r"^-\s+em\s+(\d{2}/\d{2}/\d{4})[.,]", normalized)
+        if match:
+            dated.setdefault(match.group(1), []).append(normalized)
+
+    def matching(day: str, value: str) -> list[str]:
+        return [line for line in dated.get(day, []) if value in line]
+
+    for kind, fragment in (
+        ("distribuicao", "distribuído por sorteio"),
+        ("juizo_100_digital", "juízo 100% digital"),
+        ("audiencia_designada", "audiência de conciliação"),
+        ("juntada", "juntada de certidão"),
+    ):
+        for movement in (m for m in movements if m["tipo"] == kind):
+            if len(matching(movement["data"], fragment)) != 1:
+                return False
+    for day in {m["data"] for m in movements}:
+        count = sum(m["tipo"] == "remessa_interna" and m["data"] == day for m in movements)
+        if len(matching(day, "remessa interna")) != count:
+            return False
+        expected_admin = sum(
+            m["tipo"] in {"ato_ordinatorio", "publicacao_diario"} and m["data"] == day
+            for m in movements
+        )
+        actual_admin = sum(
+            int(match.group(1))
+            for line in matching(day, "de expediente administrativo")
+            if (match := re.search(r"(\d+)\s+registros?\s+de expediente administrativo", line))
+        )
+        if actual_admin != expected_admin:
+            return False
+
+    groups: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for movement in movements:
+        if movement["tipo"] == "intimacao":
+            key = (movement["data"], movement["detalhes"]["prazo_dias"])
+            groups.setdefault(key, []).append(movement)
+    for (day, deadline), group in groups.items():
+        matched = [
+            line for line in dated.get(day, [])
+            if re.search(rf"\b{len(group)}\s+intimações\b", line)
+            and re.search(rf"\bprazo registrado:\s*{deadline}\s+dias?\b", line)
+        ]
+        if len(matched) != 1:
+            return False
+        if any(
+            _text(m["detalhes"]["destinatario"].split(" (")[0]) not in matched[0]
+            for m in group
+        ):
+            return False
+    return True
+
+
+def _scoped_absence_documented(attention: str, document: str) -> bool:
+    """Treat missing records as scoped uncertainty, never proof of nonexistence."""
+    lines = [_text(line) for line in attention.splitlines()]
+    scoped = any(
+        all(word in line for word in ("citação", "decisão", "sentença"))
+        and re.search(r"\bnão\s+(?:registra|há|consta)\b|\bsem\s+registro\b", line)
+        and "recorte" in line
+        for line in lines
+    )
+    non_inference = any(
+        "não se infere" in line or "não permite inferir" in line
+        for line in lines
+    )
+    affirmative = (
+        r"\b(?:parte\s+ré|réu)\s+(?:foi|está)\s+citad[ao]\b",
+        r"\bcitação\s+(?:foi\s+)?(?:realizada|efetivada)\b",
+        r"\b(?:decisão|sentença)\s+(?:foi\s+)?(?:proferida|publicada)\b",
+        r"\bfoi\s+proferida\s+(?:uma\s+)?(?:decisão|sentença)\b",
+        r"\baudiência\s+(?:foi\s+)?(?:realizada|ocorreu|aconteceu)\b",
+    )
+    return bool(scoped and non_inference) and not any(
+        re.search(pattern, _text(document)) for pattern in affirmative
+    )
+
+
+def evaluate(*, destination_text: str | None = None) -> dict[str, Any]:
+    """Compare donor oracle with the supplied canonical published document.
+
+    No value means the archived M03 reference; integration callers must pass
+    the actual iaSummary returned by the current runtime/API.
+    """
+    fixture_bytes = FIXTURE.read_bytes()
+    fixture_sha = hashlib.sha256(fixture_bytes).hexdigest()
+    donor_record = json.loads(DONOR.read_text(encoding="utf-8"))
+    if donor_record.get("provenance", {}).get("commit") != DONOR_SHA:
+        raise ValueError("donor oracle commit does not match the fixed reference")
+    if donor_record.get("provenance", {}).get("fixture_sha256") != fixture_sha:
+        raise ValueError("donor oracle was not generated from the current parity fixture")
+    donor = donor_record["output"]
+    destination = DESTINATION.read_text(encoding="utf-8") if destination_text is None else destination_text
+    expected = json.loads(EXPECTED.read_text(encoding="utf-8"))
+    donor_intro = _text(donor["introducao"])
+    donor_party = _text([item["descricao"] for item in donor["partes"]])
+    donor_classes = _text([item["explicacao"] for item in donor["classes"]])
+    donor_subjects = _text([item["explicacao"] for item in donor["assuntos"]])
+    donor_events = _text(donor["movimentacoes"])
+    donor_document = _text(donor_record["document"])
+    target = _text(destination)
+    timeline = destination.split("## Movimentações", 1)[-1].split("Estado atual:", 1)[0]
+    target_timeline = _text(timeline)
+    attention = _text(destination.split("## Pontos de atenção", 1)[-1])
+
+    code = expected["cnj"]
+    party_names = [p["nome"] for p in expected["partes"] if p["tipo"] != "ADVOGADO"]
+    representatives = {
+        lawyer
+        for party in expected["partes"]
+        for lawyer in party["advogados"]
+    }
+    subjects = [item["nome"] for item in expected["assuntos"]]
+    main_class = expected["classes"][0]["nome"]
+    suspect_classes = [item for item in expected["classes"] if item["suspeito"]]
+
+    def in_both(needle: str, target_text: str = target, donor_text: str = donor_intro + donor_party + donor_events) -> tuple[bool, bool]:
+        value = _text(needle)
+        return value in donor_text, value in target_text
+
+    results: list[dict[str, Any]] = []
+    donor_has_id, target_has_id = in_both(code)
+    results.append(_result("Identificação CNJ", donor_has_id, target_has_id))
+
+    donor_parties = all(_text(name) in donor_document for name in party_names) and all(
+        f"polo {_text(party['polo'])}" in donor_party
+        for party in expected["partes"] if party["tipo"] != "ADVOGADO"
+    )
+    target_parties = all(_text(name) in target for name in party_names) and all(
+        f"{_text(party['nome'])} — polo cadastrado: {_text(party['polo'])}" in target
+        for party in expected["partes"] if party["tipo"] != "ADVOGADO"
+    )
+    results.append(_result("Partes e polos explicitamente cadastrados", donor_parties, target_parties))
+
+    donor_representatives = all(_text(name) in donor_document and _text(name) in donor_party for name in representatives)
+    represented_pairs = set()
+    for line in destination.splitlines():
+        match = re.fullmatch(
+            r"-\s*(.+?)\s+\(representa:\s*(.+?)\)", line.strip()
+        )
+        if match:
+            for represented in re.split(r"\s+e\s+", match.group(2)):
+                represented_pairs.add(
+                    (_text(match.group(1)).strip(), _text(represented).strip())
+                )
+    target_representatives = all(
+        (_text(name).strip(), _text(party["nome"]).strip()) in represented_pairs
+        for party in expected["partes"]
+        for name in party["advogados"]
+    )
+    results.append(_result("Relações parte–representante registradas", donor_representatives, target_representatives))
+
+    donor_pole_inferences = (
+        "afirma ter sofrido algum prejuízo" in donor_party
+        and "responsável pelos fatos" in donor_party
+    )
+    target_avoids_pole_inference = (
+        "afirma ter sofrido algum prejuízo" not in target
+        and "responsável pelos fatos" not in target
+    )
+    inference_difference = (
+        "O template doador atribui prejuízo ao polo ativo e responsabilidade ao polo passivo; "
+        "o destino descreve somente o polo registrado, sem converter cadastro em alegação ou mérito."
+    )
+    if not donor_pole_inferences:
+        inference_result = _result(
+            "Alegações e responsabilidade não inferidas apenas pelo polo", False, target_avoids_pole_inference
+        )
+    elif not target_avoids_pole_inference:
+        inference_result = _result(
+            "Alegações e responsabilidade não inferidas apenas pelo polo", True, False
+        )
+    else:
+        inference_result = {
+            "requirement": "Alegações e responsabilidade não inferidas apenas pelo polo",
+            "donor_present": False,
+            "destination_present": True,
+            "status": "DIVERGENCE_JUSTIFIED",
+            "justification": inference_difference,
+        }
+    results.append(inference_result)
+
+    donor_main_class = _text(main_class) in donor_document
+    target_main_class = _text(main_class) in target
+    results.append(_result("Classe principal", donor_main_class, target_main_class))
+    suspicious_present = bool(suspect_classes) and all(_text(item["nome"]) in donor_document for item in suspect_classes)
+    suspicious_target = all(_text(item["nome"]) in target for item in suspect_classes)
+    results.append(_result(
+        "Classe secundária marcada como suspeita",
+        suspicious_present,
+        suspicious_target,
+        divergence=(
+            "O doador explica a classificação EMBARGOS embora M01 a marque como suspeita; "
+            "o contrato canônico publica a classe principal e não apresenta heurística como fato processual."
+        ) if suspicious_present and not suspicious_target else None,
+    ))
+
+    donor_subjects_covered = all(_text(name) in donor_document for name in subjects)
+    target_subjects_covered = all(_text(name) in target for name in subjects)
+    results.append(_result("Cobertura dos assuntos cadastrados", donor_subjects_covered, target_subjects_covered))
+
+    class_quote = "Art. 3º O Juizado Especial Cível tem competência para conciliação, processo e julgamento das causas cíveis de menor complexidade, inclusive as de valor até quarenta vezes o salário mínimo."
+    subject_quote = "VI - a efetiva prevenção e reparação de danos patrimoniais e morais, individuais, coletivos e difusos"
+    donor_explanations = (
+        len(donor["classes"]) == len(expected["classes"])
+        and len(donor["assuntos"]) == len(expected["assuntos"])
+        and all(bool(_text(item["explicacao"]).strip()) for item in donor["classes"] + donor["assuntos"])
+    )
+    # The source may be quoted with or without the optional "Art." label.
+    # Every substantive word of both frozen citations must still be present.
+    class_citation = (
+        _text(class_quote) in target
+        or _text(class_quote.removeprefix("Art. ")) in target
+    )
+    target_explanations = class_citation and _text(subject_quote) in target
+    results.append(_result("Explicações de classe/assunto sustentadas por conteúdo recuperado", donor_explanations, target_explanations))
+
+    act_date = expected["movimentos"][0]["data"]
+    hearing = next(item for item in expected["movimentos"] if item["tipo"] == "audiencia_designada")
+    scheduled = hearing["detalhes"]["data_agendada"]
+    donor_temporal = act_date in donor["movimentacoes"] and scheduled in donor["movimentacoes"]
+    target_temporal = _linked_hearing_designation(
+        timeline, act_date=act_date, scheduled=scheduled
+    )
+    results.append(_result("Data do ato separada de data/horário agendado", donor_temporal, target_temporal))
+
+    donor_milestones = all(phrase in donor_events for phrase in (
+        "distribuído por sorteio", "juízo 100% digital", "audiência de conciliação",
+        "intimações eletrônicas", "remessas internas", "atos ordinatórios", "juntada",
+    ))
+    target_milestones = (
+        _individual_source_movements_preserved(timeline, expected["movimentos"])
+        or _grouped_source_movements_preserved(timeline, expected["movimentos"])
+    )
+    results.append(_result("Marcos e agrupamento administrativo sem perda de eventos", donor_milestones, target_milestones))
+
+    date_sequence = []
+    for line in timeline.splitlines():
+        match = re.search(r"\d{2}/\d{2}/\d{4}", line)
+        if match:
+            raw_date = match.group(0)
+            date_sequence.append(date.fromisoformat(f"{raw_date[6:]}-{raw_date[3:5]}-{raw_date[:2]}"))
+    donor_order = [item["data"] for item in expected["movimentos"]]
+    donor_ordered = donor_order == sorted(donor_order, key=lambda value: date.fromisoformat(value[6:] + "-" + value[3:5] + "-" + value[:2]))
+    target_ordered = date_sequence == sorted(date_sequence)
+    results.append(_result("Ordem cronológica dos movimentos", donor_ordered, target_ordered))
+
+    absent_facts = (
+        not any(m["tipo"] == "citacao" for m in expected["movimentos"])
+        and not any(m["tipo"] in {"decisao", "sentenca"} for m in expected["movimentos"])
+    )
+    donor_limits = "ainda não há registro de citação" in donor_intro
+    target_limits = absent_facts and _scoped_absence_documented(attention, destination)
+    results.append(_result("Informação ausente sem afirmar ocorrência", donor_limits, target_limits))
+
+    donor_no_personal_docs = not any(
+        p.get("documento") and re.search(r"\d{8,}", p["documento"])
+        for p in donor["partes"]
+    )
+    target_no_personal_docs = not bool(re.search(r"\d{8,}", destination))
+    results.append(_result(
+        "Ausência de documentos pessoais no documento publicado",
+        donor_no_personal_docs,
+        target_no_personal_docs,
+    ))
+
+    # A provider stub proves deterministic identity/source retention, not
+    # model-quality writing. Keep every other criterion and its gap visible.
+    critical_names = {
+        "Identificação CNJ",
+        "Partes e polos explicitamente cadastrados",
+        "Relações parte–representante registradas",
+        "Classe principal",
+        "Cobertura dos assuntos cadastrados",
+        "Ordem cronológica dos movimentos",
+        "Ausência de documentos pessoais no documento publicado",
+    }
+    critical_rows = [
+        row for row in results if row["requirement"] in critical_names
+    ]
+    if len(critical_rows) != len(critical_names):
+        raise ValueError("incomplete deterministic preservation rubric")
+    critical_passed = all(row["status"] == "COVERED" for row in critical_rows)
+    unresolved = [
+        row["requirement"]
+        for row in results
+        if row["status"] == "FAIL_DESTINATION_OMISSION"
+    ]
+    return {
+        "synthetic": True,
+        "deterministic_preservation_passed": critical_passed,
+        "deterministic_preservation_count": len(critical_rows),
+        "writing_rubric_passed": not unresolved,
+        "live_model_quality_qualified": False,
+        "writing_quality_gaps": unresolved,
+        "rubric_count": len(results),
+        "rubric_covered": sum(row["status"] == "COVERED" for row in results),
+        "donor_commit": DONOR_SHA,
+        "donor_fixture_sha256": donor_record["provenance"]["fixture_sha256"],
+        "destination_fixture_sha256": fixture_sha,
+        "destination_document_sha256": hashlib.sha256(destination.encode("utf-8")).hexdigest(),
+        "destination_origin": "runtime_api" if destination_text is not None else "archived_m03",
+        "comparison": "deterministic information coverage; wording equality not required",
+        "results": results,
+        "passed": all(item["status"] in {"COVERED", "DIVERGENCE_JUSTIFIED"} for item in results),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument(
+        "--destination", type=Path,
+        help="current generated/published iaSummary document (required for live CI parity)",
+    )
+    args = parser.parse_args()
+    result = evaluate(
+        destination_text=args.destination.read_text(encoding="utf-8")
+        if args.destination is not None else None
+    )
+    args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"passed": result["passed"], "results": result["results"]}, ensure_ascii=False, indent=2))
+    return 0 if result["passed"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

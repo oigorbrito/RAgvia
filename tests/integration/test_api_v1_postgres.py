@@ -345,8 +345,9 @@ async def test_v1_idempotency_states_authorization_and_sanitized_sources(monkeyp
                     """
                     INSERT INTO process_summary_claims (
                         summary_id, process_id, version_id,
-                        claim_id, claim_class, claim_text
-                    ) VALUES ($1,$2,$3,$4,$5,$6)
+                        claim_id, claim_class, claim_text,
+                        verification_status, verification_reason
+                    ) VALUES ($1,$2,$3,$4,$5,$6,'supported','synthetic_fixture_support')
                     RETURNING id
                     """,
                     summary_id,
@@ -360,8 +361,12 @@ async def test_v1_idempotency_states_authorization_and_sanitized_sources(monkeyp
                     """
                     INSERT INTO process_summary_claim_sources (
                         claim_row_id, summary_id, process_id, version_id,
-                        evidence_ref, source_kind, source_order
-                    ) VALUES ($1,$2,$3,$4,$5,'process',0)
+                        evidence_ref, source_kind, source_order,
+                        verification_status, verification_reason
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,'process',0,'supported',
+                        'synthetic_fixture_support'
+                    )
                     """,
                     claim_row_id,
                     summary_id,
@@ -521,7 +526,7 @@ async def test_v1_idempotency_states_authorization_and_sanitized_sources(monkeyp
             synthesis_claim = next(
                 item for item in json_claims if item["claim_id"] == "synthesis"
             )
-            assert synthesis_claim["verification"]["status"] == "not_evaluated"
+            assert synthesis_claim["verification"]["status"] == "supported"
             assert all(
                 "evidence_excerpt" not in source
                 for source in synthesis_claim["verification"]["sources"]

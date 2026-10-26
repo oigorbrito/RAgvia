@@ -12,6 +12,7 @@ from app.claim_evidence import (
     process_evidence_ref,
     validate_claim_evidence,
 )
+from app.claim_verification import verify_material_claims
 from app.db import create_pool
 from app.migrations import migrate
 from app.public_lifecycle import (
@@ -81,6 +82,14 @@ async def test_generation_telemetry_is_persisted_and_exposed() -> None:
                 "court": None,
                 "header": {},
                 "parties": [],
+                "legal_knowledge": [
+                    {
+                        "definition": (
+                            "Resumo válido. Situação registrada. "
+                            "Nenhuma divergência objetiva identificada."
+                        )
+                    }
+                ],
                 "_process_evidence_ref": process_evidence_ref(version_id),
                 "_selected_sources": [],
                 "_attachment_sources": [],
@@ -106,6 +115,11 @@ async def test_generation_telemetry_is_persisted_and_exposed() -> None:
             structured_output = structured_summary_document(
                 summary_payload, claim_context
             )
+            claim_verification = verify_material_claims(claims, claim_context)
+            assert all(
+                item.status == "supported"
+                for item in claim_verification.values()
+            )
 
             persisted = await _persist_summary(
                 conn,
@@ -127,6 +141,7 @@ async def test_generation_telemetry_is_persisted_and_exposed() -> None:
                 structured_output=structured_output,
                 claims=claims,
                 evidence_sources=evidence_catalog(claim_context),
+                claim_verification=claim_verification,
             )
             assert persisted is True
             summary = await conn.fetchrow(

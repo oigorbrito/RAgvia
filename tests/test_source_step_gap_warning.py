@@ -68,9 +68,14 @@ async def test_load_context_surfaces_gap_warning_to_provider_context(monkeypatch
     context = await rag._load_context(_Pool(), uuid4(), uuid4())
 
     warning = "Há salto na numeração de movimentos da fonte: 7→9."
+    # Documentary limits are source context, not an unconditional validation gate.
     assert context["source_warnings"] == [warning]
+    absence = context["source_documentary_limits"][0]
+    assert "não registra citação, decisão ou sentença" in absence
+    assert "não se infere" in absence
     provider_process, provider_steps = rag._provider_payload(context)
     assert provider_process["source_warnings"] == [warning]
+    assert provider_process["source_documentary_limits"] == [absence]
     assert len(provider_steps) == 2
 
 
@@ -118,6 +123,12 @@ def test_gap_warning_must_appear_inside_attention_section() -> None:
         ],
     },
     }
+
+    context["_parsed_summary"]["synthesis"] = warning
+    context["_parsed_summary"]["current_status"] = warning
+    context["_parsed_summary"]["attention"] = [warning]
+    for claim in context["_parsed_summary"]["claims"]:
+        claim["text"] = warning
 
     invalid = rag._validate_provider_summary(
         f"# Resumo do processo\n\n## Síntese\n{warning}\n\n## Pontos de atenção\nNenhuma divergência factual identificada.",

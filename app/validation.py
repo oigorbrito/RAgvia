@@ -422,6 +422,24 @@ def _attention_body(text: str) -> str | None:
     return text[start:end].strip()
 
 
+def _synthesis_structure_errors(text: str) -> list[str]:
+    closing_header = text.find("</ProcessHeader>")
+    if closing_header < 0:
+        return ["synthesis must contain labeled context and procedural progress"]
+    content = text[closing_header + len("</ProcessHeader>"):]
+    next_heading = _NEXT_HEADING_RE.search(content)
+    synthesis = content[:next_heading.start()] if next_heading else content
+    match = re.search(
+        r"Contexto do processo:\s*(?P<context>.+?)\s+"
+        r"Andamento processual:\s*(?P<progress>.+)",
+        synthesis,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if match is None or not match.group("context").strip() or not match.group("progress").strip():
+        return ["synthesis must contain labeled context and procedural progress"]
+    return []
+
+
 def validar(
     *,
     text: str,
@@ -435,12 +453,15 @@ def validar(
     required_attention_phrases: list[str] | None = None,
     forbid_party_names: bool = False,
     require_document_title: bool = False,
+    require_context_and_progress: bool = False,
     allowed_headings: list[str] | tuple[str, ...] | None = None,
 ) -> ValidationResult:
     errors: list[str] = []
 
     if require_document_title:
         errors.extend(_document_title_errors(text))
+    if require_context_and_progress:
+        errors.extend(_synthesis_structure_errors(text))
 
     if _CPF_CNPJ_RE.search(text):
         errors.append("possible unmasked CPF/CNPJ")

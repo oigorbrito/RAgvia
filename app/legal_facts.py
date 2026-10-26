@@ -1,8 +1,24 @@
 from __future__ import annotations
 
 import re
+import math
 from decimal import Decimal, InvalidOperation
 from typing import Any
+
+
+def format_brl_amount(value: Any) -> str | None:
+    """Donor display convention for numeric BRL; never a financial-budget calculation."""
+    amount = decimal_amount(value)
+    if amount is None or not amount.is_finite():
+        return None
+    try:
+        numeric = float(amount)
+        if not math.isfinite(numeric):
+            return None
+        rendered = f"{numeric:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (OverflowError, ValueError):
+        return None
+    return f"R$ {rendered}"
 
 
 def decimal_amount(value: Any) -> Decimal | None:

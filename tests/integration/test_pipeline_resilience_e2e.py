@@ -21,20 +21,27 @@ from app.worker import Worker, WorkerSettings
 
 
 def _prime_fake_structured_summary(context: dict) -> None:
+    steps = list(context.get("steps") or [])
+    fallback = str((context.get("source_warnings") or [context.get("class_name") or ""])[0])
+    first = str(steps[0].get("text") or fallback) if steps else fallback
+    last = str(steps[-1].get("text") or fallback) if steps else fallback
     payload = {
-        "synthesis": "Síntese factual de teste.",
+        "synthesis": f"Contexto do processo: {first}. Andamento processual: {last}",
         "timeline": [],
-        "current_status": "Situação atual registrada nos autos.",
-        "attention": ["Nenhuma divergência objetiva identificada."],
+        "current_status": last,
+        "attention": list(context.get("source_warnings") or [fallback]),
         "decisions": [],
         "deadlines": [],
         "related_processes": [],
         "attachments": [],
     }
-    payload["claims"] = build_material_claims(
-        payload,
-        evidence_refs=[str(context["_process_evidence_ref"])],
+    refs = [str(context["_process_evidence_ref"])]
+    refs.extend(
+        str(source["evidence_ref"])
+        for source in context.get("_selected_sources", [])
+        if source.get("evidence_ref")
     )
+    payload["claims"] = build_material_claims(payload, evidence_refs=refs)
     context["_parsed_summary"] = payload
     context["_structured_summary"] = structured_summary_document(payload, context)
 
@@ -59,8 +66,9 @@ async def test_requested_cnj_reaches_tenant_scoped_published_summary(monkeypatch
  tenant_id=uuid4(); token=f"request-token-{uuid4()}"; app.state.bearer_tokens={token:tenant_id}; request_id=f"request-{uuid4()}"; response_id=f"response-{uuid4()}"; code=f"0000000-00.2026.8.21.{str(uuid4().int)[-4:]}"; provider_calls=0
  async def fake_request(requested_code:str):
   nonlocal provider_calls; provider_calls+=1; assert requested_code==code; return JuditRequestResult(request_id=request_id)
- async def fake_generate(client,context,validation_errors=None): _prime_fake_structured_summary(context); warning = context.get("source_warnings", [])[0] if context.get("source_warnings") else "Nenhuma divergência objetiva identificada."; return f"# Resumo do processo\n\nProcesso {code}. Situação atual registrada nos autos.\n\n## Pontos de atenção\n{warning}"
+ async def fake_generate(client,context,validation_errors=None): _prime_fake_structured_summary(context); warning = context.get("source_warnings", [])[0] if context.get("source_warnings") else "Nenhuma divergência objetiva identificada."; return f"# Resumo do processo\n\n<ProcessHeader className=\"process-header\">\n- Processo: {code}\n</ProcessHeader>\n\nContexto do processo: processo sintético registrado. Andamento processual: situação atual registrada nos autos.\n\n## Pontos de atenção\n{warning}"
  monkeypatch.setattr(process_requests,"create_lawsuit_request",fake_request); monkeypatch.setattr(rag,"_generate",fake_generate)
+ monkeypatch.setattr(rag,"anthropic_client",lambda *args,**kwargs:object())
  lawsuit=deepcopy(_fixture("tracking_lawsuit_response.json")); lawsuit["callback_id"]=f"lawsuit-{uuid4()}"; lawsuit["payload"]["request_id"]=request_id; lawsuit["payload"]["response_id"]=response_id; lawsuit["payload"]["response_data"]["code"]=code
  completion=deepcopy(_fixture("tracking_request_completed.json")); completion["callback_id"]=f"completion-{uuid4()}"; completion["payload"]["request_id"]=request_id
  transport=httpx.ASGITransport(app=app)
@@ -79,7 +87,7 @@ async def test_requested_cnj_reaches_tenant_scoped_published_summary(monkeypatch
   assert await worker.process_one() is True; assert await worker.process_one() is True; assert await worker.process_one() is False
   async with httpx.AsyncClient(transport=transport,base_url="http://test") as client:
    published=await client.get(f"/processes/{code}",headers={"Authorization":f"Bearer {token}"})
-  assert published.status_code==200; body=published.json(); assert body["summary_status"]=="available"; assert body["summary"]["validation"]["passed"] is True; assert code in body["summary"]["markdown"]
+  assert published.status_code==200; body=published.json(); assert body["summary_status"]=="available", await pool.fetchval("SELECT validation FROM process_summaries ps JOIN processes p ON p.id=ps.process_id WHERE p.code=$1 ORDER BY ps.created_at DESC LIMIT 1",code); assert body["summary"]["validation"]["passed"] is True; assert code in body["summary"]["markdown"]
   async with pool.acquire() as conn:
    assert await conn.fetchval("SELECT count(*) FROM tenant_judit_requests WHERE tenant_id=$1 AND process_code=$2",tenant_id,code)==1
    assert await conn.fetchval("SELECT count(*) FROM tenant_processes tp JOIN processes p ON p.id=tp.process_id WHERE tp.tenant_id=$1 AND p.code=$2",tenant_id,code)==1
@@ -95,8 +103,9 @@ async def test_completion_before_lawsuit_reaches_authenticated_summary_with_work
   if generation_calls==1:raise RuntimeError("transient provider failure")
   _prime_fake_structured_summary(context)
   warning = context.get("source_warnings", [])[0] if context.get("source_warnings") else "Nenhuma divergência objetiva identificada."
-  return f"# Resumo do processo\n\nProcesso {code}. Situação atual registrada nos autos.\n\n## Pontos de atenção\n{warning}"
+  return f"# Resumo do processo\n\n<ProcessHeader className=\"process-header\">\n- Processo: {code}\n</ProcessHeader>\n\nContexto do processo: processo sintético registrado. Andamento processual: situação atual registrada nos autos.\n\n## Pontos de atenção\n{warning}"
  monkeypatch.setattr(rag,"_generate",flaky_generate); transport=httpx.ASGITransport(app=app)
+ monkeypatch.setattr(rag,"anthropic_client",lambda *args,**kwargs:object())
  try:
   await _reset(pool)
   async with httpx.AsyncClient(transport=transport,base_url="http://test") as client:assert (await client.post("/webhooks/judit/e2e-resilience-webhook",json=completion)).status_code==200; worker=_worker(pool); assert await worker.process_one() is True; assert (await client.post("/webhooks/judit/e2e-resilience-webhook",json=lawsuit)).status_code==200
@@ -104,7 +113,7 @@ async def test_completion_before_lawsuit_reaches_authenticated_summary_with_work
   async with pool.acquire() as conn:
    failed=await conn.fetchrow("SELECT id,status::text AS status,attempts FROM jobs WHERE task_name='generate_process_summary' ORDER BY created_at DESC LIMIT 1"); assert failed and failed["status"]=="pending" and int(failed["attempts"])==1; await conn.execute("UPDATE jobs SET run_at=NOW() WHERE id=$1",failed["id"])
   assert await worker.process_one() is True; assert await worker.process_one() is False; assert generation_calls==2
-  async with pool.acquire() as conn:process=await conn.fetchrow("SELECT id,current_version_id FROM processes WHERE code=$1",code); assert process; summary=await conn.fetchrow("SELECT markdown,validation FROM process_summaries WHERE process_id=$1 AND version_id=$2",process["id"],process["current_version_id"]); assert summary and summary["validation"]["passed"] is True
+  async with pool.acquire() as conn:process=await conn.fetchrow("SELECT id,current_version_id FROM processes WHERE code=$1",code); assert process; summary=await conn.fetchrow("SELECT markdown,validation FROM process_summaries WHERE process_id=$1 AND version_id=$2",process["id"],process["current_version_id"]); assert summary and summary["validation"]["passed"] is True, summary
   tenant_id,bearer_token=await _grant_tenant(pool,monkeypatch,process["id"])
   async with httpx.AsyncClient(transport=transport,base_url="http://test") as client:response=await client.get(f"/processes/{code}",headers={"Authorization":f"Bearer {bearer_token}"})
   assert response.status_code==200 and response.json()["summary"]["validation"]["passed"] is True

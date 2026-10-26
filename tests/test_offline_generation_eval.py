@@ -45,8 +45,14 @@ def test_offline_generation_matches_versioned_baseline() -> None:
         sum(class_counts.values())
         for class_counts in verification_by_class.values()
     ) == report["counts"]["material_claims"]
-    assert verification_by_class["current_status"]["not_evaluated"] > 0
-    assert verification_by_class["attention"]["not_evaluated"] > 0
+    assert verification_by_class["current_status"]["supported"] > 0
+    assert verification_by_class["attention"]["supported"] > 0
+    assert sum(
+        count
+        for class_counts in verification_by_class.values()
+        for status, count in class_counts.items()
+        if status != "supported"
+    ) == 0
 
 
 def test_generation_regression_is_reported() -> None:

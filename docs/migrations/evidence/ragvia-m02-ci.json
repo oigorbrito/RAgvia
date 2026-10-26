@@ -1,0 +1,27 @@
+{
+  "run_id": 39877969951,
+  "url": "https://github.com/oigorbrito/RAgvia/actions/runs/39877969951",
+  "event": "pull_request",
+  "head_sha": "363cbc286d20bb3dc7014b185c68823b7e1db62f",
+  "conclusion": "success",
+  "created_at": "2026-10-23T00:24:55Z",
+  "updated_at": "2026-10-23T00:27:40Z",
+  "scope": "CI workflow run for recorded head only; synthetic repository qualification, not live provider or legal-quality acceptance",
+  "steps": {
+    "project_harness": "success",
+    "provider_readiness": "success",
+    "ruff_and_static_quality": "success",
+    "unit_tests": "success",
+    "synthetic_rag_eval": "success",
+    "offline_pipeline_and_generation_evals": "success",
+    "frontend_and_browser": "success",
+    "container_image_smoke": "success",
+    "postgres_backup_restore": "success",
+    "postgres_integration_no_skips": "success",
+    "offline_release_smoke": "success"
+  },
+  "limitations": [
+    "Synthetic fixtures do not establish live BGE quality, legal correctness, Claude acceptance, latency, cost, RPO, or RTO.",
+    "Later commit SHAs require their own CI result; this record does not transfer status to descendants."
+  ]
+}

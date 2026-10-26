@@ -9,6 +9,11 @@ from functools import lru_cache
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.legal_facts import format_brl_amount
+from app.judit_parser_rules import (
+    classify_movement, format_oab, movement_number, normalize_text, party_annotations, registry_annotations,
+)
+
 _CNJ_CANONICAL_RE = re.compile(r"^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$")
 _CNJ_DIGITS_RE = re.compile(r"^\d{20}$")
 _PERSONAL_ID_RE = re.compile(r"(?<!\d)(?:\d{11}|\d{14})(?!\d)")
@@ -141,6 +146,24 @@ def _reject_non_finite_numbers(value: Any) -> None:
             pending.extend(current)
 
 
+def extract_lawsuit_processes(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Unwrap source documents, never provider-authored summary responses."""
+    if not isinstance(payload, dict):
+        return []
+    if "page_data" in payload:
+        items = payload.get("page_data")
+        return [item["response_data"] for item in items
+                if isinstance(item, dict) and item.get("response_type") == "lawsuit"
+                and isinstance(item.get("response_data"), dict)] if isinstance(items, list) else []
+    if payload.get("response_type"):
+        data = payload.get("response_data")
+        return [data] if payload["response_type"] == "lawsuit" and isinstance(data, dict) else []
+    for key in ("response_data", "lawsuit"):
+        if isinstance(payload.get(key), dict):
+            return extract_lawsuit_processes(payload[key])
+    return [payload] if "code" in payload and "parties" in payload else []
+
+
 def parse_event(body: dict[str, Any]) -> JuditEvent:
     if not isinstance(body, dict):
         raise ValueError("invalid webhook envelope")
@@ -162,12 +185,35 @@ def parse_event(body: dict[str, Any]) -> JuditEvent:
     )
     callback_id = body.get("callback_id")
     response_id = payload.get("response_id")
-    response_type = payload.get("response_type")
+    response_type = payload.get("response_type") or (body.get("response_type") if not event_type else None)
     response_data = payload.get("response_data")
     if response_data is not None and not isinstance(response_data, dict):
         response_data = None
+    if response_type == "lawsuit" and isinstance(response_data, dict):
+        sources = extract_lawsuit_processes(response_data)
+        if any(key in response_data for key in ("page_data", "lawsuit", "response_type")) and len(sources) != 1:
+            raise ValueError("webhook requires exactly one lawsuit")
+        if sources:
+            response_data = sources[0]
+    page_item = None
 
     if not event_type:
+        documents = extract_lawsuit_processes(body)
+        if "page_data" in body and len(documents) != 1:
+            raise ValueError("webhook requires exactly one lawsuit; import pages item by item")
+        if documents:
+            response_data = documents[0]
+            response_type = "lawsuit"
+            if "page_data" in body:
+                item = next(item for item in body["page_data"] if isinstance(item, dict) and item.get("response_type") == "lawsuit")
+                page_item = item
+                request_id = request_id or item.get("request_id")
+                response_id = response_id or item.get("response_id")
+                callback_id = callback_id or item.get("callback_id")
+            else:
+                response_id = response_id or body.get("response_id")
+                if body.get("response_type") == "lawsuit":
+                    page_item = body
         status = str(body.get("status") or "").lower()
         event_type = (
             "request_completed"
@@ -178,11 +224,13 @@ def parse_event(body: dict[str, Any]) -> JuditEvent:
             response_data = body
         response_type = response_type or "lawsuit"
 
-    tags = payload.get("tags") if isinstance(payload.get("tags"), dict) else {}
+    cache_source = page_item or body
+    tag_source = payload if page_item is None else page_item
+    tags = tag_source.get("tags") if isinstance(tag_source.get("tags"), dict) else {}
     cached_response = bool(
         tags.get("cached_response")
         if "cached_response" in tags
-        else payload.get("cached_response", body.get("cached_response", False))
+        else payload.get("cached_response", cache_source.get("cached_response", False))
     )
 
     code: str | None = None
@@ -230,7 +278,7 @@ def _party_personal_id(party: dict[str, Any]) -> str | None:
     if direct:
         return direct
     for document in party.get("documents") or []:
-        if not isinstance(document, dict):
+        if not isinstance(document, dict) or str(document.get("document_type") or "").lower() == "oab":
             continue
         candidate = _personal_id_digits(document.get("document"))
         if candidate:
@@ -279,7 +327,7 @@ def _represented_party_name(party: dict[str, Any]) -> str | None:
 
 
 def _safe_party_entity(party: dict[str, Any]) -> dict[str, Any] | None:
-    name = str(party.get("name") or "").strip()
+    name = _redact_source_text(str(party.get("name") or "").strip())
     if not name:
         return None
     normalized: dict[str, Any] = {
@@ -298,29 +346,50 @@ def _safe_parties_and_representatives(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     parties: list[dict[str, Any]] = []
     representatives: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    nested: list[tuple[dict[str, Any], str]] = []
     for party in process.get("parties") or []:
         if not isinstance(party, dict):
             continue
         normalized = _safe_party_entity(party)
-        if normalized is None:
+        if normalized is None or normalize_text(normalized["name"]) in seen:
             continue
+        seen.add(normalize_text(normalized["name"]))
         if _is_representative(party):
             represented_party = _represented_party_name(party)
             if represented_party:
-                normalized["represents"] = represented_party
+                normalized["represents"] = _redact_source_text(represented_party)
+            registration = format_oab(party.get("documents"))
+            if registration:
+                normalized["professional_registration"] = registration
             representatives.append(normalized)
             continue
         parties.append(normalized)
+        for lawyer in party.get("lawyers") or []:
+            if isinstance(lawyer, dict) and str(lawyer.get("name") or "").strip():
+                nested.append((dict(lawyer, side=party.get("side"), person_type="ADVOGADO"), normalized["name"]))
+    # Representation rows can share a lawyer, but never infer a client by side alone.
+    for lawyer, client in nested:
+        entity = _safe_party_entity(lawyer)
+        if entity is None:
+            continue
+        registration = format_oab(lawyer.get("documents"))
+        if registration:
+            entity["professional_registration"] = registration
+        entity["represents"] = client
+        key = normalize_text(entity["name"])
+        representatives = [r for r in representatives if normalize_text(r["name"]) != key or r.get("represents")]
+        if not any(normalize_text(r["name"]) == key and normalize_text(r.get("represents")) == normalize_text(client) for r in representatives):
+            representatives.append(entity)
     return parties, representatives
-
 
 def _safe_subjects(process: dict[str, Any]) -> list[dict[str, Any]]:
     safe: list[dict[str, Any]] = []
     for subject in process.get("subjects") or []:
         if isinstance(subject, dict):
-            safe.append({"code": subject.get("code"), "name": subject.get("name")})
+            safe.append({"code": subject.get("code"), "name": _redact_source_text(str(subject.get("name") or ""))})
         elif subject is not None:
-            safe.append({"code": None, "name": str(subject)})
+            safe.append({"code": None, "name": _redact_source_text(str(subject))})
     return safe
 
 
@@ -381,13 +450,28 @@ def _safe_attachments(process: dict[str, Any]) -> list[dict[str, Any]]:
     return safe
 
 
+def _redact_source_text(text: str) -> str:
+    text = _FORMATTED_PERSONAL_ID_RE.sub("[documento removido]", text)
+    return _PERSONAL_ID_RE.sub("[documento removido]", text)
+
+
+def _redact_source_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _redact_source_text(value)
+    if isinstance(value, list):
+        return [_redact_source_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_source_value(item) for key, item in value.items()}
+    return value
+
+
 def _normalize_step_text(value: Any) -> str:
     text = str(value or "").replace("\u00a0", " ")
     text = _LEADING_STEP_NUMBER_RE.sub("", text, count=1)
     text = _ELETRONICA_REFER_RE.sub("ELETRÔNICA REFER", text)
     text = _GLUE_BOUNDARY_RE.sub(" ", text)
     text = _WHITESPACE_RE.sub(" ", text).strip()
-    return _PERSONAL_ID_RE.sub("[documento removido]", text)
+    return _redact_source_text(text)
 
 
 def _source_step_number(step: dict[str, Any]) -> int | None:
@@ -401,10 +485,15 @@ def _source_step_number(step: dict[str, Any]) -> int | None:
             candidate = value.strip()
             if candidate.isdigit():
                 return int(candidate)
-    return None
+    return movement_number(_redact_source_text(re.sub(r"\s+", " ", str(step.get("content") or step.get("text") or "")).strip()))
 
 
 def extract_promotable_fields(process: dict[str, Any]) -> dict[str, Any]:
+    documents = extract_lawsuit_processes(process)
+    if ("page_data" in process or process.get("response_type")) and len(documents) != 1:
+        raise ValueError("normalization requires exactly one lawsuit")
+    if documents:
+        process = documents[0]
     classifications = process.get("classifications") or []
     class_name = None
     class_code = None
@@ -427,6 +516,10 @@ def extract_promotable_fields(process: dict[str, Any]) -> dict[str, Any]:
         except ValueError:
             code = str(raw_code).strip() or None
 
+    if isinstance(class_name, str):
+        class_name = _redact_source_text(class_name)
+    if isinstance(court, str):
+        court = _redact_source_text(court)
     header_keys = _SECRET_HEADER_KEYS if secrecy_level > 0 else _PUBLIC_HEADER_KEYS
     header = {
         key: process.get(key)
@@ -434,6 +527,7 @@ def extract_promotable_fields(process: dict[str, Any]) -> dict[str, Any]:
         if process.get(key) is not None
     }
     if secrecy_level == 0:
+        header = {key: _redact_source_value(value) for key, value in header.items()}
         courts = process.get("courts") or []
         if courts and isinstance(courts[0], dict):
             header["court_unit"] = courts[0].get("name")
@@ -462,9 +556,14 @@ def extract_promotable_fields(process: dict[str, Any]) -> dict[str, Any]:
         }
 
     steps = process.get("steps") or process.get("movements") or process.get("events") or []
+    step_source_field = next((key for key in ("steps", "movements", "events") if process.get(key)),
+                             next((key for key in ("steps", "movements", "events") if key in process), "steps"))
     normalized_steps: list[dict[str, Any]] = []
     for index, step in enumerate(steps, start=1):
         if not isinstance(step, dict):
+            continue
+        private_value = step.get("private")
+        if private_value and str(private_value).strip().lower() not in {"false", "0", "no", "off", "f"}:
             continue
         step_date = (
             step.get("step_date")
@@ -473,8 +572,15 @@ def extract_promotable_fields(process: dict[str, Any]) -> dict[str, Any]:
             or step.get("datetime")
         )
         step_type = step.get("step_type") or step.get("title") or step.get("type")
+        if isinstance(step_type, str):
+            step_type = _redact_source_text(step_type)
         raw_text = step.get("content") or step.get("text") or step.get("description") or ""
         occurred_at = _parse_datetime(step_date)
+        literal_text = _redact_source_text(re.sub(r"\s+", " ", str(raw_text)).strip())
+        literal_number = movement_number(literal_text)
+        if literal_number is not None:
+            literal_text = re.sub(r"^\d+\s*-\s*", "", literal_text, count=1)
+        kind, details = classify_movement(literal_text)
         normalized_steps.append(
             {
                 "step_number": index,
@@ -489,16 +595,59 @@ def extract_promotable_fields(process: dict[str, Any]) -> dict[str, Any]:
                     "step_id": step.get("step_id"),
                     "step_number": index,
                     "source_step_number": _source_step_number(step),
+                    "source_input_index": index,
                     "private": step.get("private"),
                     "secrecy_level": secrecy_level,
                     "tags": step.get("tags") or {},
                     "source_step_date": step_date,
                     "occurred_at_sao_paulo": occurred_at.isoformat() if occurred_at else None,
+                    "source_parser": {"kind": kind, "details": details, "number": literal_number,
+                                      "date_label": occurred_at.strftime("%d/%m/%Y") if occurred_at else None,
+                                      "source_ref": f"{step_source_field}/{index-1}", "rules_version": "judit-lexical-v1",
+                                      "semantics": "lexical_hint_not_verified_fact"},
                 },
             }
         )
 
+    literal_order = sorted(normalized_steps, key=lambda s: (s["metadata"]["source_parser"]["number"] is None, s["metadata"]["source_parser"]["number"] or 0))
+    for order, item in enumerate(literal_order, 1):
+        item["metadata"]["source_parser"]["order"] = order
+    has_text_numbers = any(s["metadata"]["source_parser"]["number"] is not None for s in normalized_steps)
+    # Preserve legacy input order without textual numbering. In mixed documents,
+    # explicit source numbers outrank the text fallback (e.g. "10   Distribuído").
+    ordered = sorted(normalized_steps, key=lambda s: (s["metadata"]["source_step_number"] is None, s["metadata"]["source_step_number"] or 0)) if has_text_numbers else normalized_steps
+    for order, item in enumerate(ordered, 1):
+        # Assign only before first persistence; never renumber finalized versions.
+        item["step_number"] = order
+        item["metadata"]["step_number"] = order
+        item["metadata"]["source_parser"]["canonical_order_basis"] = "source_number" if has_text_numbers else "input_order"
+    normalized_steps = ordered
     parties, representatives = _safe_parties_and_representatives(process)
+    registry_source = {key: process.get(key) for key in (
+        "classifications", "subjects", "phase", "area", "justice", "justice_description",
+        "county", "courts", "distribution_date", "tribunal_acronym", "city", "status",
+    )}
+    header["source_parser"] = registry_annotations(_redact_source_value(registry_source), normalized_steps, _parse_datetime, step_field=step_source_field)
+    header["source_parser"]["parties"] = party_annotations(process.get("parties") or [], _safe_party_entity)
+    header["source_parser"]["registry"]["amount_label"] = format_brl_amount(process.get("amount"))
+    relations = []
+    for representative in representatives:
+        refs = []
+        for i, raw_party in enumerate(process.get("parties") or []):
+            if not isinstance(raw_party, dict):
+                continue
+            entity = _safe_party_entity(raw_party)
+            if entity is None:
+                continue
+            if normalize_text(entity["name"]) == normalize_text(representative["name"]):
+                refs.append(f"parties/{i}")
+            if normalize_text(entity["name"]) == normalize_text(representative.get("represents")):
+                for j, lawyer in enumerate(raw_party.get("lawyers") or []):
+                    if isinstance(lawyer, dict) and normalize_text(_redact_source_text(str(lawyer.get("name") or ""))) == normalize_text(representative["name"]):
+                        refs.append(f"parties/{i}/lawyers/{j}")
+        relations.append({"name": representative["name"], "represents": representative.get("represents"),
+                          "professional_registration": representative.get("professional_registration"), "source_refs": refs})
+    header["source_parser"]["representations"] = relations
 
     return {
         "header": header,

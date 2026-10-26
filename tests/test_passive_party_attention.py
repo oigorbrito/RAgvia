@@ -72,3 +72,36 @@ def test_accepts_unaccented_explicit_citation_marker() -> None:
     )
 
     _expect_warnings(warnings, [])
+
+def test_active_only_representative_does_not_hide_passive_attention() -> None:
+    warnings = _passive_party_attention_warnings(
+        [
+            {"name": "Parte Autora", "side": "Active"},
+            {"name": "Parte Ré", "side": "Passive"},
+        ],
+        [{"name": "Advogada", "represents": "Parte Autora"}],
+        [_step("Distribuição"), _step("Juntada de certidão")],
+    )
+    _expect_warnings(
+        warnings,
+        [PASSIVE_PARTY_NO_REPRESENTATIVE_OR_CITATION_WARNING],
+    )
+
+
+def test_explicit_passive_representation_suppresses_attention() -> None:
+    warnings = _passive_party_attention_warnings(
+        [{"name": "Parte Ré", "side": "Passive"}],
+        [{"name": "Advogada", "represents": "Parte Ré"}],
+        [_step("Distribuição")],
+    )
+    _expect_warnings(warnings, [])
+
+
+def test_citation_overrides_active_only_representation_gap() -> None:
+    warnings = _passive_party_attention_warnings(
+        [{"name": "Parte Ré", "side": "Passive"}],
+        [{"name": "Advogada", "represents": "Parte Autora"}],
+        [_step("Citação", "Citação da parte ré registrada")],
+    )
+    _expect_warnings(warnings, [])
+

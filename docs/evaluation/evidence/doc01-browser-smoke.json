@@ -1,0 +1,27 @@
+{
+  "evidence_kind": "synthetic_local_api_browser_smoke",
+  "fixture": "tests/fixtures/judit/parser_parity_synthetic.json",
+  "fixture_sha256": "badc50e69b79be15f4334f555d679a1794ff0c4d6e2bbd111eab18c579180194",
+  "browser": "Playwright Chromium",
+  "browser_version": "140.0.7339.16",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "screenshot": "docs/evaluation/evidence/doc01-browser-smoke.png",
+  "process_code": "0000000-00.0000.0.00.0401",
+  "summary_sha256": "3a31f7c66eb248137351dc63ef3d2e9bf09c606e9977b9d5d8f98eee8b560a42",
+  "rendered_text_sha256": "a355f2ecbc1163b3408a9e00ced4df48423bbaadd9382ce359e0c3c89fa0d9e8",
+  "clipboard_text_sha256": "e26a155b43bec74e2ecdb022955119d6709145ed1adc55b780d249a70604b783",
+  "checks": [
+    "PostgreSQL API response is validated and iaSummary equals validated Markdown",
+    "Context and procedural progress render as separate labeled paragraphs",
+    "Process header uses localized CNJ, amount, instance, and distribution date values",
+    "Party/representative relations render without repeating a representative",
+    "Class, subjects, chronological movements, and attention sections are present",
+    "No raw JSX/HTML or JSON is visible; adversarial markup does not execute",
+    "Clipboard retains the complete readable summary projection",
+    "Browser fetches the process from the local API with authorization scoped to process requests"
+  ],
+  "result": "PASS"
+}

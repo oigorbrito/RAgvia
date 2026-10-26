@@ -1,0 +1,571 @@
+{
+  "donor_sha": "0d0f8cbb495292a3f3d61fba75428f3136059ea8",
+  "sources": [
+    {
+      "id": "cpc",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "0d7f8c9a0f67734cc047c3bea8bfabd57a7823f361d774041e11815822722821",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.297781+00:00"
+    },
+    {
+      "id": "cc",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "6ed7c19586b21355e998746a0620cea5c2f3e6a24036d7f3743b7d30330e5d90",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.346523+00:00"
+    },
+    {
+      "id": "cdc",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "0f46ff9e5738563d855ff61d4d914017a7f265de248f331239da36d30af3a39d",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.353162+00:00"
+    },
+    {
+      "id": "jec",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/1995/lei-9099-26-setembro-1995-348608-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "8dc7e91a4723a552034231716e1f058cb2f6d0b771280a15337d2babda30534e",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.357173+00:00"
+    },
+    {
+      "id": "clt",
+      "url": "https://www2.camara.leg.br/legin/fed/declei/1940-1949/decreto-lei-5452-1-maio-1943-415500-normaatualizada-pe.html",
+      "http_status": 200,
+      "sha256": "bac9366bde35fa457231982db4ae0bec87561441699f504cd1a21891ff6f4703",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.395037+00:00"
+    },
+    {
+      "id": "oab",
+      "url": "https://www2.camara.leg.br/legin/fed/lei/1994/lei-8906-4-julho-1994-349751-normaatualizada-pl.html",
+      "http_status": 200,
+      "sha256": "0fccfcb3d35ff7324d4e13ede0d71652ca6cf5a9488dc930162e0b86e8659b7e",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.414813+00:00"
+    },
+    {
+      "id": "digital",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/3512",
+      "http_status": 200,
+      "sha256": "a1461ea9444adf5f99eb6de0656775f05d5c0b6d8f63bc5a2508601d5a32bc6b",
+      "decoded_as": "utf-8",
+      "retrieved_at": "2026-10-22T13:59:47.414813+00:00"
+    }
+  ],
+  "records": [
+    {
+      "donor_id": "classe-436",
+      "donor_term": "PROCEDIMENTO DO JUIZADO ESPECIAL CÍVEL",
+      "donor_code": "436",
+      "donor_aliases": [
+        "JUIZADO ESPECIAL CÍVEL",
+        "JEC"
+      ],
+      "donor_text_sha256": "a042deffa31be2fd54ef44c442d78fe9b5174d5def4adce5a0613baa2f66cca0",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "classe-436",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1995/lei-9099-26-setembro-1995-348608-normaatualizada-pl.html — Art. 2º",
+      "primary_excerpt": "Art. 2º O processo orientar-se-á pelos critérios da oralidade, simplicidade, informalidade, economia processual e celeridade, buscando, sempre que possível, a conciliação ou a transação.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "classe-procedimento-comum",
+      "donor_term": "PROCEDIMENTO COMUM CÍVEL",
+      "donor_code": null,
+      "donor_aliases": [
+        "PROCEDIMENTO COMUM",
+        "AÇÃO ORDINÁRIA"
+      ],
+      "donor_text_sha256": "e68113907bacc34e265208cf5657570ae9cceb4745fc8a7ae5dfce12a49060c5",
+      "decision": "REUSE_OFFICIAL",
+      "canonical_id": "tpu-class-7",
+      "reason": "Definição oficial CPC art. 318 já presente. Aliases transportados sem substituir texto CNJ."
+    },
+    {
+      "donor_id": "classe-cumprimento-sentenca",
+      "donor_term": "CUMPRIMENTO DE SENTENÇA",
+      "donor_code": null,
+      "donor_aliases": [],
+      "donor_text_sha256": "37673416afe0e10f7833d85c5b17e00eff79d3e2ccb5494f9aba062f95c45fdc",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "classe-cumprimento-sentenca",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 513.",
+      "primary_excerpt": "Art. 513. O cumprimento da sentença será feito segundo as regras deste Título, observando-se, no que couber e conforme a natureza da obrigação, o disposto no Livro II da Parte Especial deste Código.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "classe-execucao-titulo-extrajudicial",
+      "donor_term": "EXECUÇÃO DE TÍTULO EXTRAJUDICIAL",
+      "donor_code": null,
+      "donor_aliases": [
+        "EXECUÇÃO"
+      ],
+      "donor_text_sha256": "bfbe273e9d2b53bfc2780d8fdaefb137997936eb0f77004ab0697e5d4a2561a3",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "classe-execucao-titulo-extrajudicial",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 783.",
+      "primary_excerpt": "Art. 783. A execução para cobrança de crédito fundar-se-á sempre em título de obrigação certa, líquida e exigível.",
+      "excluded_aliases": [
+        "EXECUÇÃO"
+      ],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "classe-embargos",
+      "donor_term": "EMBARGOS",
+      "donor_code": null,
+      "donor_aliases": [
+        "EMBARGOS DE DECLARAÇÃO",
+        "EMBARGOS À EXECUÇÃO"
+      ],
+      "donor_text_sha256": "e61e6299ace0c6bb4ab35ac81129454ce6269213ebe3a5865be345423f04f575",
+      "decision": "DROP_AMBIGUOUS_CLASS",
+      "canonical_id": "classe-embargos",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 1.022.",
+      "primary_excerpt": "Art. 1.022. Cabem embargos de declaração contra qualquer decisão judicial para: I - esclarecer obscuridade ou eliminar contradição; II - suprir omissão de ponto ou questão sobre o qual devia se pronunciar o juiz de ofício ou a requerimento; III - corrigir erro material.",
+      "excluded_aliases": [
+        "EMBARGOS DE DECLARAÇÃO",
+        "EMBARGOS À EXECUÇÃO"
+      ],
+      "reason": "O rótulo genérico “EMBARGOS” abrange modalidades com fontes/efeitos diferentes. O CPC art. 1.022 só sustenta embargos de declaração; não atribuir definição de uma modalidade à classe genérica. Aliases todos rejeitados."
+    },
+    {
+      "donor_id": "classe-reclamacao-trabalhista",
+      "donor_term": "RECLAMAÇÃO TRABALHISTA",
+      "donor_code": null,
+      "donor_aliases": [
+        "AÇÃO TRABALHISTA",
+        "ATORD",
+        "ATSUM"
+      ],
+      "donor_text_sha256": "9c107fae6a81eacf0552d9bcac07a6d1ee963ea0f37c9db141173bc5202939b2",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "classe-reclamacao-trabalhista",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/declei/1940-1949/decreto-lei-5452-1-maio-1943-415500-normaatualizada-pe.html — Art. 840.",
+      "primary_excerpt": "Art. 840. A reclamação poderá ser escrita ou verbal.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "assunto-899",
+      "donor_term": "DIREITO CIVIL",
+      "donor_code": "899",
+      "donor_aliases": [],
+      "donor_text_sha256": "2a87043fb152814b9b2caa39dffb614c5bb75d69bddb2e238faa67b25d1a989c",
+      "decision": "ADAPT_NARROW",
+      "canonical_id": "assunto-899",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html — Art. 1º",
+      "primary_excerpt": "Art. 1º Toda pessoa é capaz de direitos e deveres na ordem civil.",
+      "excluded_aliases": [],
+      "reason": "Art. 1º confirma capacidade civil, mas não sustenta a definição ampla do verbete; extrato restrito e aviso neutro, sem categorias doutrinárias adicionais."
+    },
+    {
+      "donor_id": "assunto-10431",
+      "donor_term": "RESPONSABILIDADE CIVIL",
+      "donor_code": "10431",
+      "donor_aliases": [],
+      "donor_text_sha256": "cd6c5c2c148bd7bb9186729f804cdfa86894c79598ba5150e1f5977574a362e7",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "assunto-10431",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html — Art. 927.",
+      "primary_excerpt": "Art. 927. Aquele que, por ato ilícito (arts. 186 e 187), causar dano a outrem, fica obrigado a repará-lo.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "assunto-14033",
+      "donor_term": "INDENIZAÇÃO POR DANO MORAL",
+      "donor_code": "14033",
+      "donor_aliases": [
+        "DANO MORAL"
+      ],
+      "donor_text_sha256": "2440d2750ed7b2166c538bb66de23af6f6c1421abd89fdc0f6f715c40c471135",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "assunto-14033",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html — VI - a efetiva prevenção e reparação de danos patrimoniais e morais",
+      "primary_excerpt": "VI - a efetiva prevenção e reparação de danos patrimoniais e morais, individuais, coletivos e difusos",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "assunto-dano-material",
+      "donor_term": "INDENIZAÇÃO POR DANO MATERIAL",
+      "donor_code": null,
+      "donor_aliases": [
+        "DANO MATERIAL",
+        "DANOS EMERGENTES",
+        "LUCROS CESSANTES"
+      ],
+      "donor_text_sha256": "d91140369a0bbfe6ed1299305f9734014a0e8abf20471903de70a52d4c46cda5",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "assunto-dano-material",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2002/lei-10406-10-janeiro-2002-432893-normaatualizada-pl.html — Art. 402.",
+      "primary_excerpt": "Art. 402. Salvo as exceções expressamente previstas em lei, as perdas e danos devidas ao credor abrangem, além do que ele efetivamente perdeu, o que razoavelmente deixou de lucrar.",
+      "excluded_aliases": [
+        "LUCROS CESSANTES",
+        "DANOS EMERGENTES"
+      ],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "assunto-direito-consumidor",
+      "donor_term": "DIREITO DO CONSUMIDOR",
+      "donor_code": null,
+      "donor_aliases": [
+        "RELAÇÃO DE CONSUMO",
+        "CDC"
+      ],
+      "donor_text_sha256": "19b31ce2a149ebd21e3294b8722003c4135c8fe4ab08aa2a53eea346ba2a4bce",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "assunto-direito-consumidor",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html — Art. 1º",
+      "primary_excerpt": "Art. 1º O presente código estabelece normas de proteção e defesa do consumidor, de ordem pública e interesse social, nos termos dos arts. 5º, inciso XXXII, 170, inciso V, da Constituição Federal e art. 48 de suas Disposições Transitórias.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "assunto-vicio-produto",
+      "donor_term": "PRODUTO IMPRÓPRIO",
+      "donor_code": null,
+      "donor_aliases": [
+        "VÍCIO DO PRODUTO",
+        "DEFEITO DO PRODUTO",
+        "VÍCIO DE QUALIDADE"
+      ],
+      "donor_text_sha256": "3d7cdd0e62ca645bcdbbc2d4d67a6598992392334474c15dc3e55c6b47314973",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "assunto-vicio-produto",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1990/lei-8078-11-setembro-1990-365086-normaatualizada-pl.html — Art. 18.",
+      "primary_excerpt": "Art. 18. Os fornecedores de produtos de consumo duráveis ou não duráveis respondem solidariamente pelos vícios de qualidade ou quantidade que os tornem impróprios ou inadequados ao consumo a que se destinam ou lhes diminuam o valor, assim como por aqueles decorrentes da disparidade, com as indicações constantes do recipiente, da embalagem, rotulagem ou mensagem publicitária, respeitadas as variações decorrentes de sua natureza, podendo o consumidor exigir a substituição das partes viciadas.",
+      "excluded_aliases": [
+        "DEFEITO DO PRODUTO"
+      ],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "assunto-direito-trabalho",
+      "donor_term": "DIREITO DO TRABALHO",
+      "donor_code": null,
+      "donor_aliases": [],
+      "donor_text_sha256": "c0c22639d0bd078db366f06e5f12d402fb94742c1bacd7ab5bbfef6f54e1401d",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "assunto-direito-trabalho",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/declei/1940-1949/decreto-lei-5452-1-maio-1943-415500-normaatualizada-pe.html — Art. 1º Esta Consolidação",
+      "primary_excerpt": "Art. 1º Esta Consolidação estatui as normas que regulam as relações individuais e coletivas de trabalho nela previstas.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-distribuicao",
+      "donor_term": "DISTRIBUÍDO POR SORTEIO",
+      "donor_code": null,
+      "donor_aliases": [
+        "DISTRIBUIÇÃO",
+        "DISTRIBUÍDO POR DEPENDÊNCIA"
+      ],
+      "donor_text_sha256": "e5e0fa7adbb1ef3d4f5363b26bee38cf3c91b6a929ea7390221d41e411cc8c0a",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-distribuicao",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 284.",
+      "primary_excerpt": "Art. 284. Todos os processos estão sujeitos a registro, devendo ser distribuídos onde houver mais de um juiz.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-100-digital",
+      "donor_term": "AUTOS INCLUÍDOS NO JUÍZO 100% DIGITAL",
+      "donor_code": null,
+      "donor_aliases": [
+        "JUÍZO 100% DIGITAL"
+      ],
+      "donor_text_sha256": "7b44fe0e7f39c92f611b940c6658210b99bb66d6b4c4be6b0f9c0ce7f821a08f",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-100-digital",
+      "source_ref": "https://atos.cnj.jus.br/atos/detalhar/3512 — Art. 1º",
+      "primary_excerpt": "Art. 1º e parágrafos do ato CNJ sobre implementação do Juízo 100% Digital, incluindo atos remotos e exceção para prova/ato inviável virtualmente.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-remessa",
+      "donor_term": "REMETIDOS OS AUTOS",
+      "donor_code": null,
+      "donor_aliases": [
+        "REMESSA",
+        "AUTOS REMETIDOS"
+      ],
+      "donor_text_sha256": "291277cd43b7bb24e9b5d9f818adb386318213d63ac9adddbbc2b1141329a026",
+      "decision": "DROP_EXPLANATION",
+      "reason": "Sem fonte primária específica encontrada que sustente explicação; sem texto livre."
+    },
+    {
+      "donor_id": "mov-audiencia-conciliacao",
+      "donor_term": "AUDIÊNCIA DE CONCILIAÇÃO DESIGNADA",
+      "donor_code": null,
+      "donor_aliases": [
+        "AUDIÊNCIA DESIGNADA",
+        "AUDIÊNCIA DE CONCILIAÇÃO"
+      ],
+      "donor_text_sha256": "26ba874f0191affd114498ad75840de5416ccf376d47a42138d4e7fe8879325f",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-audiencia-conciliacao",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 165.",
+      "primary_excerpt": "Art. 165. Os tribunais criarão centros judiciários de solução consensual de conflitos, responsáveis pela realização de sessões e audiências de conciliação e mediação e pelo desenvolvimento de programas destinados a auxiliar, orientar e estimular a autocomposição.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-audiencia-instrucao",
+      "donor_term": "AUDIÊNCIA DE INSTRUÇÃO E JULGAMENTO",
+      "donor_code": null,
+      "donor_aliases": [
+        "AUDIÊNCIA DE INSTRUÇÃO"
+      ],
+      "donor_text_sha256": "869f4b718a45c4821da3edba2ebe3a625dee13e18943345a861f05e27fe5865d",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-audiencia-instrucao",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 361.",
+      "primary_excerpt": "Art. 361. As provas orais serão produzidas em audiência, ouvindo-se nesta ordem, preferencialmente: I - o perito e os assistentes técnicos, que responderão aos quesitos de esclarecimentos requeridos no prazo e na forma do art. 477, caso não respondidos anteriormente por escrito; II - o autor e, em seguida, o réu, que prestarão depoimentos pessoais; III - as testemunhas arroladas pelo autor e pelo réu, que serão inquiridas.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-intimacao",
+      "donor_term": "EXPEDIDA/CERTIFICADA A INTIMAÇÃO ELETRÔNICA",
+      "donor_code": null,
+      "donor_aliases": [
+        "INTIMAÇÃO",
+        "INTIMAÇÃO ELETRÔNICA"
+      ],
+      "donor_text_sha256": "eb85fa32526482225e166e5bfb1f82f415cea711612ad38b0327644764f1187d",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-intimacao",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 269.",
+      "primary_excerpt": "Art. 269. Intimação é o ato pelo qual se dá ciência a alguém dos atos e dos termos do processo.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-citacao",
+      "donor_term": "CITAÇÃO",
+      "donor_code": null,
+      "donor_aliases": [
+        "EXPEDIDA A CITAÇÃO",
+        "CITAÇÃO ELETRÔNICA",
+        "CARTA DE CITAÇÃO"
+      ],
+      "donor_text_sha256": "0fdf28ee02b10b08e47a4cda591d8893f2045b2eca9bfda244c8ea80c8ef95b2",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-citacao",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 238.",
+      "primary_excerpt": "Art. 238. Citação é o ato pelo qual são convocados o réu, o executado ou o interessado para integrar a relação processual.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-ato-ordinatorio",
+      "donor_term": "ATO ORDINATÓRIO PRATICADO",
+      "donor_code": null,
+      "donor_aliases": [
+        "ATO ORDINATÓRIO"
+      ],
+      "donor_text_sha256": "34eb8df13ec0cb45c111ac5ff0f68db3dae4f3d6ef545f50c806aa789d45c79a",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-ato-ordinatorio",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — § 4º Os atos meramente ordinatórios",
+      "primary_excerpt": "§ 4º Os atos meramente ordinatórios, como a juntada e a vista obrigatória, independem de despacho, devendo ser praticados de ofício pelo servidor e revistos pelo juiz quando necessário.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-djen",
+      "donor_term": "DISPONIBILIZADO NO DJEN",
+      "donor_code": null,
+      "donor_aliases": [
+        "DIÁRIO DE JUSTIÇA ELETRÔNICO NACIONAL",
+        "DISPONIBILIZAÇÃO NO DIÁRIO ELETRÔNICO",
+        "PUBLICAÇÃO"
+      ],
+      "donor_text_sha256": "8d90c862d2da25b558176d73e9972aa8f58c8bb1dcd193c0b715be40babf464c",
+      "decision": "DROP_EXPLANATION",
+      "reason": "Regra de início de prazo demanda regime aplicável e fonte consolidada específica; não transportar cálculo universal."
+    },
+    {
+      "donor_id": "mov-juntada",
+      "donor_term": "JUNTADA DE CERTIDÃO",
+      "donor_code": null,
+      "donor_aliases": [
+        "JUNTADA",
+        "JUNTADA DE PETIÇÃO",
+        "JUNTADA DE DOCUMENTO"
+      ],
+      "donor_text_sha256": "f4aae7fd41fb6eaea4bc0e46f80eb452540c85c9a47cc52fcd791c566a81a769",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-juntada",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — § 4º Os atos meramente ordinatórios",
+      "primary_excerpt": "§ 4º Os atos meramente ordinatórios, como a juntada e a vista obrigatória, independem de despacho, devendo ser praticados de ofício pelo servidor e revistos pelo juiz quando necessário.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-conclusos",
+      "donor_term": "CONCLUSOS PARA DECISÃO",
+      "donor_code": null,
+      "donor_aliases": [
+        "CONCLUSOS",
+        "CONCLUSOS PARA DESPACHO",
+        "CONCLUSOS PARA SENTENÇA"
+      ],
+      "donor_text_sha256": "7e1c56c610a13f516e4fc651bae90bf996ce46ab12d1faa4b1bd71098252e437",
+      "decision": "DROP_EXPLANATION",
+      "reason": "Explicação administrativa sem fonte primária específica verificada nesta migração."
+    },
+    {
+      "donor_id": "mov-contestacao",
+      "donor_term": "JUNTADA DE CONTESTAÇÃO",
+      "donor_code": null,
+      "donor_aliases": [
+        "CONTESTAÇÃO"
+      ],
+      "donor_text_sha256": "692d4bfaeb2f0053b4fb4d4b26456de9e4e1fea6df7bf1dffc4e277c18bdbc1c",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-contestacao",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 336.",
+      "primary_excerpt": "Art. 336. Incumbe ao réu alegar, na contestação, toda a matéria de defesa, expondo as razões de fato e de direito com que impugna o pedido do autor e especificando as provas que pretende produzir.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-sentenca",
+      "donor_term": "SENTENÇA",
+      "donor_code": null,
+      "donor_aliases": [
+        "JULGADO PROCEDENTE",
+        "JULGADO IMPROCEDENTE",
+        "JULGADO PROCEDENTE EM PARTE",
+        "HOMOLOGADO ACORDO"
+      ],
+      "donor_text_sha256": "7b1ce41da8adf17c0e66648dc5fd5517ed2c95a496eea402ebc678b7036fb0ea",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-sentenca",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — § 1º Ressalvadas as disposições expressas dos procedimentos especiais",
+      "primary_excerpt": "§ 1º Ressalvadas as disposições expressas dos procedimentos especiais, sentença é o pronunciamento por meio do qual o juiz, com fundamento nos arts. 485 e 487, põe fim à fase cognitiva do procedimento comum, bem como extingue a execução.",
+      "excluded_aliases": [
+        "JULGADO PROCEDENTE",
+        "JULGADO IMPROCEDENTE",
+        "JULGADO PROCEDENTE EM PARTE",
+        "HOMOLOGADO ACORDO"
+      ],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-transito",
+      "donor_term": "TRÂNSITO EM JULGADO",
+      "donor_code": null,
+      "donor_aliases": [],
+      "donor_text_sha256": "15060ec26997f82317595e7767aee6fb79175f8d18ac89a5e9ec46e58d73a7fe",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "mov-transito",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 502.",
+      "primary_excerpt": "Art. 502. Denomina-se coisa julgada material a autoridade que torna imutável e indiscutível a decisão de mérito não mais sujeita a recurso.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "mov-arquivamento",
+      "donor_term": "ARQUIVADO DEFINITIVAMENTE",
+      "donor_code": null,
+      "donor_aliases": [
+        "ARQUIVAMENTO",
+        "BAIXA DEFINITIVA"
+      ],
+      "donor_text_sha256": "346fe100bbc10f72e90c6e67849b3d05dea62374710ca7bbabb82677bef34c9c",
+      "decision": "DROP_EXPLANATION",
+      "reason": "Arquivamento não comprova inexistência de pendências ou definitividade."
+    },
+    {
+      "donor_id": "conceito-prazo-jec",
+      "donor_term": "PRAZOS NO JUIZADO ESPECIAL",
+      "donor_code": null,
+      "donor_aliases": [
+        "PRAZO",
+        "DIAS ÚTEIS"
+      ],
+      "donor_text_sha256": "e92ed1aaeabc03a726004d26aa17aa02b21acf7c5977524727e6fb76df08b8ef",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "conceito-prazo-jec",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/1995/lei-9099-26-setembro-1995-348608-normaatualizada-pl.html — Art. 12-A.",
+      "primary_excerpt": "Art. 12-A. Na contagem de prazo em dias, estabelecido por lei ou pelo juiz, para a prática de qualquer ato processual, inclusive para a interposição de recursos, computar-se-ão somente os dias úteis.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "conceito-polos",
+      "donor_term": "POLO ATIVO E POLO PASSIVO",
+      "donor_code": null,
+      "donor_aliases": [
+        "AUTOR",
+        "RÉU",
+        "PARTES"
+      ],
+      "donor_text_sha256": "64ff45656fe827e3e9dd90a0cf385dacdf0913872ace064413b01f5d7bec8e2a",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "conceito-polos",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 319.",
+      "primary_excerpt": "Art. 319. A petição inicial indicará: I - o juízo a que é dirigida; II - os nomes, os prenomes, o estado civil, a existência de união estável, a profissão, o número de inscrição no Cadastro de Pessoas Físicas ou no Cadastro Nacional da Pessoa Jurídica, o endereço eletrônico, o domicílio e a residência do autor e do réu; III - o fato e os fundamentos jurídicos do pedido; IV - o pedido com as suas especificações; V - o valor da causa; VI - as provas com que o autor pretende demonstrar a verdade dos fatos alegados; VII - a opção do autor pela realização ou não de audiência de conciliação ou de mediação.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "conceito-advogado",
+      "donor_term": "ADVOGADO",
+      "donor_code": null,
+      "donor_aliases": [
+        "PROCURADOR",
+        "OAB"
+      ],
+      "donor_text_sha256": "10340d58ff99a4432ce9abb86a6d95dec23de1c6a8ccaf0993a41be8e1bbd505",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "conceito-advogado",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 103.",
+      "primary_excerpt": "Art. 103. A parte será representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "conceito-valor-causa",
+      "donor_term": "VALOR DA CAUSA",
+      "donor_code": null,
+      "donor_aliases": [
+        "VALOR ATRIBUÍDO"
+      ],
+      "donor_text_sha256": "fecd193b1960dc83c261e3d566468cc82b2fce5d200502fb3488c791c275ea48",
+      "decision": "ADAPT_PRIMARY_EXCERPT",
+      "canonical_id": "conceito-valor-causa",
+      "source_ref": "https://www2.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html — Art. 291.",
+      "primary_excerpt": "Art. 291. A toda causa será atribuído valor certo, ainda que não tenha conteúdo econômico imediatamente aferível.",
+      "excluded_aliases": [],
+      "reason": "Extrato da fonte primária substitui generalizações do texto didático; correspondência TPU do doador é rotulada não verificada pelo CNJ."
+    },
+    {
+      "donor_id": "conceito-fase-inicial",
+      "donor_term": "FASE INICIAL",
+      "donor_code": null,
+      "donor_aliases": [
+        "FASE POSTULATÓRIA"
+      ],
+      "donor_text_sha256": "b0078bde9a0e2758c6385cf4becde41ea4733503c47721752c56f96cc29aa5b5",
+      "decision": "DROP_EXPLANATION",
+      "reason": "Rótulo da fase não prova ausência de julgamento."
+    }
+  ],
+  "scope": "Primary excerpts, not comprehensive current legal advice; no deadline calculation or process-outcome inference."
+}
