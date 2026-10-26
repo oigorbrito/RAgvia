@@ -53,14 +53,18 @@ def _allowed_source_refs(facts: dict[str, Any]) -> set[str]:
 
 
 def _write(path: Path, value: Any, *, as_text: bool = False) -> None:
+    """Preserve identical UTF-8 bytes and hashes on POSIX and Windows."""
+    data = (value if as_text else json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    raw = data.encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(value if as_text else json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(raw)
 
 
 def prepare(
     *, case_id: str, candidate_text: str, destination: Path,
+    private_mapping: Path,
     candidate_commit: str | None = None, seed: bytes | None = None,
 ) -> dict[str, Any]:
     record = evaluate_case(
@@ -75,11 +79,24 @@ def prepare(
     donor_text = json.loads(DONOR.read_text(encoding="utf-8"))["document"]
     if not isinstance(donor_text, str) or not donor_text.strip() or not candidate_text.strip():
         raise ValueError("both paired documents must be nonempty")
+    # Never place the identifying donor/candidate mapping inside the deliverable
+    # reviewer directory. Validate the private destination before writing anything.
+    reviewer_root = destination.resolve()
+    private_location = private_mapping.resolve()
+    if private_location == reviewer_root or reviewer_root in private_location.parents:
+        raise ValueError("private mapping must be outside reviewer packet")
+    if private_mapping.exists() or private_mapping.is_symlink():
+        raise FileExistsError("private mapping already exists")
+    if (not private_mapping.parent.is_dir()
+            or private_mapping.parent.is_symlink()):
+        raise ValueError("private mapping parent must be an existing real directory")
+    if os.name != "nt" and private_mapping.parent.stat().st_mode & 0o077:
+        raise PermissionError("private mapping parent must have private permissions (0700)")
     if destination.is_symlink():
         raise ValueError("review destination must not be a symlink")
     if not destination.exists():
         destination.mkdir(parents=True, mode=0o700)
-    if destination.stat().st_mode & 0o077:
+    if os.name != "nt" and destination.stat().st_mode & 0o077:
         raise PermissionError("review destination must have private permissions (0700)")
     if any(destination.iterdir()):
         raise FileExistsError("review packet must use a new, empty directory")
@@ -122,7 +139,7 @@ def prepare(
         "candidate_generation_verified_live": False,
         "labels": {"donor": donor_side, "candidate": candidate_side},
     }
-    _write(destination / "PRIVATE-mapping.json", mapping)
+    _write(private_mapping, mapping)
     _write(destination / "review-form.json", {
         "schema_version": 1,
         "case_id": case_id,
@@ -326,6 +343,8 @@ def main() -> int:
     make.add_argument("--candidate", type=Path, required=True)
     make.add_argument("--commit")
     make.add_argument("--out", type=Path, required=True)
+    make.add_argument("--private-mapping", type=Path, required=True,
+                      help="Existing secured directory, outside reviewer packet")
     collect = modes.add_parser("aggregate")
     collect.add_argument("--mapping", type=Path, required=True)
     collect.add_argument("--answers", type=Path, required=True)
@@ -339,6 +358,7 @@ def main() -> int:
             case_id=args.case_id,
             candidate_text=args.candidate.read_text(encoding="utf-8"),
             destination=args.out,
+            private_mapping=args.private_mapping,
             candidate_commit=args.commit,
         )
         print(json.dumps(result, ensure_ascii=False))

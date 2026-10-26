@@ -80,12 +80,19 @@ Sem merge ou chamadas ao Claude/Judit reais.
 
 Depois de gerar o iaSummary do HEAD atual em PostgreSQL, executar localmente:
 
-    python scripts/blind_paired_legal_review.py prepare --case-id m01-doc01-scheduled-hearing --candidate /tmp/ragvia-paired-corpus/summary.md --commit HEAD_EXATO --out /tmp/pareamento-juridico-privado
+    mkdir -m 700 -p /tmp/coordenador-ragvia
+    python scripts/blind_paired_legal_review.py prepare --case-id m01-doc01-scheduled-hearing --candidate /tmp/ragvia-paired-corpus/summary.md --commit HEAD_EXATO --out /tmp/pacote-revisores-ragvia --private-mapping /tmp/coordenador-ragvia/PRIVATE-mapping.json
 
-O comando cria A.md, B.md, case-evidence.json, review-form.json e PRIVATE-mapping.json com
-permissão restrita (0700 para a pasta, 0600 para os arquivos).
-Entregar aos dois avaliadores apenas A.md, B.md, case-evidence.json e review-form.json.
-Nunca divulgar PRIVATE-mapping.json antes da conclusão da avaliação.
+O comando cria **somente** A.md, B.md, case-evidence.json e review-form.json
+na pasta compartilhável dos revisores; o mapeamento privado fica em diretório
+**separado, previamente criado e restrito ao coordenador**. No POSIX, o diretório
+exige 0700 e os arquivos são criados em 0600; a gravação binária garante
+os mesmos bytes UTF-8, sem conversão LF/CRLF, no Linux e Windows.
+No Windows, permissões POSIX não substituem ACLs: use um diretório NTFS
+privado do usuário (preferencialmente sob %LOCALAPPDATA%), confira as ACLs
+e não publique os materiais ou dados reais sem controle de acesso.
+Entregar aos dois avaliadores apenas os quatro arquivos do pacote público;
+nunca entregar PRIVATE-mapping.json.
 Não executar com documentos reais em infraestrutura pública/compartilhada.
 
 Cada avaliador preenche scores para ambos os lados A e B em cada uma das
@@ -96,7 +103,7 @@ sob os controles de privacidade do projeto.
 
 Consolidar as notas no ambiente privado:
 
-    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/pareamento-juridico-privado/PRIVATE-mapping.json --answers /tmp/pareamento-juridico-privado/review-form.json --source-evidence /tmp/pareamento-juridico-privado/case-evidence.json --document-a /tmp/pareamento-juridico-privado/A.md --document-b /tmp/pareamento-juridico-privado/B.md --output /tmp/pareamento-juridico-privado/resultado.json
+    python scripts/blind_paired_legal_review.py aggregate --mapping /tmp/coordenador-ragvia/PRIVATE-mapping.json --answers /tmp/pacote-revisores-ragvia/review-form.json --source-evidence /tmp/pacote-revisores-ragvia/case-evidence.json --document-a /tmp/pacote-revisores-ragvia/A.md --document-b /tmp/pacote-revisores-ragvia/B.md --output /tmp/coordenador-ragvia/resultado.json
 
 O consolidado mostra as diferenças pareadas e a concordância de direção.
 Por definição, um único par não suporta inferência populacional:
@@ -124,13 +131,11 @@ verifica a saida original e publica apenas hashes. A CI padrao segue
 independente, e **reproducao externa do doador = PENDENTE** ate haver
 sucesso em uma execucao manual desse gate.
 
-A verificacao pre-merge pode ser acionada pela transicao manual da PR
-de Draft para Ready for review (evento ready_for_review). Enquanto Draft,
-a verificacao nao executa, preservando o gate de autorizacao. O dono deve
-provisionar primeiro o secret de acesso somente leitura. Se nao houver
-secret, a verificacao falha de maneira explicita e nao afeta a CI
-funcional independente. Uma execucao workflow_dispatch tambem estara
-disponivel quando a workflow existir na branch padrao.
+O workflow do doador é opcional e **não dispara em Ready for review**:
+o gatilho foi removido na correção da PR #20 (`e865670d`).
+Somente uma futura execução manual `workflow_dispatch`, com credencial
+de leitura previamente configurada, poderá atestar o doador remotamente.
+Isso não é pré-requisito para a CI funcional ou o merge do RAgvia.
 
 ## Security qualification of the donor attestation gate
 
@@ -142,14 +147,11 @@ of oigorbrito/RAgvia. Configure required reviewers and restrict
 deployment branches/tags before entering the token. No repository-wide
 token and no token as workflow input.
 
-The donor workflow triggers on owner-initiated ready_for_review of
-consolidated PR #20 against migration/ragvia-01-candidate (or explicit
-manual workflow_dispatch once installed on the default branch).
-A synchronize push never exposes the secret. The workflow pins the
-candidate head commit, not a generated merge ref; the donor SHA is
-pinned separately. No PR Draft or merge change is performed by this
-implementation. An environment with no required reviewers is NOT
-adequately protected, even if it has a benign-sounding name.
+The donor workflow is manual-only (`workflow_dispatch`) after the
+PR #20 fix; it does not trigger from PR state transitions or synchronize
+pushes. The donor SHA remains pinned. Independent remote donor reexecution
+is optional, not a RAgvia functional CI dependency. A future protected
+environment with a credential should require independent approval.
 
 The verifier is invoked using python -m scripts.verify_donor_reference
 so Python resolves imports from the project root without assuming an
@@ -249,3 +251,21 @@ mas preserva `source_reference_truth_independently_verified=false`,
 
 Escopo: contrato de revisão do caso sintético congelado, sem chamadas
 pagas, sem alterações no workflow do doador e sem merge.
+
+
+## RAGVIA-REVIEW-04B — pacote de revisores separado e bytes estáveis
+
+A função `prepare` e sua CLI exigem `private_mapping`/`--private-mapping`
+**fora** de `--out`. A preparação recusa um caminho de mapeamento situado
+dentro da pasta de entrega ou sobrescrita de mapeamento preexistente,
+antes de criar o pacote. Um ZIP completo de `--out` não inclui o
+de-para privado. O coordenador deve distribuir somente `--out`.
+
+Todos os arquivos passam a ser gravados como bytes UTF-8 explícitos.
+Os SHA-256 de A.md, B.md e case-evidence.json são calculados sobre
+exatamente os mesmos bytes escritos em disco. Isso evita diferença
+LF/CRLF no Windows; testes direcionados são executados na CI Linux
+e Windows. Restrições NTFS dependem da ACL efetiva do diretório
+escolhido pelo operador, que **não** é automaticamente certificada
+pelo script. O piloto segue exclusivamente sintético e sem inferência
+jurídica ou liberação de produção.

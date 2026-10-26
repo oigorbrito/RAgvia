@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,12 @@ from scripts.evaluate_writing_parity import DESTINATION, EXPECTED, FIXTURE
 
 
 CASE = "m01-doc01-scheduled-hearing"
+
+
+def _private_mapping_path(tmp_path: Path) -> Path:
+    private_dir = tmp_path / "coordinator-private"
+    private_dir.mkdir(mode=0o700, exist_ok=True)
+    return private_dir / "PRIVATE-mapping.json"
 
 
 def _documents(packet: Path) -> dict[str, bytes]:
@@ -50,28 +57,38 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
     candidate = DESTINATION.read_text(encoding="utf-8")
     result = prepare(
         case_id=CASE, candidate_text=candidate,
-        destination=packet, seed=b"k" * 32,
+        destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"k" * 32,
     )
     assert result["document_count"] == 2
     assert result["qualified_for_legal_quality"] is False
     assert {p.name for p in packet.iterdir()} == {
         "A.md", "B.md", "case-evidence.json",
-        "PRIVATE-mapping.json", "review-form.json"
+        "review-form.json"
     }
-    assert packet.stat().st_mode & 0o077 == 0
-    assert all(f.stat().st_mode & 0o077 == 0 for f in packet.iterdir())
-    mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
+    assert not (packet / "PRIVATE-mapping.json").exists()
+    if os.name != "nt":
+        assert packet.stat().st_mode & 0o077 == 0
+        assert all(f.stat().st_mode & 0o077 == 0 for f in packet.iterdir())
+        assert _private_mapping_path(tmp_path).stat().st_mode & 0o077 == 0
+    mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
     labels = mapping["labels"]
     assert (packet / (labels["donor"] + ".md")).read_text() == json.loads(
         DONOR.read_text(encoding="utf-8")
     )["document"]
-    assert (packet / (labels["candidate"] + ".md")).read_text() == candidate
+    assert (packet / (labels["candidate"] + ".md")).read_text(encoding="utf-8") == candidate
+    # Bytes are canonical UTF-8, never platform-translated CRLF.
+    assert _documents(packet)[labels["candidate"]] == candidate.encode("utf-8")
+    assert _documents(packet)[labels["donor"]] == json.loads(
+        DONOR.read_text(encoding="utf-8")
+    )["document"].encode("utf-8")
+    assert all(b"\r\n" not in raw for raw in _documents(packet).values())
     source = json.loads((packet / "case-evidence.json").read_text())
     form = json.loads((packet / "review-form.json").read_text())
     assert source["source_scope"] == "frozen_synthetic_judit_parser_facts"
     assert source["facts"] == json.loads(EXPECTED.read_text(encoding="utf-8"))
     assert source["fixture_sha256"] == hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
+    assert evidence_bytes == (json.dumps(source, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     assert form["source_evidence_sha256"] == hashlib.sha256(evidence_bytes).hexdigest()
     assert form["source_evidence_sha256"] == mapping["source_evidence_sha256"]
     hashes = mapping["document_sha256_by_side"]
@@ -80,17 +97,17 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
         hashes[side] == hashlib.sha256(_documents(packet)[side]).hexdigest()
         for side in ("A", "B")
     )
-    with pytest.raises(FileExistsError, match="new, empty"):
-        prepare(case_id=CASE, candidate_text=candidate, destination=packet, seed=b"k" * 32)
+    with pytest.raises(FileExistsError, match="already exists|new, empty"):
+        prepare(case_id=CASE, candidate_text=candidate, destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"k" * 32)
 
 
 def test_aggregate_requires_two_independent_complete_reviews(tmp_path: Path) -> None:
     packet = tmp_path / "packet"
     prepare(
         case_id=CASE, candidate_text=DESTINATION.read_text(),
-        destination=packet, seed=b"y" * 32,
+        destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"y" * 32,
     )
-    mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
+    mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
     form = json.loads((packet / "review-form.json").read_text())
     accepted = aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=_scoring(form))
@@ -141,9 +158,10 @@ def test_review_evidence_is_mandatory_and_fail_closed(tmp_path: Path) -> None:
         case_id=CASE,
         candidate_text=DESTINATION.read_text(encoding="utf-8"),
         destination=packet,
+        private_mapping=_private_mapping_path(tmp_path),
         seed=b"a" * 32,
     )
-    mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
+    mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
     form = json.loads((packet / "review-form.json").read_text())
 
@@ -206,8 +224,8 @@ def test_review_evidence_is_mandatory_and_fail_closed(tmp_path: Path) -> None:
 def test_blinded_document_and_reference_attacks_are_rejected(tmp_path: Path) -> None:
     packet = tmp_path / "packet"
     original = DESTINATION.read_text(encoding="utf-8")
-    prepare(case_id=CASE, candidate_text=original, destination=packet, seed=b"z" * 32)
-    mapping = json.loads((packet / "PRIVATE-mapping.json").read_text())
+    prepare(case_id=CASE, candidate_text=original, destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"z" * 32)
+    mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
     form = json.loads((packet / "review-form.json").read_text())
 
@@ -274,5 +292,27 @@ def test_prepare_rejects_materially_invalid_candidate_before_creating_review(tmp
     bad = baseline.replace("Pessoa Sintética Alfa", "Parte omitida")
     packet = tmp_path / "invalid"
     with pytest.raises(ValueError, match="deterministic writing gate"):
-        prepare(case_id=CASE, candidate_text=bad, destination=packet, seed=b"z" * 32)
+        prepare(case_id=CASE, candidate_text=bad, destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"z" * 32)
     assert not packet.exists()
+
+
+
+def test_private_mapping_cannot_be_delivered_or_overwritten(tmp_path: Path) -> None:
+    candidate = DESTINATION.read_text(encoding="utf-8")
+    packet = tmp_path / "reviewer-packet"
+    with pytest.raises(ValueError, match="outside reviewer packet"):
+        prepare(
+            case_id=CASE, candidate_text=candidate, destination=packet,
+            private_mapping=packet / "PRIVATE-mapping.json", seed=b"z" * 32,
+        )
+    assert not packet.exists()
+
+    private_mapping = _private_mapping_path(tmp_path)
+    private_mapping.write_text("previous-coordinator-secret", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="already exists"):
+        prepare(
+            case_id=CASE, candidate_text=candidate, destination=packet,
+            private_mapping=private_mapping, seed=b"z" * 32,
+        )
+    assert not packet.exists()
+    assert private_mapping.read_text(encoding="utf-8") == "previous-coordinator-secret"
