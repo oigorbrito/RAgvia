@@ -366,6 +366,48 @@ Nenhuma divergência objetiva identificada.
                 "SELECT COALESCE((validation->>'passed')::boolean, false) FROM process_summaries WHERE id=$1",
                 public_done.summary_id,
             ) is True
+
+        outsider_tenant = uuid4()
+        monkeypatch.setattr(
+            app.state,
+            "bearer_tokens",
+            {"lifecycle-owner": tenant_id, "lifecycle-outsider": outsider_tenant},
+            raising=False,
+        )
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            owner_response = await client.get(
+                f"/processes/{code}",
+                headers={"Authorization": "Bearer lifecycle-owner"},
+            )
+            assert owner_response.status_code == 200
+            owner_payload = owner_response.json()
+            assert owner_payload["iaSummary"] == owner_payload["summary"]["markdown"]
+            judit_summary = owner_payload["juditSummary"]
+            assert judit_summary["response_type"] == "summary"
+            assert judit_summary["response_data"]["data"]
+            assert judit_summary["created_at"].endswith("Z")
+
+            latest_response = await client.get(
+                f"/v1/processos/{code}/resumo?format=jsx",
+                headers={"Authorization": "Bearer lifecycle-owner"},
+            )
+            assert latest_response.status_code == 200
+            latest_payload = latest_response.json()
+            assert latest_payload["iaSummary"] == owner_payload["iaSummary"]
+            assert latest_payload["juditSummary"]["response_type"] == "summary"
+
+            job_response = await client.get(
+                f"/v1/resumos/{public_request.id}",
+                headers={"Authorization": "Bearer lifecycle-owner"},
+            )
+            assert job_response.status_code == 200
+            assert job_response.json()["juditSummary"]["response_type"] == "summary"
+            assert (
+                await client.get(
+                    f"/processes/{code}",
+                    headers={"Authorization": "Bearer lifecycle-outsider"},
+                )
+            ).status_code == 404
     finally:
         await pool.close()
 

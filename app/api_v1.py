@@ -28,7 +28,8 @@ from app.datajud_jobs import (
     submit_datajud_lookup,
 )
 from app.judit import normalize_cnj
-from app.json_utils import decode_json_object, loads_strict_json
+from app.judit_summary_compat import judit_summary_item, render_judit_compatible_summary
+from app.json_utils import decode_json_list, decode_json_object, loads_strict_json
 from app.process_query_safety import classify_cnj_status, create_authorization
 from app.process_requests import request_process
 from app.processes import get_authorized_process, log_access
@@ -38,7 +39,7 @@ from app.public_lifecycle import (
     create_or_get_summary_request,
     request_fingerprint,
 )
-from app.summary_policy import is_restricted_local_summary
+from app.summary_policy import is_restricted_local_summary, restricted_public_header
 
 router = APIRouter()
 
@@ -287,7 +288,9 @@ async def _job_payload(
                p.court AS summary_process_court,
                p.header AS summary_process_header,
                p.parties AS summary_process_parties,
-               p.representatives AS summary_process_representatives
+               p.representatives AS summary_process_representatives,
+               p.subjects AS summary_process_subjects,
+               ps.created_at AS summary_created_at
         FROM public_summary_requests psr
         LEFT JOIN process_summaries ps ON ps.id = psr.summary_id
         LEFT JOIN processes p ON p.id = psr.process_id
@@ -365,6 +368,36 @@ async def _job_payload(
         if publishable and not is_secret
         else []
     )
+    compatibility_summary = None
+    if publishable and structured_output is not None:
+        process_context = {
+            "code": row["summary_process_code"],
+            "class_name": row["summary_process_class_name"],
+            "court": None if is_secret else row["summary_process_court"],
+            "header": (
+                restricted_public_header(_json_object(row["summary_process_header"]))
+                if is_secret
+                else _json_object(row["summary_process_header"])
+            ),
+            "parties": [] if is_secret else decode_json_list(row["summary_process_parties"]),
+            "representatives": [] if is_secret else decode_json_list(row["summary_process_representatives"]),
+            "subjects": [] if is_secret else decode_json_list(row["summary_process_subjects"]),
+        }
+        compatibility_text = render_judit_compatible_summary(
+            structured_output, process_context
+        )
+        compatibility_summary = judit_summary_item(
+            compatibility_text,
+            created_at=row["summary_created_at"],
+            generator=str(row["model"] or "ragvia"),
+            source_refs=[
+                str(source.get("step_id") or source.get("source_version") or source.get("id"))
+                for source in sources
+                if isinstance(source, dict)
+                and (source.get("step_id") or source.get("source_version") or source.get("id"))
+            ],
+        )
+
     payload = {
         "job_id": str(row["id"]),
         "poll_url": f"/v1/resumos/{row['id']}",
@@ -377,6 +410,7 @@ async def _job_payload(
         "validation": validation,
         "claim_evidence": public_claim_evidence,
         "format": str(row["response_format"]),
+        "juditSummary": compatibility_summary,
         "iaSummary": (
             _summary_representation(
                 markdown=row["markdown"],
@@ -463,6 +497,32 @@ async def _latest_summary_payload(
             else _public_claim_evidence(claim_evidence)
         ),
         "format": response_format,
+        "juditSummary": judit_summary_item(
+            render_judit_compatible_summary(
+                structured_output,
+                {
+                    "code": process["code"],
+                    "class_name": process["class_name"],
+                    "court": None if is_secret else process["court"],
+                    "header": (
+                        restricted_public_header(_json_object(process["header"]))
+                        if is_secret
+                        else _json_object(process["header"])
+                    ),
+                    "parties": [] if is_secret else decode_json_list(process["parties"]),
+                    "representatives": [] if is_secret else decode_json_list(process["representatives"]),
+                    "subjects": [] if is_secret else decode_json_list(process["subjects"]),
+                },
+            ),
+            created_at=summary["created_at"],
+            generator=str(summary["model"] or "ragvia"),
+            source_refs=[
+                str(source.get("step_id") or source.get("source_version") or source.get("id"))
+                for source in sources
+                if isinstance(source, dict)
+                and (source.get("step_id") or source.get("source_version") or source.get("id"))
+            ],
+        ),
         "iaSummary": _summary_representation(
             markdown=summary["markdown"],
             structured_output=summary["structured_output"],
