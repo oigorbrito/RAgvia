@@ -461,10 +461,66 @@ def test_main_replay_does_not_require_provider_credentials(
         raise AssertionError(f"unexpected replay report: {report!r}")
 
 
+def test_judit_diagnostic_requires_existing_id_and_makes_no_network_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def forbidden(*args):
+        raise AssertionError("must not access Judit without existing request id")
+
+    monkeypatch.setenv("JUDIT_API_KEY", "test-key")
+    monkeypatch.delenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", raising=False)
+    monkeypatch.setattr(smoke, "get_lawsuit_request_status", forbidden)
+
+    report = asyncio.run(smoke.diagnose_judit())
+    assert report["status"] == "blocked_missing_existing_request_id"
+    assert report["network_calls_performed"] is False
+    assert report["auth_validated"] is False
+
+
+def test_judit_diagnostic_rejects_invalid_id_without_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def forbidden(*args):
+        raise AssertionError("must reject malformed ID before provider call")
+
+    monkeypatch.setenv("JUDIT_API_KEY", "test-key")
+    monkeypatch.setenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", "not-a-uuid")
+    monkeypatch.setattr(smoke, "get_lawsuit_request_status", forbidden)
+
+    report = asyncio.run(smoke.diagnose_judit())
+    assert report["status"] == "invalid_existing_request_id"
+    assert report["network_calls_performed"] is False
+    assert report["auth_validated"] is False
+
+
+def test_judit_diagnostic_verifies_existing_request_with_one_get(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "05ee9825-b2b4-480b-b29e-f071ca7d9c72"
+    called = []
+
+    async def read_request(value):
+        called.append(value)
+        return SimpleNamespace(status="completed")
+
+    monkeypatch.setenv("JUDIT_API_KEY", "test-key")
+    monkeypatch.setenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", request_id)
+    monkeypatch.setattr(smoke, "get_lawsuit_request_status", read_request)
+
+    report = asyncio.run(smoke.diagnose_judit())
+    assert called == [request_id]
+    assert report["status"] == "ok"
+    assert report["auth_validated"] is True
+    assert report["network_call_type"] == "non_creating_existing_request_status_get"
+    assert report["request_status"] == "completed"
+    assert request_id not in str(report)
+    assert report["request_id_sha256"] == smoke._hash_identifier(request_id)
+
+
 def test_judit_diagnostic_reports_safe_http_error_without_paid_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fail():
+    async def fail(*args):
         raise smoke.JuditRequestError(
             "safe message",
             error_code="http_403",
@@ -473,20 +529,21 @@ def test_judit_diagnostic_reports_safe_http_error_without_paid_request(
         )
 
     monkeypatch.setenv("JUDIT_API_KEY", "test-key")
-    monkeypatch.setattr(smoke, "check_judit_connectivity", fail)
+    monkeypatch.setenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", "05ee9825-b2b4-480b-b29e-f071ca7d9c72")
+    monkeypatch.setattr(smoke, "get_lawsuit_request_status", fail)
 
     report = asyncio.run(smoke.diagnose_judit())
-
     assert report["status"] == "error"
     assert report["error_code"] == "http_403"
     assert report["http_status"] == 403
-    assert report["network_call_type"] == "non_creating_reachability_probe"
+    assert report["auth_validated"] is False
+    assert report["network_call_type"] == "non_creating_existing_request_status_get"
 
 
-def test_judit_diagnostic_treats_documented_bad_request_as_reachable_unverified(
+def test_judit_diagnostic_rejects_http_400_without_auth_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fail():
+    async def fail(*args):
         raise smoke.JuditRequestError(
             "safe message",
             error_code="http_400",
@@ -496,13 +553,14 @@ def test_judit_diagnostic_treats_documented_bad_request_as_reachable_unverified(
         )
 
     monkeypatch.setenv("JUDIT_API_KEY", "test-key")
-    monkeypatch.setattr(smoke, "check_judit_connectivity", fail)
+    monkeypatch.setenv("PROVIDER_ACCEPTANCE_JUDIT_REQUEST_ID", "05ee9825-b2b4-480b-b29e-f071ca7d9c72")
+    monkeypatch.setattr(smoke, "get_lawsuit_request_status", fail)
 
     report = asyncio.run(smoke.diagnose_judit())
-
-    assert report["status"] == "reachable_unverified"
+    assert report["status"] == "error"
     assert report["auth_validated"] is False
     assert report["network_calls_performed"] is True
+    assert report["provider_error_code"] == "HttpBadRequestError"
 
 
 def test_both_blocks_paid_calls_when_judit_diagnostic_fails(
