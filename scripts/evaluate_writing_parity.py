@@ -83,14 +83,58 @@ def _linked_hearing_designation(timeline: str, *, act_date: str, scheduled: str)
 
 
 def _individual_source_movements_preserved(timeline: str, movements: list[dict[str, Any]]) -> bool:
-    """Reject missing, reordered or materially changed source events."""
+    """Require a one-to-one ordered event mapping with all material source fields."""
     lines = [_text(line).strip() for line in timeline.splitlines() if line.lstrip().startswith("- ")]
     if len(lines) != len(movements):
         return False
+
+    indicators = {
+        "distribuicao": ("distribuído", "sorteio"),
+        "juizo_100_digital": ("juízo 100% digital",),
+        "remessa_interna": ("remetidos os autos",),
+        "audiencia_designada": ("audiência", "conciliação", "designada"),
+        "intimacao": ("intimação", "prazo"),
+        "ato_ordinatorio": ("ato ordinatório", "diário eletrônico"),
+        "publicacao_diario": ("disponibilizado", "djen"),
+        "juntada": ("juntada", "certidão"),
+    }
     for line, movement in zip(lines, movements, strict=True):
-        prefix = rf"^-\s+em\s+{re.escape(movement['data'])}[.,]\s+"
-        if not re.match(prefix, line) or _text(movement["texto"]).strip() not in line:
+        day = movement["data"]
+        if not re.match(rf"^-\s+em\s+{re.escape(day)}[.,]\s+", line):
             return False
+        kind = movement["tipo"]
+        if kind not in indicators or not all(token in line for token in indicators[kind]):
+            return False
+        details = movement.get("detalhes") or {}
+        if kind == "remessa_interna":
+            match = re.search(r"(unidade-[a-z])\s*->\s*(unidade-[a-z])", _text(movement["texto"]))
+            if match is None or not re.search(
+                rf"{re.escape(match.group(1))}\s*->\s*{re.escape(match.group(2))}", line
+            ):
+                return False
+        if kind == "audiencia_designada":
+            scheduled = details["data_agendada"].replace(" às ", " ")
+            if not all(value in line for value in scheduled.split()):
+                return False
+        if kind == "intimacao":
+            recipient = _text(details["destinatario"].split(" (")[0])
+            deadline = details["prazo_dias"]
+            if recipient not in line or not re.search(rf"\bprazo:\s*{deadline}\s+dias?\b", line):
+                return False
+            event = details.get("referente_evento")
+            if event is not None and not re.search(rf"\bevento\s+{event}\b", line):
+                return False
+            publication = details.get("disponibilizacao_diario")
+            if publication and publication not in line:
+                return False
+        if kind in {"ato_ordinatorio", "publicacao_diario"}:
+            original = _text(movement["texto"])
+            refs = re.search(r"refer\.\s+aos\s+eventos:\s*([\d,\s]+)", original)
+            if refs and not all(
+                re.search(rf"\b{num.strip()}\b", line)
+                for num in refs.group(1).split(",") if num.strip()
+            ):
+                return False
     return True
 
 
