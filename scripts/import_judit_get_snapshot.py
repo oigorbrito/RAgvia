@@ -85,12 +85,13 @@ def validate_snapshot(raw: bytes, *, expected_cnj: str) -> ExistingSnapshot:
             raise ValueError
     except (KeyError, ValueError, TypeError):
         raise SnapshotRejected("cnj_mismatch_or_invalid_checksum") from None
-    try:
-        secrecy = int(data["secrecy_level"])
-    except (ValueError, TypeError, KeyError):
-        raise SnapshotRejected("unknown_secrecy_level") from None
+    secrecy = data.get("secrecy_level")
+    if type(secrecy) is not int:
+        raise SnapshotRejected("unknown_secrecy_level")
     if secrecy != 0:
         raise SnapshotRejected("restricted_lawsuit")
+    if type(item.get("cached", False)) is not bool:
+        raise SnapshotRejected("ambiguous_cached_flag")
     steps = data.get("steps")
     if not isinstance(steps, list) or not all(isinstance(x, dict) for x in steps):
         raise SnapshotRejected("invalid_steps")
@@ -265,11 +266,15 @@ async def _main() -> int:
 def main() -> int:
     try:
         return asyncio.run(_main())
-    except (SnapshotRejected, OSError) as exc:
-        # Our own errors are stable codes; never echo paths/provider records.
-        print(json.dumps({"status": "blocked", "reason": (
-            str(exc) if isinstance(exc, SnapshotRejected) else "file_access_failed"
-        ), "provider_calls": 0, "claude_calls": 0}))
+    except (SnapshotRejected, OSError, asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
+        # Never echo provider records, file paths, DB URLs or SQL parameters.
+        reason = (
+            str(exc) if isinstance(exc, SnapshotRejected)
+            else "file_access_failed" if isinstance(exc, OSError)
+            else "database_operational_failure"
+        )
+        print(json.dumps({"status": "blocked", "reason": reason,
+                          "provider_calls": 0, "claude_calls": 0}))
         return 2
 
 
