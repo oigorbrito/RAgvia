@@ -16,11 +16,13 @@ estrutural de fontes.
 
 ## Sequência operacional, sem chamadas duplicadas
 
-1. Judit: executar o modo existente `diagnose` de
-   `.github/workflows/provider-live-smoke.yml` para provar conectividade
-   **sem POST**. Se autorizada uma aquisição, escolher `judit-roundtrip`
-   com um CNJ público autorizado e os secrets operacionais existentes.
-   O workflow Judit não persiste automaticamente o processo na aplicação.
+1. Judit: seguir **LIVE-06 FIRST ACQUISITION** no runbook
+   `docs/release/ragvia-live06-first-acquisition.md`.
+   `diagnose` e `judit-observe` são GET-only e exigem ID existente.
+   `judit`, `judit-roundtrip` e `live` ficam bloqueados no GitHub
+   Actions: um runner efêmero não é custódia privada e durável de IDs.
+   A primeira aquisição autorizada deve ocorrer no host privado com
+   registro persistente de tentativa anterior ao POST.
 2. Ingestão: entregar o callback legítimo ao endpoint webhook da instalação
    isolada, ou importar por `scripts/replay_judit_webhooks.py` a captura
    privada **já obtida**. Conferir correlação durável de
