@@ -75,6 +75,7 @@ def prepare(
         "candidate_commit": candidate_commit,
         "document_sha256": record["candidate_document_sha256"],
         "source_evidence_sha256": evidence_sha,
+        "fixture_sha256": record["fixture_sha256"],
         "candidate_generation_verified_live": False,
         "labels": {"donor": donor_side, "candidate": candidate_side},
     }
@@ -101,7 +102,10 @@ def prepare(
             "review_count": 0, "qualified_for_legal_quality": False}
 
 
-def aggregate(*, mapping: dict[str, Any], answers: dict[str, Any]) -> dict[str, Any]:
+def aggregate(
+    *, mapping: dict[str, Any], answers: dict[str, Any],
+    evidence_bytes: bytes,
+) -> dict[str, Any]:
     if (mapping.get("schema_version") != 1 or answers.get("schema_version") != 1
             or mapping.get("case_id") != answers.get("case_id")
             or mapping.get("blind_id") != answers.get("blind_id")):
@@ -116,6 +120,24 @@ def aggregate(*, mapping: dict[str, Any], answers: dict[str, Any]) -> dict[str, 
         or answers.get("source_evidence_sha256") != evidence_sha
     ):
         raise ValueError("blind reviews do not match frozen source-evidence digest")
+    if (
+        not isinstance(evidence_bytes, bytes)
+        or hashlib.sha256(evidence_bytes).hexdigest() != evidence_sha
+    ):
+        raise ValueError("source-evidence file bytes do not match frozen digest")
+    try:
+        source_record = json.loads(evidence_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid source-evidence JSON") from exc
+    if (
+        not isinstance(source_record, dict)
+        or source_record.get("schema_version") != 1
+        or source_record.get("case_id") != mapping["case_id"]
+        or source_record.get("source_scope") != "frozen_synthetic_judit_parser_facts"
+        or source_record.get("fixture_sha256") != mapping.get("fixture_sha256")
+        or not isinstance(source_record.get("facts"), dict)
+    ):
+        raise ValueError("source-evidence identity is inconsistent")
     reviews = answers.get("reviews")
     if not isinstance(reviews, list) or len(reviews) < 2:
         raise ValueError("at least two independent reviewers required")
@@ -218,6 +240,7 @@ def main() -> int:
     collect = modes.add_parser("aggregate")
     collect.add_argument("--mapping", type=Path, required=True)
     collect.add_argument("--answers", type=Path, required=True)
+    collect.add_argument("--source-evidence", type=Path, required=True)
     collect.add_argument("--output", type=Path, required=True)
     args = cli.parse_args()
     if args.operation == "prepare":
@@ -231,7 +254,11 @@ def main() -> int:
         return 0
     mapping = json.loads(args.mapping.read_text(encoding="utf-8"))
     answers = json.loads(args.answers.read_text(encoding="utf-8"))
-    result = aggregate(mapping=mapping, answers=answers)
+    result = aggregate(
+        mapping=mapping,
+        answers=answers,
+        evidence_bytes=args.source_evidence.read_bytes(),
+    )
     _write(args.output, result)
     print(json.dumps({
         "case_id": result["case_id"],
