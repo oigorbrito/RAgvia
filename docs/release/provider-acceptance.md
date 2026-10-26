@@ -69,6 +69,16 @@ test identifier itself is invalid.
 
 ### Judit non-creating credential diagnostic
 
+**LIVE-02 validation rule:** `reachable_unverified` (including HTTP 400
+`HttpBadRequestError`) records server reachability only, not API-key validity.
+It must **not** produce a successful `--diagnose-judit` exit status or
+authorize the combined paid Judit/DataJud request path. Only `status=ok`
+with `auth_validated=true` passes the diagnostic gate. A 400 remains
+available in sanitized JSON for investigation; neither silent PASS nor
+automatic fallback to paid POST is permitted. The workflow's two documented
+host probes can still run, but success requires independent verified
+authentication on at least one host.
+
 Before any paid `POST /requests`, validate the provisioned Judit key with the provider-documented
 connectivity check:
 

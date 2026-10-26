@@ -322,6 +322,7 @@ def test_both_live_path_runs_judit_and_datajud_in_same_acceptance(
             "network_calls_performed": True,
             "network_call_type": "non_creating_connectivity_check",
             "status": "ok",
+            "auth_validated": True,
             "latency_ms": 1.0,
         }
 
@@ -790,3 +791,84 @@ def test_main_judit_observe_does_not_require_cnj(
     assert exit_code == 0
     assert report["status"] == "observed_completed"
     assert report["post_calls"] == 0
+
+
+def test_diagnose_command_does_not_report_success_for_unverified_http_400(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json
+
+    async def unverified():
+        return {
+            "provider": "judit",
+            "status": "reachable_unverified",
+            "executed": True,
+            "network_calls_performed": True,
+            "auth_validated": False,
+            "http_status": 400,
+        }
+
+    monkeypatch.setattr(smoke, "diagnose_judit", unverified)
+    monkeypatch.setattr(sys, "argv", ["provider_live_smoke", "--diagnose-judit"])
+    assert smoke.main() == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "reachable_unverified"
+    assert report["auth_validated"] is False
+
+
+def test_diagnose_command_succeeds_only_on_verified_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json
+
+    async def verified():
+        return {
+            "provider": "judit",
+            "status": "ok",
+            "executed": True,
+            "network_calls_performed": True,
+            "auth_validated": True,
+        }
+
+    monkeypatch.setattr(smoke, "diagnose_judit", verified)
+    monkeypatch.setattr(sys, "argv", ["provider_live_smoke", "--diagnose-judit"])
+    assert smoke.main() == 0
+    assert json.loads(capsys.readouterr().out)["auth_validated"] is True
+
+
+def test_combined_mode_blocks_when_judit_is_reachable_but_unverified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called: list[str] = []
+
+    async def unverified():
+        return {
+            "status": "reachable_unverified",
+            "auth_validated": False,
+            "http_status": 400,
+            "network_calls_performed": True,
+        }
+
+    async def forbidden_judit(code: str):
+        called.append("judit")
+        raise AssertionError("unverified key must never create a Judit request")
+
+    async def forbidden_datajud(code: str):
+        called.append("datajud")
+        raise AssertionError("unverified Judit key must never start combined provider work")
+
+    monkeypatch.setenv("PROVIDER_ACCEPTANCE_AUTHORIZED", "true")
+    monkeypatch.setenv("JUDIT_ATTACHMENTS_ENABLED", "false")
+    monkeypatch.setenv("DATAJUD_ENABLED", "true")
+    monkeypatch.setenv("DATAJUD_AUTHORIZED_USE", "true")
+    monkeypatch.setenv("JUDIT_API_KEY", "synthetic-only")
+    monkeypatch.setenv("DATAJUD_API_KEY", "synthetic-only")
+    monkeypatch.setattr(smoke, "diagnose_judit", unverified)
+    monkeypatch.setattr(smoke, "_smoke_judit", forbidden_judit)
+    monkeypatch.setattr(smoke, "_smoke_datajud", forbidden_datajud)
+
+    result = asyncio.run(smoke.run_smoke("both", "0000000-00.2026.8.21.0001"))
+    assert result["status"] == "blocked_judit_diagnostic"
+    assert result["executed"] is False
+    assert result["network_calls_performed"] is False
+    assert called == []

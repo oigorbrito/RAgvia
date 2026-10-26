@@ -473,7 +473,10 @@ async def run_smoke(
             return report
 
         diagnostic = await diagnose_judit()
-        if diagnostic["status"] not in {"ok", "reachable_unverified"}:
+        # Reachability (HTTP 400) is not a validated API credential.
+        # Do not advance to any creating/paid provider request unless the
+        # non-creating probe explicitly authenticated the account.
+        if diagnostic["status"] != "ok" or diagnostic.get("auth_validated") is not True:
             return {
                 "provider": "both",
                 "executed": False,
@@ -582,7 +585,9 @@ def main() -> int:
     if args.diagnose_judit:
         report = asyncio.run(diagnose_judit())
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
-        return 0 if report["status"] in {"ok", "reachable_unverified"} else 1
+        # HTTP 400 can prove reachability, never key validity. Preserve the
+        # distinct JSON status but fail the acceptance gate until verified.
+        return 0 if report["status"] == "ok" and report.get("auth_validated") is True else 1
 
     if args.preflight_cnj:
         report = preflight_cnj(args.cnj)
