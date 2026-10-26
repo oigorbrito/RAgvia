@@ -535,7 +535,9 @@ async def _load_context(
             steps,
         )
     )
-    source_warnings.extend(_undocumented_process_acts_warning(steps))
+    source_documentary_limits = _undocumented_process_acts_warning(steps)
+    if source_documentary_limits:
+        base["source_documentary_limits"] = source_documentary_limits
     source_warnings.extend(
         datajud_conflict_warning(str(field))
         for field in base.get("_datajud_conflict_fields", [])
