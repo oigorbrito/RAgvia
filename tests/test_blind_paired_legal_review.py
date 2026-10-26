@@ -73,7 +73,7 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
     mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
     labels = mapping["labels"]
-    assert (packet / (labels["donor"] + ".md")).read_text() == json.loads(
+    assert (packet / (labels["donor"] + ".md")).read_text(encoding="utf-8") == json.loads(
         DONOR.read_text(encoding="utf-8")
     )["document"]
     assert (packet / (labels["candidate"] + ".md")).read_text(encoding="utf-8") == candidate
@@ -83,8 +83,8 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
         DONOR.read_text(encoding="utf-8")
     )["document"].encode("utf-8")
     assert all(b"\r\n" not in raw for raw in _documents(packet).values())
-    source = json.loads((packet / "case-evidence.json").read_text())
-    form = json.loads((packet / "review-form.json").read_text())
+    source = json.loads((packet / "case-evidence.json").read_text(encoding="utf-8"))
+    form = json.loads((packet / "review-form.json").read_text(encoding="utf-8"))
     assert source["source_scope"] == "frozen_synthetic_judit_parser_facts"
     assert source["facts"] == json.loads(EXPECTED.read_text(encoding="utf-8"))
     assert source["fixture_sha256"] == hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
@@ -104,12 +104,12 @@ def test_private_blind_packet_contains_exact_pair_but_never_verdict(tmp_path: Pa
 def test_aggregate_requires_two_independent_complete_reviews(tmp_path: Path) -> None:
     packet = tmp_path / "packet"
     prepare(
-        case_id=CASE, candidate_text=DESTINATION.read_text(),
+        case_id=CASE, candidate_text=DESTINATION.read_text(encoding="utf-8"),
         destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"y" * 32,
     )
     mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
-    form = json.loads((packet / "review-form.json").read_text())
+    form = json.loads((packet / "review-form.json").read_text(encoding="utf-8"))
     accepted = aggregate(mapping=mapping, evidence_bytes=evidence_bytes, documents=_documents(packet), answers=_scoring(form))
     assert accepted["independent_reviewer_count"] == 2
     assert set(accepted["per_dimension"]) == set(DIMENSIONS)
@@ -163,7 +163,7 @@ def test_review_evidence_is_mandatory_and_fail_closed(tmp_path: Path) -> None:
     )
     mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
-    form = json.loads((packet / "review-form.json").read_text())
+    form = json.loads((packet / "review-form.json").read_text(encoding="utf-8"))
 
     bad_digest = _scoring(form)
     bad_digest["source_evidence_sha256"] = "0" * 64
@@ -227,7 +227,7 @@ def test_blinded_document_and_reference_attacks_are_rejected(tmp_path: Path) -> 
     prepare(case_id=CASE, candidate_text=original, destination=packet, private_mapping=_private_mapping_path(tmp_path), seed=b"z" * 32)
     mapping = json.loads(_private_mapping_path(tmp_path).read_text(encoding="utf-8"))
     evidence_bytes = (packet / "case-evidence.json").read_bytes()
-    form = json.loads((packet / "review-form.json").read_text())
+    form = json.loads((packet / "review-form.json").read_text(encoding="utf-8"))
 
     def check(answers: dict, documents: dict[str, bytes] | None = None) -> dict:
         return aggregate(
