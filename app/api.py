@@ -417,6 +417,8 @@ async def create_process_request(code: str, request: Request) -> dict:
             action="request_process",
             metadata={"created": result.created, "authorized": bool(auth_token)},
         )
+    if result.budget_exhausted:
+        raise HTTPException(status_code=409, detail="Judit provider call budget exhausted")
     return {
         "code": canonical_code,
         "status": "available" if (process and not result.created) else "processing",

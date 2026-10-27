@@ -23,6 +23,11 @@ def _valid_values() -> dict[str, str]:
         "OPENAI_API_KEY": "openai-key",
         "JUDIT_API_KEY": "judit-api-key",
         "JUDIT_CALLBACK_URL": "https://rpy.test/webhooks/judit/judit-token",
+        "JUDIT_MAX_PROVIDER_CALLS": "100",
+        "PROVIDER_ONE_SHOT_MODE": "false",
+        "PROVIDER_MAX_ATTEMPTS": "2",
+        "PROVIDER_RETRY_BACKOFF_SECONDS": "0.25",
+        "ANTHROPIC_MODEL": "",
         "JUDIT_WEBHOOK_TOKEN": "judit-token",
         "RPY_BEARER_TOKENS": '{"tenant-token":"00000000-0000-0000-0000-000000000001"}',
         "RPY_OPS_TOKEN": "ops-token",
@@ -64,6 +69,53 @@ def _require_error(values: dict[str, str], expected: str) -> None:
 def test_valid_deploy_environment_passes() -> None:
     assert preflight.validate(_valid_values()) == []
 
+
+def test_one_shot_provider_environment_requires_single_call_and_local_support() -> None:
+    values = _valid_values()
+    values.update({
+        "JUDIT_MAX_PROVIDER_CALLS": "1",
+        "PROVIDER_ONE_SHOT_MODE": "true",
+        "PROVIDER_ONE_SHOT_RUN_ID": "APR-SYNTHETIC-RUN",
+        "PROVIDER_MAX_ATTEMPTS": "1",
+        "PROVIDER_RETRY_BACKOFF_SECONDS": "0",
+        "ANTHROPIC_MODEL": "claude-sonnet-4-6",
+        "EMBEDDING_SPACE_RUNTIME_ENABLED": "true",
+        "EMBEDDING_PROVIDER": "bge",
+        "BGE_EMBEDDING_MODEL": "BAAI/bge-m3",
+        "BGE_EMBEDDING_PATH": "/opt/rpy/models/bge-m3",
+    })
+    assert preflight.validate(values) == []
+
+
+def test_limit_one_requires_explicit_one_shot_mode() -> None:
+    values = _valid_values()
+    values["JUDIT_MAX_PROVIDER_CALLS"] = "1"
+    _require_error(values, "JUDIT_MAX_PROVIDER_CALLS=1 requires PROVIDER_ONE_SHOT_MODE=true")
+
+
+def test_one_shot_provider_environment_rejects_retry_and_external_side_paths() -> None:
+    values = _valid_values()
+    values.update({
+        "JUDIT_MAX_PROVIDER_CALLS": "2",
+        "PROVIDER_ONE_SHOT_MODE": "true",
+        "PROVIDER_MAX_ATTEMPTS": "2",
+        "PROVIDER_RETRY_BACKOFF_SECONDS": "0.25",
+        "ANTHROPIC_MODEL": "",
+        "JUDIT_ATTACHMENTS_ENABLED": "true",
+        "DATAJUD_ENABLED": "true",
+        "RERANKER_ENABLED": "true",
+        "LANGFUSE_ENABLED": "true",
+        "ALLOW_EXTERNAL_EMBEDDINGS": "true",
+        "EMBEDDING_SPACE_RUNTIME_ENABLED": "false",
+        "EMBEDDING_PROVIDER": "cohere",
+    })
+    errors = preflight.validate(values)
+    assert "PROVIDER_ONE_SHOT_MODE requires JUDIT_MAX_PROVIDER_CALLS=1" in errors
+    assert "PROVIDER_ONE_SHOT_MODE requires PROVIDER_MAX_ATTEMPTS=1" in errors
+    assert "PROVIDER_ONE_SHOT_MODE requires PROVIDER_RETRY_BACKOFF_SECONDS=0" in errors
+    assert "PROVIDER_ONE_SHOT_MODE requires the approved exact Anthropic model" in errors
+    assert "PROVIDER_ONE_SHOT_MODE requires JUDIT_ATTACHMENTS_ENABLED=false" in errors
+    assert "PROVIDER_ONE_SHOT_MODE requires local embedding-space runtime" in errors
 
 
 def test_deploy_preflight_requires_judit_callback_url() -> None:

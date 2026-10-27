@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from app.json_utils import loads_strict_json
+from app.provider_policy import provider_one_shot_mode_enabled, provider_one_shot_run_id
 from app.tasks import PermanentTaskError
 
 # Public standard global API pricing checked 2026-10-22. No batch/fast/tools.
@@ -58,6 +59,7 @@ class GenerationPermit:
     reserved_usd: Decimal
     document_sha256: str
     database_url: str = field(repr=False)
+    one_shot_run_id: str | None = None
     owner_id: UUID = field(default_factory=uuid4)
     started: bool = False
 
@@ -92,11 +94,24 @@ class GenerationPermit:
                     FROM processes p JOIN tenant_processes tp ON tp.process_id=p.id
                     WHERE p.id=$4 AND p.current_version_id=$5 AND tp.tenant_id=$3
                       AND p.secrecy_level=0 AND $9>NOW()
+                      AND (
+                          $11::text IS NULL OR EXISTS (
+                              SELECT 1
+                              FROM judit_one_shot_call_reservations j
+                              JOIN tenant_judit_requests a
+                                ON a.id=j.tenant_request_id
+                              JOIN process_versions source_version
+                                ON source_version.process_id=p.id
+                               AND source_version.id=p.current_version_id
+                               AND source_version.judit_request_id=a.judit_request_id
+                              WHERE j.run_id=$11 AND a.tenant_id=$3
+                          )
+                      )
                     ON CONFLICT (approval_id) DO NOTHING
                     RETURNING approval_id
                     """, self.approval_id, self.owner_id, self.tenant_id, self.process_id,
                     self.version_id, self.model, self.reserved_usd, self.max_messages,
-                    self.expires_at, self.document_sha256)
+                    self.expires_at, self.document_sha256, self.one_shot_run_id)
                 if accepted is None:
                     _reject()
                 self.started = True
@@ -108,9 +123,20 @@ class GenerationPermit:
                       AND expires_at>NOW()
                       AND EXISTS (SELECT 1 FROM processes p JOIN tenant_processes tp ON tp.process_id=p.id
                                   WHERE p.id=r.process_id AND p.current_version_id=r.version_id
-                                    AND p.secrecy_level=0 AND tp.tenant_id=r.tenant_id)
+                                    AND p.secrecy_level=0 AND tp.tenant_id=r.tenant_id
+                                    AND ($3::text IS NULL OR EXISTS (
+                                        SELECT 1
+                                        FROM judit_one_shot_call_reservations j
+                                        JOIN tenant_judit_requests a
+                                          ON a.id=j.tenant_request_id
+                                        JOIN process_versions source_version
+                                          ON source_version.process_id=p.id
+                                         AND source_version.id=p.current_version_id
+                                         AND source_version.judit_request_id=a.judit_request_id
+                                        WHERE j.run_id=$3 AND a.tenant_id=r.tenant_id
+                                    )))
                     RETURNING approval_id
-                    """, self.approval_id, self.owner_id)
+                    """, self.approval_id, self.owner_id, self.one_shot_run_id)
                 if accepted is None:
                     _reject()
         except (asyncpg.PostgresError, OSError, TimeoutError):
@@ -144,6 +170,11 @@ def load_generation_permit(scope: tuple[UUID, UUID, UUID | None] | None) -> Gene
                 or type(doc["max_provider_attempts"]) is not int or doc["max_provider_attempts"] != 1
                 or type(doc["max_regenerations"]) is not int or doc["max_regenerations"] not in (0, 1)):
             _reject()
+        one_shot_run_id = None
+        if provider_one_shot_mode_enabled():
+            one_shot_run_id = provider_one_shot_run_id()
+            if doc["max_regenerations"] != 0 or doc["approval_id"] != one_shot_run_id:
+                _reject()
         process_id, version_id, tenant_id = scope
         if (UUID(doc["process_id"]), UUID(doc["version_id"]), UUID(doc["tenant_id"])) != scope:
             _reject()
@@ -159,6 +190,7 @@ def load_generation_permit(scope: tuple[UUID, UUID, UUID | None] | None) -> Gene
             _reject()
         database_url = os.environ["DATABASE_URL"]
         return GenerationPermit(doc["approval_id"], model, tenant_id, process_id, version_id,
-                                expires, messages, estimate, hashlib.sha256(raw).hexdigest(), database_url)
-    except (OSError, KeyError, ValueError, TypeError):
+                                expires, messages, estimate, hashlib.sha256(raw).hexdigest(),
+                                database_url, one_shot_run_id)
+    except (OSError, KeyError, ValueError, TypeError, RuntimeError):
         _reject()

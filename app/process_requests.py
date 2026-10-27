@@ -8,7 +8,12 @@ from uuid import UUID
 import asyncpg
 
 from app.db import create_pool
-from app.judit_client import JuditRequestError, create_lawsuit_request
+from app.judit_client import (
+    JuditRequestError,
+    create_lawsuit_request,
+    reserved_judit_acquisition_call,
+)
+from app.provider_policy import provider_one_shot_mode_enabled, provider_one_shot_run_id
 from app.process_query_safety import (
     AmbiguousFailureError,
     InvalidAuthorizationError,
@@ -18,6 +23,7 @@ from app.process_query_safety import (
 from app.public_lifecycle import (
     link_summary_request_to_acquisition,
     transition_requests_for_acquisition,
+    transition_summary_request,
 )
 from app.queue import enqueue
 from app.tasks import PermanentTaskError, task
@@ -27,6 +33,25 @@ from app.tasks import PermanentTaskError, task
 class ProcessRequestResult:
     request_id: str
     created: bool
+    budget_exhausted: bool = False
+
+
+def configured_judit_provider_call_limit() -> int:
+    raw = os.getenv("JUDIT_MAX_PROVIDER_CALLS", "100").strip()
+    try:
+        limit = int(raw)
+    except ValueError as exc:
+        raise ValueError("JUDIT_MAX_PROVIDER_CALLS must be an integer from 1 to 100") from exc
+    if not 1 <= limit <= 100:
+        raise ValueError("JUDIT_MAX_PROVIDER_CALLS must be an integer from 1 to 100")
+    one_shot = provider_one_shot_mode_enabled()
+    if one_shot and limit != 1:
+        raise ValueError("PROVIDER_ONE_SHOT_MODE requires JUDIT_MAX_PROVIDER_CALLS=1")
+    if one_shot:
+        provider_one_shot_run_id()
+    if limit == 1 and not one_shot:
+        raise ValueError("JUDIT_MAX_PROVIDER_CALLS=1 requires PROVIDER_ONE_SHOT_MODE=true")
+    return limit
 
 
 async def _enqueue_acquisition(conn: asyncpg.Connection, *, request_row_id: UUID, attempt: int) -> None:
@@ -84,10 +109,12 @@ async def request_process(
     shared tenant/CNJ acquisition. Multiple public jobs can therefore reuse one
     Judit request without duplicating paid provider work.
     """
+    max_provider_calls = configured_judit_provider_call_limit()
+    one_shot_run_id = provider_one_shot_run_id()
     async with pool.acquire() as conn:
         async with conn.transaction():
             existing = await conn.fetchrow(
-                "SELECT id, judit_request_id, status, attempt_number, created_at, completed_at FROM tenant_judit_requests WHERE tenant_id=$1 AND process_code=$2 FOR UPDATE",
+                "SELECT id, judit_request_id, status, attempt_number, max_provider_calls, provider_calls_reserved, created_at, completed_at FROM tenant_judit_requests WHERE tenant_id=$1 AND process_code=$2 FOR UPDATE",
                 tenant_id,
                 code,
             )
@@ -110,6 +137,82 @@ async def request_process(
                 tenant_id,
                 code,
             )
+
+            if one_shot_run_id is not None:
+                global_reservation = await conn.fetchrow(
+                    "SELECT tenant_request_id FROM judit_one_shot_call_reservations WHERE run_id=$1",
+                    one_shot_run_id,
+                )
+                wants_new_acquisition = not process_exists or bool(authorization_token)
+                if (
+                    global_reservation is not None
+                    and wants_new_acquisition
+                    and (
+                        global_reservation["tenant_request_id"] is None
+                        or existing is None
+                        or existing["id"] != global_reservation["tenant_request_id"]
+                    )
+                ):
+                    if public_summary_request_id is not None:
+                        public_scope = await conn.fetchrow(
+                            "SELECT tenant_id, process_code FROM public_summary_requests WHERE id=$1 FOR UPDATE",
+                            public_summary_request_id,
+                        )
+                        if (
+                            public_scope is None
+                            or public_scope["tenant_id"] != tenant_id
+                            or public_scope["process_code"] != code
+                        ):
+                            raise PermanentTaskError("public summary request scope mismatch")
+                        await transition_summary_request(
+                            conn,
+                            request_id=public_summary_request_id,
+                            status="source_unavailable",
+                            error_code="provider_call_budget_exhausted",
+                        )
+                    return ProcessRequestResult(
+                        request_id="",
+                        created=False,
+                        budget_exhausted=True,
+                    )
+
+            # Never consume a refresh authorization or enqueue another Judit call
+            # after this tenant/process budget has been fully reserved.
+            if (
+                existing is not None
+                and (
+                    int(existing["provider_calls_reserved"])
+                    >= int(existing["max_provider_calls"])
+                    or (
+                        one_shot_run_id is not None
+                        and int(existing["provider_calls_reserved"]) > 0
+                    )
+                )
+                and (
+                    existing["status"] == "failed_retryable"
+                    or (process_exists and authorization_token)
+                )
+            ):
+                if public_summary_request_id is not None:
+                    await _link_public_request(
+                        conn,
+                        public_summary_request_id=public_summary_request_id,
+                        tenant_id=tenant_id,
+                        code=code,
+                        tenant_judit_request_id=existing["id"],
+                        already_fetching=bool(existing["judit_request_id"]),
+                    )
+                    await transition_requests_for_acquisition(
+                        conn,
+                        tenant_judit_request_id=existing["id"],
+                        status="source_unavailable",
+                        error_code="provider_call_budget_exhausted",
+                    )
+                return ProcessRequestResult(
+                    request_id=str(existing["judit_request_id"] or ""),
+                    created=False,
+                    budget_exhausted=True,
+                )
 
             # If an authorization token was explicitly provided, validate and consume it first
             if authorization_token:
@@ -206,18 +309,25 @@ async def request_process(
                 else:
                     row = await conn.fetchrow(
                         """
-                        INSERT INTO tenant_judit_requests (tenant_id, process_code, status, attempt_number)
-                        VALUES ($1, $2, 'processing', 1)
+                        INSERT INTO tenant_judit_requests (
+                            tenant_id, process_code, status, attempt_number, max_provider_calls
+                        )
+                        VALUES ($1, $2, 'processing', 1, $3)
                         ON CONFLICT (tenant_id, process_code) DO UPDATE
                         SET status = 'processing',
                             judit_request_id = NULL,
                             completed_at = NULL,
                             attempt_number = 1,
+                            max_provider_calls = GREATEST(
+                                tenant_judit_requests.provider_calls_reserved,
+                                LEAST(tenant_judit_requests.max_provider_calls, EXCLUDED.max_provider_calls)
+                            ),
                             created_at = NOW()
                         RETURNING id
                         """,
                         tenant_id,
                         code,
+                        max_provider_calls,
                     )
                     request_row_id = row["id"]
 
@@ -247,7 +357,11 @@ async def request_process(
                 )
 
             if existing is not None:
-                if existing["status"] == "failed_retryable" and int(existing["attempt_number"]) < 100:
+                if (
+                    existing["status"] == "failed_retryable"
+                    and int(existing["attempt_number"]) < int(existing["max_provider_calls"])
+                    and int(existing["provider_calls_reserved"]) < int(existing["max_provider_calls"])
+                ):
                     attempt = int(existing["attempt_number"]) + 1
                     await conn.execute(
                         "UPDATE tenant_judit_requests SET status='processing', attempt_number=$2 WHERE id=$1",
@@ -279,13 +393,16 @@ async def request_process(
 
             row = await conn.fetchrow(
                 """
-                INSERT INTO tenant_judit_requests (tenant_id, process_code, status, attempt_number)
-                VALUES ($1, $2, 'processing', 1)
+                INSERT INTO tenant_judit_requests (
+                    tenant_id, process_code, status, attempt_number, max_provider_calls
+                )
+                VALUES ($1, $2, 'processing', 1, $3)
                 ON CONFLICT (tenant_id, process_code) DO NOTHING
                 RETURNING id
                 """,
                 tenant_id,
                 code,
+                max_provider_calls,
             )
             if row is not None:
                 request_row_id = row["id"]
@@ -347,26 +464,94 @@ async def request_judit_process_task(payload: dict[str, Any]) -> dict[str, Any]:
     if not database_url:
         raise RuntimeError("DATABASE_URL is required")
 
+    one_shot_mode = provider_one_shot_mode_enabled()
+    one_shot_run_id = provider_one_shot_run_id()
+    if one_shot_mode:
+        configured_judit_provider_call_limit()
+
     pool = await create_pool(database_url, min_size=1, max_size=3)
     try:
+        budget_exhausted = False
+        run_budget_exhausted = False
+        request_missing = False
         async with pool.acquire() as conn:
-            request_row = await conn.fetchrow(
-                "SELECT tenant_id, process_code, judit_request_id, status FROM tenant_judit_requests WHERE id=$1",
-                tenant_request_id,
-            )
-            if request_row is not None:
-                await transition_requests_for_acquisition(
-                    conn,
-                    tenant_judit_request_id=tenant_request_id,
-                    status="fetching",
+            async with conn.transaction():
+                request_row = await conn.fetchrow(
+                    "SELECT tenant_id, process_code, judit_request_id, status, max_provider_calls, provider_calls_reserved FROM tenant_judit_requests WHERE id=$1 FOR UPDATE",
+                    tenant_request_id,
                 )
-        if request_row is None:
+                if request_row is None:
+                    request_missing = True
+                elif request_row["judit_request_id"]:
+                    return {"status": str(request_row["status"])}
+                elif request_row["status"] != "processing":
+                    return {"status": str(request_row["status"])}
+                else:
+                    if one_shot_mode and int(request_row["max_provider_calls"]) != 1:
+                        raise PermanentTaskError("Judit one-shot budget is not persisted as one")
+                    if int(request_row["provider_calls_reserved"]) >= int(request_row["max_provider_calls"]):
+                        budget_exhausted = True
+                    elif one_shot_run_id is not None:
+                        global_reservation = await conn.fetchrow(
+                            """
+                            INSERT INTO judit_one_shot_call_reservations (
+                                run_id, tenant_request_id
+                            ) VALUES ($1, $2)
+                            ON CONFLICT (run_id) DO NOTHING
+                            RETURNING run_id
+                            """,
+                            one_shot_run_id,
+                            tenant_request_id,
+                        )
+                        run_budget_exhausted = global_reservation is None
+                        if run_budget_exhausted:
+                            await conn.execute(
+                                "UPDATE tenant_judit_requests SET status='failed_retryable' WHERE id=$1 AND status='processing'",
+                                tenant_request_id,
+                            )
+                            await transition_requests_for_acquisition(
+                                conn,
+                                tenant_judit_request_id=tenant_request_id,
+                                status="source_unavailable",
+                                error_code="provider_call_budget_exhausted",
+                            )
+                    if not budget_exhausted and not run_budget_exhausted:
+                        reserved_row = await conn.fetchrow(
+                            """
+                            UPDATE tenant_judit_requests
+                            SET provider_calls_reserved = provider_calls_reserved + 1,
+                                last_provider_call_reserved_at = NOW()
+                            WHERE id = $1
+                              AND judit_request_id IS NULL
+                              AND provider_calls_reserved < max_provider_calls
+                            RETURNING tenant_id, process_code, status
+                            """,
+                            tenant_request_id,
+                        )
+                        if reserved_row is None:
+                            raise PermanentTaskError("Judit provider call reservation failed")
+                        request_row = reserved_row
+                        await transition_requests_for_acquisition(
+                            conn,
+                            tenant_judit_request_id=tenant_request_id,
+                            status="fetching",
+                        )
+        if request_missing:
             raise PermanentTaskError("tenant process request not found")
-        if request_row["judit_request_id"]:
-            return {"status": str(request_row["status"])}
+        if run_budget_exhausted:
+            return {"status": "call_budget_exhausted"}
+        if budget_exhausted:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        "UPDATE tenant_judit_requests SET status='failed_ambiguous' WHERE id=$1 AND judit_request_id IS NULL AND status='processing'",
+                        tenant_request_id,
+                    )
+            return {"status": "call_budget_exhausted"}
 
         try:
-            provider = await create_lawsuit_request(str(request_row["process_code"]))
+            with reserved_judit_acquisition_call():
+                provider = await create_lawsuit_request(str(request_row["process_code"]))
         except JuditRequestError as exc:
             failure_status = "failed_retryable" if exc.retry_safe else "failed_ambiguous"
             async with pool.acquire() as conn:

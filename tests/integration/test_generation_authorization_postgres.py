@@ -24,7 +24,7 @@ def request():
             "output_config": {"format": {"type": "json_schema", "schema": {"type": "object"}}}}
 
 
-async def setup_scope(monkeypatch, tmp_path):
+async def setup_scope(monkeypatch, tmp_path, *, one_shot_mode=False, seed_judit=False):
     assert URL
     await migrate(URL)
     conn = await asyncpg.connect(URL)
@@ -34,23 +34,48 @@ async def setup_scope(monkeypatch, tmp_path):
     serial = f"{process_id.int % 100_000_000_000:011d}"
     code = f"{serial[:7]}-00.0000.0.00.{serial[7:]}"
     await conn.execute("INSERT INTO processes(id,code) VALUES($1,$2)", process_id, code)
-    await conn.execute("INSERT INTO process_versions(id,process_id,source_request_id,finalized) VALUES($1,$2,$3,TRUE)", version_id, process_id, str(version_id))
+    judit_request_id = str(version_id)
+    await conn.execute(
+        "INSERT INTO process_versions(id,process_id,source_request_id,judit_request_id,finalized) VALUES($1,$2,$3,$4,TRUE)",
+        version_id, process_id, str(version_id), judit_request_id,
+    )
     await conn.execute("UPDATE processes SET current_version_id=$2 WHERE id=$1", process_id, version_id)
     await conn.execute("INSERT INTO tenant_processes(tenant_id,process_id) VALUES($1,$2)", tenant_id, process_id)
-    configure_approval(monkeypatch, tmp_path, (process_id, version_id, tenant_id), approval_id="APR-" + uuid4().hex.upper())
+    approval_id = "APR-" + uuid4().hex.upper()
+    if seed_judit:
+        tenant_request_id = await conn.fetchval(
+            """
+            INSERT INTO tenant_judit_requests (
+                tenant_id, process_code, judit_request_id, status, attempt_number,
+                max_provider_calls, provider_calls_reserved, last_provider_call_reserved_at
+            ) VALUES ($1,$2,$3,'completed',1,1,1,NOW()) RETURNING id
+            """,
+            tenant_id, code, judit_request_id,
+        )
+        await conn.execute(
+            "INSERT INTO judit_one_shot_call_reservations(run_id,tenant_request_id) VALUES($1,$2)",
+            approval_id, tenant_request_id,
+        )
+    configure_approval(
+        monkeypatch,
+        tmp_path,
+        (process_id, version_id, tenant_id),
+        approval_id=approval_id,
+        max_regenerations=0,
+    )
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true" if one_shot_mode else "false")
     monkeypatch.setenv("DATABASE_URL", URL)
     return conn, (process_id, version_id, tenant_id)
 
 
 async def test_concurrent_claim_retry_restart_and_expunge_do_not_renew_budget(monkeypatch, tmp_path):
-    conn, scope = await setup_scope(monkeypatch, tmp_path)
+    conn, scope = await setup_scope(monkeypatch, tmp_path, one_shot_mode=True, seed_judit=True)
     try:
         permits = [load_generation_permit(scope), load_generation_permit(scope)]
         results = await asyncio.gather(*(p.reserve_message(request()) for p in permits), return_exceptions=True)
         assert sum(result is None for result in results) == 1
         assert sum(isinstance(result, PermanentTaskError) for result in results) == 1
         winner = permits[results.index(None)]
-        await winner.reserve_message(request())
         with pytest.raises(PermanentTaskError):
             await winner.reserve_message(request())
         with pytest.raises(PermanentTaskError):
@@ -58,13 +83,86 @@ async def test_concurrent_claim_retry_restart_and_expunge_do_not_renew_budget(mo
         with pytest.raises(asyncpg.RaiseError, match="renewed or refunded"):
             await conn.execute("UPDATE anthropic_generation_reservations SET messages_reserved=1 WHERE approval_id=$1", winner.approval_id)
         await conn.execute("DELETE FROM processes WHERE id=$1", scope[0])
-        assert await conn.fetchval("SELECT messages_reserved FROM anthropic_generation_reservations WHERE approval_id=$1", winner.approval_id) == 2
+        assert await conn.fetchval("SELECT messages_reserved FROM anthropic_generation_reservations WHERE approval_id=$1", winner.approval_id) == 1
+        with pytest.raises(asyncpg.RaiseError, match="cannot be deleted"):
+            await conn.execute("DELETE FROM anthropic_generation_reservations WHERE approval_id=$1", winner.approval_id)
+    finally:
+        await conn.close()
+
+
+async def test_one_shot_run_id_cannot_authorize_a_different_judit_process(monkeypatch, tmp_path):
+    conn, original_scope = await setup_scope(
+        monkeypatch, tmp_path, one_shot_mode=True, seed_judit=True
+    )
+    run_id = os.environ["PROVIDER_ONE_SHOT_RUN_ID"]
+    other_process, other_version = uuid4(), uuid4()
+    serial = f"{other_process.int % 100_000_000_000:011d}"
+    other_code = f"{serial[:7]}-00.0000.0.00.{serial[7:]}"
+    try:
+        await conn.execute("INSERT INTO processes(id,code) VALUES($1,$2)", other_process, other_code)
+        await conn.execute(
+            "INSERT INTO process_versions(id,process_id,source_request_id,judit_request_id,finalized) VALUES($1,$2,$3,$4,TRUE)",
+            other_version, other_process, str(other_version), "unreserved-synthetic-judit-request",
+        )
+        await conn.execute("UPDATE processes SET current_version_id=$2 WHERE id=$1", other_process, other_version)
+        await conn.execute("INSERT INTO tenant_processes(tenant_id,process_id) VALUES($1,$2)", original_scope[2], other_process)
+        configure_approval(
+            monkeypatch,
+            tmp_path,
+            (other_process, other_version, original_scope[2]),
+            approval_id=run_id,
+            max_regenerations=0,
+        )
+        monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true")
+        permit = load_generation_permit((other_process, other_version, original_scope[2]))
+        with pytest.raises(PermanentTaskError):
+            await permit.reserve_message(request())
+        assert await conn.fetchval(
+            "SELECT count(*) FROM anthropic_generation_reservations WHERE approval_id=$1",
+            run_id,
+        ) == 0
+    finally:
+        await conn.close()
+
+
+async def test_one_shot_run_must_match_the_exact_current_judit_version(monkeypatch, tmp_path):
+    conn, scope = await setup_scope(monkeypatch, tmp_path, one_shot_mode=True, seed_judit=True)
+    run_id = os.environ["PROVIDER_ONE_SHOT_RUN_ID"]
+    current_version = uuid4()
+    try:
+        await conn.execute(
+            "INSERT INTO process_versions(id,process_id,source_request_id,judit_request_id,finalized) VALUES($1,$2,$3,$4,TRUE)",
+            current_version,
+            scope[0],
+            str(current_version),
+            "different-synthetic-judit-request",
+        )
+        await conn.execute(
+            "UPDATE processes SET current_version_id=$2 WHERE id=$1",
+            scope[0],
+            current_version,
+        )
+        configure_approval(
+            monkeypatch,
+            tmp_path,
+            (scope[0], current_version, scope[2]),
+            approval_id=run_id,
+            max_regenerations=0,
+        )
+        monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true")
+        permit = load_generation_permit((scope[0], current_version, scope[2]))
+        with pytest.raises(PermanentTaskError):
+            await permit.reserve_message(request())
+        assert await conn.fetchval(
+            "SELECT count(*) FROM anthropic_generation_reservations WHERE approval_id=$1",
+            run_id,
+        ) == 0
     finally:
         await conn.close()
 
 
 async def test_timeout_consumes_approval_before_network_and_restart_is_blocked(monkeypatch, tmp_path):
-    conn, scope = await setup_scope(monkeypatch, tmp_path)
+    conn, scope = await setup_scope(monkeypatch, tmp_path, one_shot_mode=True, seed_judit=True)
     calls = []
     from app import providers
     from types import SimpleNamespace
@@ -88,7 +186,7 @@ async def test_timeout_consumes_approval_before_network_and_restart_is_blocked(m
 
 
 async def test_secret_tenant_and_bad_request_never_call_sdk(monkeypatch, tmp_path):
-    conn, scope = await setup_scope(monkeypatch, tmp_path)
+    conn, scope = await setup_scope(monkeypatch, tmp_path, one_shot_mode=True, seed_judit=True)
     calls = []
     from app import providers
     from types import SimpleNamespace
