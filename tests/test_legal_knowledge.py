@@ -53,6 +53,17 @@ def test_typed_term_filter_deliberately_fixes_donor_cross_type_alias_leak():
     assert next(item for item in _resolve(class_name="JEC") if item["kind"] == "class")["id"] == "classe-436"
 
 
+def test_assunto_899_matches_audited_narrow_primary_source():
+    entry = next(item for item in load_legal_knowledge() if item.id == "assunto-899")
+    assert entry.definition == "Art. 1º Toda pessoa é capaz de direitos e deveres na ordem civil."
+    assert entry.source_ref.endswith(" — Art. 1º")
+    hits = _resolve(subjects=[{"code": "899", "name": "DIREITO CIVIL"}])
+    matched = next(item for item in hits if item["id"] == "assunto-899")
+    assert matched["definition"] == entry.definition
+    assert matched["source_ref"] == entry.source_ref
+    assert matched["definition_sha256"] == hashlib.sha256(entry.definition.encode()).hexdigest()
+
+
 def test_code_precedence_does_not_add_a_second_name_matched_definition():
     resolved = _resolve(subjects=[{"code": "14033", "name": "RESPONSABILIDADE CIVIL"}])
     assert [item["id"] for item in resolved if item["kind"] == "subject"] == ["assunto-14033"]

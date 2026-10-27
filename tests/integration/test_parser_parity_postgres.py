@@ -120,6 +120,13 @@ async def test_parser_annotations_survive_ingestion_but_never_cross_provider_bou
             assert body["summary"]["validation"]["passed"] is True
             assert body["summary"]["model"] == PROPOSED_MODEL
             assert body["iaSummary"] == body["summary"]["markdown"]
+            compatibility = body["juditSummary"]
+            assert compatibility["response_type"] == "summary"
+            assert compatibility["response_data"]["data"]
+            assert compatibility["response_data"]["origin"] == "response"
+            assert compatibility["created_at"].endswith("Z")
+            assert "## Representantes" in compatibility["response_data"]["data"][0]
+            assert "OAB/PR" not in compatibility["response_data"]["data"][0]
             assert "03/03/2027" in body["iaSummary"]
             assert (
                 "Há parte passiva sem representante normalizado e sem citação explícita"

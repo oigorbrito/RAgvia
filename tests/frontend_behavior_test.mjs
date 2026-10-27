@@ -393,13 +393,21 @@ await scenario("published iaSummary string is rendered and copied as readable te
   ].join("\n");
   const ui = createHarness([
     jsonResponse(200, { classification: "read_existing", process_exists: true }),
-    jsonResponse(200, readyPayload({ summary: null, iaSummary: markdown })),
+    jsonResponse(200, readyPayload({
+      summary: null,
+      iaSummary: markdown,
+      juditSummary: {
+        response_type: "summary",
+        response_data: { data: ["compatibility envelope text"] },
+      },
+    })),
   ]);
 
   await ui.search();
   await ui.click("open-existing-history");
 
   assert.ok(ui.elements["summary-body"].renderedText.includes("A audiência foi designada"));
+  assert.doesNotMatch(ui.elements["summary-body"].renderedText, /compatibility envelope text/);
   assert.equal(ui.elements["result"].hidden, false, "iaSummary-only response must complete result rendering");
   assert.notEqual(ui.elements["status-title"].textContent, "Sem conexão com o serviço", "a rendering TypeError must not be treated as network failure");
   assert.equal(ui.elements["copy-summary"].hidden, false);

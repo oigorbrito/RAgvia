@@ -31,6 +31,7 @@ from app.http_auth_config import validate_http_auth_config
 from app.http_limits import InboundPostBodyLimitMiddleware, judit_webhook_max_body_bytes
 from app.json_utils import decode_json_object, loads_strict_json
 from app.judit import normalize_cnj, parse_event
+from app.judit_summary_compat import judit_summary_item, render_judit_compatible_summary
 from app.judit_client import JuditRequestError
 from app.observability import (
     collect_operational_metrics,
@@ -614,7 +615,33 @@ async def get_process_summary(code: str, request: Request) -> dict:
             )
 
     summary_data = dict(summary) if summary else None
+    judit_summary = None
     if summary_data is not None:
+        if summary_data.get("structured_output") is not None:
+            structured_output = decode_json_object(
+                summary_data["structured_output"], label="summary structured output"
+            )
+            process_context = {
+                "code": process["code"],
+                "class_name": process["class_name"],
+                "court": None if is_restricted else process["court"],
+                "header": (
+                    restricted_public_header(_json_value(process["header"], fallback={}))
+                    if is_restricted
+                    else _json_value(process["header"], fallback={})
+                ),
+                "parties": [] if is_restricted else _json_value(process["parties"], fallback=[]),
+                "representatives": [] if is_restricted else _json_value(process["representatives"], fallback=[]),
+                "subjects": [] if is_restricted else _json_value(process["subjects"], fallback=[]),
+            }
+            compatibility_text = render_judit_compatible_summary(
+                structured_output, process_context
+            )
+            judit_summary = judit_summary_item(
+                compatibility_text,
+                created_at=summary_data["created_at"],
+                generator=str(summary_data.get("model") or "ragvia"),
+            )
         summary_data.pop("id", None)
         summary_data.pop("structured_output", None)
         summary_data["validation"] = decode_json_object(
@@ -644,6 +671,7 @@ async def get_process_summary(code: str, request: Request) -> dict:
         "summary_status": _summary_status(summary_data, summary_job_status, cached_response),
         "summary": summary_data,
         "iaSummary": ia_summary,
+        "juditSummary": judit_summary,
         "recent_steps": [dict(step) for step in steps],
     }
 

@@ -36,6 +36,7 @@ Response fields include:
 - `validation`;
 - `format`;
 - `iaSummary`;
+- `juditSummary`;
 - `error_code`.
 
 A newly accepted request normally starts as `queued` and returns HTTP `202`.
@@ -76,9 +77,15 @@ When a valid summary exists, `usage` exposes only local persisted generation met
 
 `validation` is the persisted post-generation validation envelope. `iaSummary` is populated only when that validation passed. The frontend renders the JSX/Markdown string from `iaSummary` when the legacy nested `summary.markdown` field is absent; it deliberately does not interpret structured JSON `iaSummary` as Markdown.
 
+`juditSummary` is an additive compatibility projection of that same validated, RAGVIA-owned summary. When publishable, it contains a Judit-shaped item with `response_type: "summary"` and the deterministic, escaped `summary_ia` string at `response_data.data[0]`. Its timestamp and generator metadata come from the persisted summary; source references are limited to the already-public source identifiers. `origin_id` is `null` because RAGVIA did not receive this generated item from a Judit response. This field does not ingest, copy, or publish the external Judit `response_type=summary`, and does not trigger a Judit network request. It is null when no valid summary is publishable. Tenant authorization and secret-case minimization are identical to `iaSummary`.
+
 `format=jsx` is the default and returns the deterministic Markdown/allowlisted-JSX document in `iaSummary`. `format=json` returns the persisted structured representation built from the same validated provider payload and normalized process identity. Selecting JSON does not invoke the model again and does not parse the rendered JSX. The JSON representation is versioned with `schema_version`; its top-level fields are `process` and `summary`. Schema version 3 adds the allowlisted `process.representatives` projection. Version 2 documents remain readable as legacy records and may omit that property; new version 3 documents require it (an empty list means no representative was recorded).
 
-The selected format participates in the normalized idempotency fingerprint and is stored with the public request. Polling `GET /v1/resumos/{job_id}` therefore keeps the representation chosen when the job was created. `GET /v1/processos/{cnj}/resumo` also accepts `?format=jsx|json` for representation selection of an already validated summary.
+The selected format participates in the normalized idempotency fingerprint and is stored with the public request. Polling `GET /v1/resumos/{job_id}` therefore keeps the representation chosen when the job was created. `GET /v1/processos/{cnj}/resumo` also accepts `?format=jsx|json` for representation selection of an already validated summary. The `juditSummary` compatibility projection is additional and does not replace or change either `iaSummary` representation.
+
+## Legacy process response compatibility
+
+The existing tenant-authorized `GET /processes/{cnj}` response also exposes the optional `juditSummary` projection while preserving `iaSummary` byte-for-byte as the persisted Markdown string. Both projections are assembled only after the existing publication check; the compatibility item is an output representation, not a new Judit ingestion or delivery path.
 
 ## Health and metrics equivalence
 
