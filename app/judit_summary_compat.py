@@ -4,6 +4,7 @@ import html
 from datetime import datetime, timezone
 from typing import Any
 
+from app.judit import _parse_datetime
 from app.summary_output import (
     _HEADER_FIELDS,
     CONDITIONAL_SUMMARY_FIELDS,
@@ -15,6 +16,14 @@ from app.summary_output import (
 
 def _text(value: Any) -> str:
     return html.escape(str(value or "").strip(), quote=False)
+
+
+def _header_text(key: str, value: Any) -> str:
+    if key == "distribution_date":
+        parsed = _parse_datetime(value)
+        if parsed is not None:
+            return html.escape(parsed.strftime("%d/%m/%Y"), quote=False)
+    return _text(value)
 
 
 def _list_markup(values: list[Any]) -> list[str]:
@@ -55,19 +64,20 @@ def render_judit_compatible_summary(
     summary = structured_output["summary"]
     process = structured_summary_process(context)
     lines = ["# Resumo do processo", "", "<ul className=\"summary-process-header\">"]
-    identity_fields = [("Processo", process["cnj"])]
+    identity_fields = [("cnj", "Processo", process["cnj"])]
     if process["class_name"]:
-        identity_fields.append(("Classe", process["class_name"]))
+        identity_fields.append(("class_name", "Classe", process["class_name"]))
     if process["court"]:
-        identity_fields.append(("Tribunal", process["court"]))
+        identity_fields.append(("court", "Tribunal", process["court"]))
     identity_fields.extend(
-        (label, process["header"][key])
+        (key, label, process["header"][key])
         for key, label in _HEADER_FIELDS
         if process["header"].get(key) is not None
     )
     lines.extend(
-        f'<li className="summary-header-field"><strong>{_text(label)}:</strong> {_text(value)}</li>'
-        for label, value in identity_fields
+        f'<li className="summary-header-field"><strong>{_text(label)}:</strong> '
+        f'{_header_text(key, value)}</li>'
+        for key, label, value in identity_fields
     )
     lines.extend(["</ul>", ""])
     synthesis = str(summary["synthesis"])

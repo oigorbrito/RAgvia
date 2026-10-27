@@ -14,7 +14,7 @@ def _context():
         "code": "0000000-00.2026.8.21.0001",
         "class_name": "Procedimento Comum",
         "court": "TJRS",
-        "header": {"instance": 1},
+        "header": {"instance": 1, "distribution_date": "2026-10-26T00:30:00Z"},
         "parties": [
             {"name": "Parte <Alfa>", "side": "active", "masked_person_id": "***.***.***-01"}
         ],
@@ -47,6 +47,7 @@ def test_compatibility_renderer_uses_canonical_document_and_keeps_people_separat
     assert 'className="summary-process-header"' in rendered
     assert "<strong>Processo:</strong> 0000000-00.2026.8.21.0001" in rendered
     assert "<strong>Tribunal:</strong> TJRS" in rendered
+    assert "<strong>Data de distribuição registrada:</strong> 25/10/2026" in rendered
     assert "## Partes" in rendered
     assert "## Representantes" in rendered
     assert "## Movimentações" in rendered

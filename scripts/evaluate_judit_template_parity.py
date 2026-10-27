@@ -11,10 +11,12 @@ import asyncio
 import hashlib
 import html
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from app.claim_evidence import build_material_claims, process_evidence_ref
@@ -28,6 +30,7 @@ from app.rag import (
     _passive_party_attention_warnings,
     _prompt_json,
     _provider_payload,
+    _retrieve_supplemental_knowledge,
     _serialize_steps,
     summary_volume_instruction,
     _source_step_gap_warnings,
@@ -39,8 +42,7 @@ from app.retrieval import Step
 from app.summary_output import render_structured_summary, structured_summary_document
 from app.tpu_glossary import (
     get_tpu_catalog,
-    load_legal_knowledge,
-    resolve_legal_knowledge,
+    normalize_legal_term,
     resolve_process_tpu_definitions,
 )
 
@@ -73,6 +75,94 @@ def _working_tree_evidence(root: Path) -> dict[str, object]:
         "dirty_paths": paths,
         "dirty_file_sha256": file_hashes,
         "tracked_diff_sha256": hashlib.sha256(diff).hexdigest(),
+    }
+
+
+def _knowledge_differential(
+    donor_kb: Any,
+    donor_context: dict[str, list[Any]],
+    official_definitions: list[Any],
+    ragvia_entries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    donor_entries = {str(item["id"]): item for item in donor_kb.entradas}
+    donor_selected = []
+    for group, chunks in donor_context.items():
+        for chunk in chunks:
+            entry = donor_entries[chunk.id]
+            aliases = [str(value) for value in entry.get("sinonimos", [])]
+            identities = {normalize_legal_term(chunk.termo)}
+            identities.update(normalize_legal_term(value) for value in aliases)
+            matches = []
+            target_kind = {
+                "classe": "class", "assunto": "subject",
+                "movimento": "movement", "conceito": "concept",
+            }.get(chunk.tipo)
+            for candidate in ragvia_entries:
+                candidate_terms = {
+                    normalize_legal_term(str(candidate.get("name") or "")),
+                    *(normalize_legal_term(str(value)) for value in candidate.get("aliases", [])),
+                }
+                same_code = (
+                    entry.get("codigo") is not None
+                    and str(entry.get("codigo")).strip() == str(candidate.get("code") or "").strip()
+                )
+                if candidate.get("kind") == target_kind and (same_code or identities & candidate_terms):
+                    matches.append(str(candidate["id"]))
+            donor_selected.append({
+                "id": chunk.id,
+                "kind": chunk.tipo,
+                "match_method": chunk.origem,
+                "score": chunk.score,
+                "text_sha256": _hash(chunk.texto),
+                "identity_matches": sorted(set(matches)),
+                "context_group": group,
+            })
+    ragvia_selected = []
+    for item in ragvia_entries:
+        donor_matches = [
+            selected["id"] for selected in donor_selected
+            if item["id"] in selected["identity_matches"]
+        ]
+        ragvia_selected.append({
+            "id": str(item["id"]),
+            "kind": str(item["kind"]),
+            "match_method": str(item["match_method"]),
+            "source_document": str(item["source_document"]),
+            "source_ref": str(item["source_ref"]),
+            "definition_sha256": str(item["definition_sha256"]),
+            "donor_identity_matches": sorted(set(donor_matches)),
+        })
+    donor_source_refs = sum(
+        bool(entry.get("source_ref") or entry.get("source") or entry.get("source_document"))
+        for entry in donor_kb.entradas
+    )
+    return {
+        "retrieved_counts_by_kind": {
+            "donor": {
+                kind: sum(item["kind"] == kind for item in donor_selected)
+                for kind in ("classe", "assunto", "movimento", "conceito")
+            },
+            "ragvia": {
+                kind: sum(item["kind"] == kind for item in ragvia_entries)
+                for kind in ("class", "subject", "movement", "concept")
+            },
+        },
+        "donor_match_methods": {
+            method: sum(item["match_method"] == method for item in donor_selected)
+            for method in ("codigo", "termo", "semantica")
+        },
+        "ragvia_match_methods": {
+            method: sum(item["match_method"] == method for item in ragvia_entries)
+            for method in ("code", "term", "semantic_bge")
+        },
+        "donor_entries_with_identified_sources": donor_source_refs,
+        "ragvia_entries_with_identified_sources": sum(bool(item.get("source_ref")) for item in ragvia_entries),
+        "official_tpu_definition_count": len(official_definitions),
+        "shared_identity_count": sum(bool(item["identity_matches"]) for item in donor_selected),
+        "donor_only_ids": sorted(item["id"] for item in donor_selected if not item["identity_matches"]),
+        "ragvia_only_ids": sorted(str(item["id"]) for item in ragvia_selected if not item["donor_identity_matches"]),
+        "donor_selected": donor_selected,
+        "ragvia_selected": ragvia_selected,
     }
 
 
@@ -164,13 +254,8 @@ async def _ragvia_result(document: dict):
     )
     if definitions:
         context["tpu_glossary"] = [item.as_context() for item in definitions]
-    context["legal_knowledge"] = resolve_legal_knowledge(
-        class_code=context["header"].get("class_code"),
-        class_name=context["class_name"],
-        subjects=context["subjects"],
-        movements=context["steps"],
-        catalog=catalog,
-        entries=load_legal_knowledge(),
+    context["legal_knowledge"], _ = await _retrieve_supplemental_knowledge(
+        None, context=context, steps=context["steps"]
     )
 
     serialized_steps = context["steps"]
@@ -237,6 +322,7 @@ def main() -> int:
     parser.add_argument("--donor-root", type=Path, required=True)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
+    os.environ["EMBEDDING_SPACE_RUNTIME_ENABLED"] = "false"
     raw_bytes = args.capture.read_bytes()
     capture = json.loads(raw_bytes)
     documents = extract_lawsuit_processes(capture)
@@ -297,6 +383,20 @@ def main() -> int:
         ["git", "-C", str(target_root), "rev-parse", "HEAD"],
         check=True, capture_output=True, text=True,
     ).stdout.strip()
+    donor_primary_class = donor_facts.classes[0] if donor_facts.classes else None
+    ragvia_subject_keys = {
+        (normalize_legal_term(str(item.get("name") or "")), str(item.get("code") or ""))
+        for item in fields.get("subjects", []) if isinstance(item, dict)
+    }
+    donor_subject_keys = {
+        (normalize_legal_term(item.nome), str(item.codigo or ""))
+        for item in donor_facts.assuntos
+    }
+    same_primary_class = bool(
+        donor_primary_class
+        and normalize_legal_term(donor_primary_class.nome) == normalize_legal_term(str(fields.get("class_name") or ""))
+        and str(donor_primary_class.codigo or "") == str(context.get("header", {}).get("class_code") or "")
+    )
     donor_dates = set(re.findall(r"\b\d{2}/\d{2}/\d{4}\b", donor_text))
     ragvia_dates = set(re.findall(r"\b\d{2}/\d{2}/\d{4}\b", compat))
     donor_actor_names = [party.nome for party in donor_facts.partes]
@@ -332,6 +432,26 @@ def main() -> int:
             "attachments": len(documents[0].get("attachments") or []),
             "secret": bool(context["secrecy_level"]),
         },
+        "normalized_knowledge_inputs": {
+            "donor_classifications": len(donor_facts.classes),
+            "ragvia_classification_records": len(documents[0].get("classifications") or []),
+            "ragvia_primary_class_matches_donor": same_primary_class,
+            "donor_subjects": len(donor_subject_keys),
+            "ragvia_subjects": len(ragvia_subject_keys),
+            "subject_name_code_sets_match": donor_subject_keys == ragvia_subject_keys,
+            "donor_movements": len(donor_facts.movimentos),
+            "ragvia_movements": len(fields["steps"]),
+            "all_movement_kinds_dates_and_lexical_details_aligned": (
+                len(aligned_events) == 13
+                and all(annotation is not None and donor.tipo == annotation.get("kind")
+                        and donor.data == annotation.get("date_label")
+                        and donor.detalhes == annotation.get("details")
+                        for donor, annotation in aligned_events)
+            ),
+        },
+        "knowledge_retrieval": _knowledge_differential(
+            donor_kb, donor_context, definitions, knowledge
+        ),
         "knowledge": {
             "donor_entries": len(getattr(donor_kb, "entradas", [])),
             "donor_retrieved_chunks": sum(len(values) for values in donor_context.values()),
