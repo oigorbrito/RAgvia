@@ -28,6 +28,10 @@ REQUIRED_KEYS = (
     "ANTHROPIC_API_KEY",
     "JUDIT_API_KEY",
     "JUDIT_CALLBACK_URL",
+    "JUDIT_MAX_PROVIDER_CALLS",
+    "PROVIDER_ONE_SHOT_MODE",
+    "PROVIDER_MAX_ATTEMPTS",
+    "PROVIDER_RETRY_BACKOFF_SECONDS",
     "JUDIT_WEBHOOK_TOKEN",
     "RPY_BEARER_TOKENS",
     "RPY_OPS_TOKEN",
@@ -40,6 +44,7 @@ BGE_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 COHERE_RERANKER_MODEL = "rerank-v4.0-pro"
 LANGFUSE_ENVIRONMENT_RE = re.compile(r"^(?!langfuse)[a-z0-9_-]{1,40}$")
 EGRESS_HOST_RE = re.compile(r"^[a-z0-9.-]{1,253}$")
+PROVIDER_ONE_SHOT_RUN_ID_RE = re.compile(r"^[A-Z][A-Z0-9-]{5,95}$")
 _BASE_EGRESS_HOSTS = {
     "api.anthropic.com",
     "requests.prod.judit.io",
@@ -186,6 +191,63 @@ def _bool_value(values: dict[str, str], key: str, default: bool = False) -> bool
         return False
     raise ValueError(f"{key} must be a boolean")
 
+
+
+def _validate_one_shot_provider_policy(values: dict[str, str], errors: list[str]) -> None:
+    try:
+        enabled = _bool_value(values, "PROVIDER_ONE_SHOT_MODE", False)
+    except ValueError as exc:
+        errors.append(str(exc))
+        return
+    raw_limit = str(values.get("JUDIT_MAX_PROVIDER_CALLS") or "").strip()
+    try:
+        parsed_limit = int(raw_limit)
+        if not 1 <= parsed_limit <= 100:
+            raise ValueError
+    except ValueError:
+        errors.append("JUDIT_MAX_PROVIDER_CALLS must be an integer from 1 to 100")
+        return
+    if not enabled:
+        if raw_limit == "1":
+            errors.append("JUDIT_MAX_PROVIDER_CALLS=1 requires PROVIDER_ONE_SHOT_MODE=true")
+        return
+
+    run_id = str(values.get("PROVIDER_ONE_SHOT_RUN_ID") or "").strip()
+    if not PROVIDER_ONE_SHOT_RUN_ID_RE.fullmatch(run_id):
+        errors.append("PROVIDER_ONE_SHOT_MODE requires a valid PROVIDER_ONE_SHOT_RUN_ID")
+    if raw_limit != "1":
+        errors.append("PROVIDER_ONE_SHOT_MODE requires JUDIT_MAX_PROVIDER_CALLS=1")
+    if str(values.get("PROVIDER_MAX_ATTEMPTS") or "").strip() != "1":
+        errors.append("PROVIDER_ONE_SHOT_MODE requires PROVIDER_MAX_ATTEMPTS=1")
+    try:
+        retry_backoff = float(str(values.get("PROVIDER_RETRY_BACKOFF_SECONDS") or ""))
+    except ValueError:
+        retry_backoff = math.nan
+    if not math.isfinite(retry_backoff) or retry_backoff != 0:
+        errors.append("PROVIDER_ONE_SHOT_MODE requires PROVIDER_RETRY_BACKOFF_SECONDS=0")
+    if str(values.get("ANTHROPIC_MODEL") or "").strip() != "claude-sonnet-4-6":
+        errors.append("PROVIDER_ONE_SHOT_MODE requires the approved exact Anthropic model")
+
+    blocked_options = (
+        ("JUDIT_ATTACHMENTS_ENABLED", False),
+        ("DATAJUD_ENABLED", False),
+        ("RERANKER_ENABLED", False),
+        ("LANGFUSE_ENABLED", False),
+        ("ALLOW_EXTERNAL_EMBEDDINGS", False),
+    )
+    for key, expected in blocked_options:
+        try:
+            if _bool_value(values, key, expected) is not expected:
+                errors.append(f"PROVIDER_ONE_SHOT_MODE requires {key}={str(expected).lower()}")
+        except ValueError as exc:
+            errors.append(str(exc))
+    try:
+        if not _bool_value(values, "EMBEDDING_SPACE_RUNTIME_ENABLED", False):
+            errors.append("PROVIDER_ONE_SHOT_MODE requires local embedding-space runtime")
+        if str(values.get("EMBEDDING_PROVIDER") or "").strip().lower() != "bge":
+            errors.append("PROVIDER_ONE_SHOT_MODE requires the local BGE embedding provider")
+    except ValueError as exc:
+        errors.append(str(exc))
 
 
 def _validate_positive_numeric(
@@ -511,6 +573,7 @@ def validate(values: dict[str, str]) -> list[str]:
         non_positive_message="JUDIT_WEBHOOK_MAX_BODY_BYTES must be greater than zero",
     )
     _validate_attachment_ocr(values, errors)
+    _validate_one_shot_provider_policy(values, errors)
     _validate_embedding_runtime(values, errors)
     _validate_reranker(values, errors)
     _validate_judit_callback(values, errors)

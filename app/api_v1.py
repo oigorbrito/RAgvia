@@ -606,13 +606,15 @@ async def create_summary_job(request: Request):
         )
         if auth_token:
             auth_token = str(auth_token).strip()
-        await request_process(
+        acquisition_result = await request_process(
             pool,
             tenant_id=principal.tenant_id,
             code=code,
             public_summary_request_id=public_request.id,
             authorization_token=auth_token,
         )
+    else:
+        acquisition_result = None
 
     async with pool.acquire() as conn:
         loaded = await _job_payload(
@@ -631,6 +633,8 @@ async def create_summary_job(request: Request):
             action="v1_create_summary",
             metadata={"created": created},
         )
+    if acquisition_result is not None and acquisition_result.budget_exhausted:
+        raise HTTPException(status_code=409, detail="Judit provider call budget exhausted")
     return _response(payload, principal=principal, status_code=202)
 
 

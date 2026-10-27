@@ -32,12 +32,37 @@ def configure_approval(monkeypatch, tmp_path, scope=SCOPE, **changes):
     document = dict(approval_document(scope), **changes)
     path = tmp_path / "synthetic-approval.json"
     path.write_text(json.dumps(document), encoding="utf-8")
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "false")
     monkeypatch.setenv("ANTHROPIC_PAID_ENABLED", "true")
     monkeypatch.setenv("ANTHROPIC_APPROVAL_FILE", str(path))
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_RUN_ID", document["approval_id"])
     monkeypatch.setenv("ANTHROPIC_MODEL", PROPOSED_MODEL)
     monkeypatch.setenv("PROVIDER_MAX_ATTEMPTS", "1")
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused-synthetic-scope")
     return document
+
+
+def test_one_shot_mode_rejects_regeneration_allowance_before_sdk(monkeypatch, tmp_path):
+    configure_approval(monkeypatch, tmp_path, max_regenerations=1)
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true")
+    def forbidden_sdk(**kwargs):
+        pytest.fail("one-shot approval with regeneration must not construct the SDK")
+    monkeypatch.setattr(providers.anthropic, "AsyncAnthropic", forbidden_sdk)
+    with pytest.raises(PermanentTaskError, match="preauthorization"):
+        providers.anthropic_client("synthetic-placeholder", authorization_scope=SCOPE)
+
+
+def test_one_shot_mode_binds_approval_to_durable_run_id(monkeypatch, tmp_path):
+    configure_approval(monkeypatch, tmp_path, max_regenerations=0)
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true")
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_RUN_ID", "APR-DIFFERENT-SYNTHETIC-RUN")
+    monkeypatch.setattr(
+        providers.anthropic,
+        "AsyncAnthropic",
+        lambda **kwargs: pytest.fail("mismatched run ID must block SDK construction"),
+    )
+    with pytest.raises(PermanentTaskError, match="preauthorization"):
+        providers.anthropic_client("synthetic-placeholder", authorization_scope=SCOPE)
 
 
 def test_default_cannot_even_construct_sdk(monkeypatch):

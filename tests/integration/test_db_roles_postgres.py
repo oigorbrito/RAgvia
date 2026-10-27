@@ -98,6 +98,12 @@ async def test_runtime_database_roles_are_least_privilege(monkeypatch: pytest.Mo
             "SELECT has_table_privilege('rpy_api', 'tenant_judit_request_history', 'SELECT,INSERT')"
         )
         assert await admin.fetchval(
+            "SELECT has_table_privilege('rpy_api', 'judit_one_shot_call_reservations', 'SELECT')"
+        )
+        assert not await admin.fetchval(
+            "SELECT has_table_privilege('rpy_api', 'judit_one_shot_call_reservations', 'INSERT,UPDATE,DELETE')"
+        )
+        assert await admin.fetchval(
             "SELECT has_table_privilege('rpy_api', 'judit_tracking_refreshes', 'SELECT')"
         )
         assert not await admin.fetchval(
@@ -235,6 +241,8 @@ async def test_runtime_database_roles_are_least_privilege(monkeypatch: pytest.Mo
         for role in ("rpy_api", "rpy_scheduler"):
             assert not await admin.fetchval("SELECT has_table_privilege($1, 'anthropic_generation_reservations', 'INSERT')", role)
         assert await admin.fetchval("SELECT has_table_privilege('rpy_worker', 'anthropic_generation_reservations', 'SELECT,INSERT')")
+        assert await admin.fetchval("SELECT has_table_privilege('rpy_worker', 'judit_one_shot_call_reservations', 'SELECT,INSERT')")
+        assert not await admin.fetchval("SELECT has_table_privilege('rpy_worker', 'judit_one_shot_call_reservations', 'UPDATE,DELETE')")
         assert await admin.fetchval("SELECT has_column_privilege('rpy_worker', 'anthropic_generation_reservations', 'messages_reserved', 'UPDATE')")
         assert not await admin.fetchval("SELECT has_column_privilege('rpy_worker', 'anthropic_generation_reservations', 'reserved_usd', 'UPDATE')")
         assert not await admin.fetchval("SELECT has_table_privilege('rpy_worker', 'anthropic_generation_reservations', 'DELETE')")

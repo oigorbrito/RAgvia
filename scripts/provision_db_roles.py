@@ -26,6 +26,7 @@ API_READ_TABLES = (
     "process_summary_glossary_sources",
     "tenant_processes",
     "tenant_judit_requests",
+    "judit_one_shot_call_reservations",
     "public_summary_requests",
     "judit_trackings",
     "judit_tracking_refreshes",
@@ -119,6 +120,7 @@ async def provision(database_url: str) -> None:
             worker = _quote_ident("rpy_worker")
             await conn.execute(f"GRANT SELECT, INSERT, UPDATE ON jobs TO {worker}")
             await conn.execute(f"GRANT SELECT, INSERT ON anthropic_generation_reservations TO {worker}")
+            await conn.execute(f"GRANT SELECT, INSERT ON judit_one_shot_call_reservations TO {worker}")
             await conn.execute(f"GRANT UPDATE (messages_reserved) ON anthropic_generation_reservations TO {worker}")
             await conn.execute(f"GRANT SELECT, UPDATE ON processes, process_versions TO {worker}")
             await conn.execute(

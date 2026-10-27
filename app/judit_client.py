@@ -8,10 +8,13 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
 from app.json_utils import loads_strict_json
+from app.provider_policy import provider_one_shot_mode_enabled, provider_one_shot_run_id
 
 JUDIT_REQUESTS_BASE_URL = "https://requests.prod.judit.io"
 JUDIT_REQUESTS_COMPAT_BASE_URL = "https://requests.production.judit.io"
@@ -20,6 +23,16 @@ JUDIT_TRACKING_URL = "https://tracking.production.judit.io/tracking"
 JUDIT_LAWSUITS_URL = "https://lawsuits.production.judit.io/lawsuits"
 _MAX_RESPONSE_BYTES = 262144
 _DEFAULT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+
+@dataclass
+class _ReservedAcquisitionCall:
+    consumed: bool = False
+
+
+_RESERVED_ACQUISITION_CALL: ContextVar[_ReservedAcquisitionCall | None] = ContextVar(
+    "judit_reserved_acquisition_call", default=None
+)
 
 
 class JuditRequestError(RuntimeError):
@@ -76,6 +89,42 @@ class JuditResponsesResult:
 class JuditAttachmentDownload:
     content_type: str
     data: bytes
+
+
+@contextmanager
+def reserved_judit_acquisition_call():
+    """Allow one `/requests/` POST after the caller durably reserves it in PostgreSQL."""
+    permit = _ReservedAcquisitionCall()
+    token = _RESERVED_ACQUISITION_CALL.set(permit)
+    try:
+        yield
+    finally:
+        _RESERVED_ACQUISITION_CALL.reset(token)
+
+
+def _enforce_one_shot_provider_boundary(url: str, method: str) -> None:
+    if not provider_one_shot_mode_enabled():
+        return
+    provider_one_shot_run_id()
+    parsed = urllib.parse.urlsplit(url)
+    permit = _RESERVED_ACQUISITION_CALL.get()
+    if (
+        method.upper() == "POST"
+        and parsed.hostname in {"requests.prod.judit.io", "requests.production.judit.io"}
+        and parsed.path.rstrip("/") == "/requests"
+        and not parsed.query
+        and permit is not None
+        and not permit.consumed
+    ):
+        # Consume before request construction/network I/O. Any exception or timeout
+        # leaves the durable database reservation spent and this permit unusable.
+        permit.consumed = True
+        return
+    raise JuditRequestError(
+        "Judit operation blocked by one-shot authorization",
+        retry_safe=True,
+        error_code="one_shot_operation_blocked",
+    )
 
 
 def judit_attachments_enabled() -> bool:
@@ -220,6 +269,7 @@ def _provider_request(
     accepted_statuses: set[int],
     not_found_is_success: bool = False,
 ) -> dict[str, Any] | None:
+    _enforce_one_shot_provider_boundary(url, method)
     data = (
         json.dumps(payload, separators=(",", ":")).encode("utf-8")
         if payload is not None
@@ -236,7 +286,7 @@ def _provider_request(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=_timeout_seconds()) as response:
+        with _open_provider_response(request, timeout=_timeout_seconds()) as response:
             if response.status not in accepted_statuses:
                 raise JuditRequestError(
                     f"Judit request failed with HTTP {response.status}",
@@ -296,13 +346,26 @@ def _attachment_content_type(response: Any) -> str:
     return normalized or "application/octet-stream"
 
 
+class _RejectProviderRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class _RejectAttachmentRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
 
+def _open_provider_response(request: urllib.request.Request, *, timeout: float):
+    if provider_one_shot_mode_enabled():
+        opener = urllib.request.build_opener(_RejectProviderRedirect())
+        return opener.open(request, timeout=timeout)
+    return urllib.request.urlopen(request, timeout=timeout)
+
+
 def _open_attachment_response(request: urllib.request.Request, *, timeout: float):
     """Do not forward the authenticated attachment request to a redirect target."""
+    _enforce_one_shot_provider_boundary(request.full_url, request.get_method())
     opener = urllib.request.build_opener(_RejectAttachmentRedirect())
     return opener.open(request, timeout=timeout)
 
