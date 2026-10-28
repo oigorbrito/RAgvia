@@ -1,4 +1,10 @@
-from app.rag import _provider_payload, _validate_provider_summary
+import pytest
+
+from app.rag import (
+    _provider_payload,
+    _validate_provider_summary,
+    generate_summary,
+)
 from app.validation import validar
 
 
@@ -60,6 +66,37 @@ def _context() -> dict:
             for number in range(1, 21)
         ],
     }
+
+
+def test_local_summary_runner_requires_explicit_development_opt_in(monkeypatch) -> None:
+    monkeypatch.delenv("RAGVIA_LOCAL_SUMMARY_RUNNER", raising=False)
+
+    with pytest.raises(RuntimeError, match="local summary runner is not enabled"):
+        import asyncio
+
+        asyncio.run(generate_summary(local_context={}))
+
+
+def test_provider_payload_omits_header_fields_flagged_by_normalizer() -> None:
+    context = _context()
+    context["header"] = {
+        "area": "DIREITO DO TRABALHO",
+        "county": "Vara da Fazenda Pública",
+        "court_unit": "Juizado Especial Cível",
+        "instance": 1,
+        "source_parser": {
+            "indicators": [
+                {"rule": "area_conflict", "kind": "heuristic"},
+                {"rule": "county_court_conflict", "kind": "heuristic"},
+            ]
+        },
+    }
+
+    process, _ = _provider_payload(context)
+
+    assert "area" not in process["header"]
+    assert "county" not in process["header"]
+    assert process["header"] == {"instance": 1}
 
 
 def test_provider_payload_exposes_total_count_not_only_retrieved_count() -> None:

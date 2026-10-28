@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-from app.judit import extract_promotable_fields
+from app.judit import _normalize_step_text, extract_promotable_fields
+
+
+def test_normalizes_capture_glued_audience_and_publication_tokens() -> None:
+    assert _normalize_step_text(
+        "INTIMAÇÃO - AUDIÊNCIAREFER. AO EVENTO 4"
+    ) == "INTIMAÇÃO - AUDIÊNCIA REFER. AO EVENTO 4"
+    assert _normalize_step_text(
+        "AGUARD. ABERTURADIÁRIO DE JUSTIÇA"
+    ) == "AGUARD. ABERTURA DIÁRIO DE JUSTIÇA"
 
 
 def test_normalizes_step_text_redacts_ids_and_preserves_chunk_metadata() -> None:
