@@ -327,16 +327,36 @@ def _undocumented_process_acts_warning(steps: list[Step]) -> list[str]:
     ]
 
 
+_PARSER_WARNING_MESSAGES = {
+    "incidental_class": (
+        "Alerta heurístico: a classe cadastrada pode ser incidental ou recursal; confira a fonte."
+    ),
+    "area_conflict": (
+        "Alerta heurístico: a área cadastrada pode divergir dos assuntos ou da Justiça; confira a fonte."
+    ),
+    "county_court_conflict": (
+        "Alerta heurístico: comarca/vara e órgão julgador cadastrados podem divergir; confira a fonte."
+    ),
+}
+_GENERIC_PARSER_WARNING = (
+    "Alerta heurístico do normalizador; confira os campos cadastrados na fonte."
+)
+
+
 def source_parser_warnings(header: dict[str, Any]) -> list[str]:
     source_parser = header.get("source_parser")
     indicators = source_parser.get("indicators") if isinstance(source_parser, dict) else []
-    return [
-        f"Sinalizador heurístico do normalizador (não conclusivo): {item['message']}"
-        for item in indicators
-        if isinstance(item, dict)
-        and item.get("kind") == "heuristic"
-        and isinstance(item.get("message"), str)
-    ]
+    warnings = []
+    for item in indicators:
+        if not isinstance(item, dict) or item.get("kind") != "heuristic":
+            continue
+        rule = item.get("rule")
+        warnings.append(
+            _PARSER_WARNING_MESSAGES.get(rule, _GENERIC_PARSER_WARNING)
+            if isinstance(rule, str)
+            else _GENERIC_PARSER_WARNING
+        )
+    return list(dict.fromkeys(warnings))
 
 
 def _source_step_gap_warnings(steps: list[Any]) -> list[str]:

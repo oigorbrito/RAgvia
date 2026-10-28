@@ -6,6 +6,7 @@ The runner:
 
 - requires exactly one normalized `response_type: lawsuit`; it does not pass a `summary` response to generation;
 - uses the existing Judit normalizer, short-process retrieval/ranking, local legal-knowledge lookup, claim validation, and structured Markdown renderer;
+- converts parser heuristics to static allowlisted warnings; raw annotation messages are not forwarded to generation;
 - refuses secret proceedings, never creates a database pool, requires no tenant/process link, never persists/publishes, and forbids provider construction in the runner process;
 - reads an optional `response_type: summary` only after generation, for deterministic comparison;
 - writes Markdown and a JSON validation/provenance report to the requested local output directory. These artifacts may contain judicial-process data and must be handled accordingly.
