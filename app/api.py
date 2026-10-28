@@ -125,10 +125,11 @@ def _summary_status(
         return "not_generated"
     if job_status in {"pending", "processing"}:
         return "processing"
-    if job_status == "dead":
-        return "unavailable"
+    # A rejected validation is durable; a dead later repair job does not erase it.
     if validation_failed:
         return "validation_failed"
+    if job_status == "dead":
+        return "unavailable"
     return "not_generated"
 
 

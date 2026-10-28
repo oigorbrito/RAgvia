@@ -63,7 +63,7 @@ The current response exposes validated summary Markdown plus public lifecycle/pr
 - explicit request of an unavailable CNJ through the durable Judit acquisition flow;
 - bounded frontend availability polling after explicit user action;
 - process identity, parties/subjects/header context and recent movements;
-- explicit summary lifecycle (`available`, `processing`, `not_generated`, `unavailable`);
+- explicit summary lifecycle (`available`, `processing`, `not_generated`, `unavailable`, `validation_failed`); a persisted validation rejection remains the reason for withholding the summary even if a later repair job dies, while an active repair remains `processing`;
 - published validated summary reading/copying;
 - explicit auth/validation/not-found/network/server states;
 - safe Markdown/allowlisted-JSX rendering;
@@ -146,7 +146,7 @@ Every interactive element has a visible `:focus-visible` outline with sufficient
 - Unauthorized: says the credential is invalid/expired; does not imply whether a process exists.
 - Not found/no access: backend currently conflates these through 404, so the UI must preserve that ambiguity rather than leaking authorization information.
 - Existing process/summary processing: shows the explicit `processing` lifecycle state and follows it with bounded polling.
-- Existing process/no generated summary: distinguishes `not_generated`/`unavailable` from active processing.
+- Existing process/no published summary: distinguishes `not_generated`, `unavailable`, `validation_failed` and active processing; a failed validation is never rendered as a published summary.
 - Network unavailable: distinct from an HTTP application error; offers retry.
 - Server error: concise recovery action, no stack trace.
 - Long summary: readable document flow; do not truncate legal content by default.

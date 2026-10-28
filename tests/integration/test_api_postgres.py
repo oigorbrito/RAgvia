@@ -469,6 +469,7 @@ async def test_process_read_hides_public_history_after_process_becomes_restricte
         (False, None, False, False, "not_generated"),
         (False, "completed", True, False, "validation_failed"),
         (False, "processing", True, True, "processing"),
+        (False, "dead", True, True, "validation_failed"),
     ],
 )
 async def test_summary_status_hides_job_internals(
