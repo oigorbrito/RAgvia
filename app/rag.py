@@ -46,6 +46,7 @@ from app.providers import (
     call_with_retries,
     is_retryable_anthropic_error,
 )
+from app.provider_policy import provider_one_shot_mode_enabled
 from app.provenance import (
     replace_summary_attachment_sources,
     replace_summary_glossary_sources,
@@ -1440,7 +1441,10 @@ async def generate_summary(
         try:
             text = await _generate(client, context)
             result = _validate_provider_summary(text, context)
-            if not result.passed:
+            # An authorized one-shot permits only the initial provider message.
+            # Preserve the failed validation result instead of attempting an
+            # additional provider call that the financial ledger must reject.
+            if not result.passed and not provider_one_shot_mode_enabled():
                 text = await _generate(client, context, result.errors)
                 result = _validate_provider_summary(text, context)
         finally:
