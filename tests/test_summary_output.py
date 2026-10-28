@@ -79,6 +79,40 @@ def test_parser_rejects_extra_fields_and_wrong_types() -> None:
         parse_structured_summary(json.dumps(wrong))
 
 
+def test_source_conflict_annotations_suppress_unreliable_header_fields() -> None:
+    context = _context() | {
+        "header": {
+            "area": "DIREITO DO TRABALHO",
+            "county": "Vara da Fazenda Pública",
+            "court_unit": "Juizado Especial Cível",
+            "source_parser": {
+                "indicators": [
+                    {"rule": "area_conflict", "kind": "heuristic"},
+                    {"rule": "county_court_conflict", "kind": "heuristic"},
+                ]
+            },
+        }
+    }
+
+    rendered = render_structured_summary(_payload(), context)
+    document = structured_summary_document(_payload(), context)
+
+    assert "Área: DIREITO DO TRABALHO" not in rendered
+    assert "Comarca: Vara da Fazenda Pública" not in rendered
+    assert "Órgão julgador registrado: Juizado Especial Cível" in rendered
+    assert "area" not in document["process"]["header"]
+    assert "county" not in document["process"]["header"]
+
+
+def test_local_timeline_dates_are_rendered_without_changing_claim_text() -> None:
+    context = _context() | {"_local_timeline_dates": ["01/09/2026"]}
+
+    rendered = render_structured_summary(_payload(), context)
+
+    assert "## Movimentações\n- 01/09/2026 — Movimento relevante registrado." in rendered
+    assert _payload()["timeline"][0] == "Movimento relevante registrado."
+
+
 def test_renderer_labels_only_explicit_party_side_without_inference() -> None:
     context = _context() | {
         "parties": [

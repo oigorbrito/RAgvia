@@ -60,6 +60,7 @@ from app.summary_output import (
     parse_structured_summary,
     render_structured_summary,
     structured_summary_document,
+    summary_header_conflicts,
 )
 from app.summary_policy import (
     RESTRICTED_HEADER_FIELDS,
@@ -326,6 +327,38 @@ def _undocumented_process_acts_warning(steps: list[Step]) -> list[str]:
     ]
 
 
+_PARSER_WARNING_MESSAGES = {
+    "incidental_class": (
+        "Alerta heurístico: a classe cadastrada pode ser incidental ou recursal; confira a fonte."
+    ),
+    "area_conflict": (
+        "Alerta heurístico: a área cadastrada pode divergir dos assuntos ou da Justiça; confira a fonte."
+    ),
+    "county_court_conflict": (
+        "Alerta heurístico: comarca/vara e órgão julgador cadastrados podem divergir; confira a fonte."
+    ),
+}
+_GENERIC_PARSER_WARNING = (
+    "Alerta heurístico do normalizador; confira os campos cadastrados na fonte."
+)
+
+
+def source_parser_warnings(header: dict[str, Any]) -> list[str]:
+    source_parser = header.get("source_parser")
+    indicators = source_parser.get("indicators") if isinstance(source_parser, dict) else []
+    warnings = []
+    for item in indicators:
+        if not isinstance(item, dict) or item.get("kind") != "heuristic":
+            continue
+        rule = item.get("rule")
+        warnings.append(
+            _PARSER_WARNING_MESSAGES.get(rule, _GENERIC_PARSER_WARNING)
+            if isinstance(rule, str)
+            else _GENERIC_PARSER_WARNING
+        )
+    return list(dict.fromkeys(warnings))
+
+
 def _source_step_gap_warnings(steps: list[Any]) -> list[str]:
     if len(steps) < 2:
         return []
@@ -397,7 +430,7 @@ async def _load_process(
 
 
 async def _retrieve_supplemental_knowledge(
-    pool: asyncpg.Pool,
+    pool: asyncpg.Pool | None,
     *,
     context: dict[str, Any],
     steps: list[dict[str, Any]],
@@ -443,7 +476,7 @@ async def _retrieve_supplemental_knowledge(
 
     terms = list(dict.fromkeys(terms))
     scores: dict[str, dict[str, float]] = {}
-    if terms:
+    if terms and pool is not None:
         from app.embedding_runtime import embedding_space_runtime_enabled, get_active_embedding_runtime
         if embedding_space_runtime_enabled():
             runtime = get_active_embedding_runtime()
@@ -538,6 +571,7 @@ async def _load_context(
     source_documentary_limits = _undocumented_process_acts_warning(steps)
     if source_documentary_limits:
         base["source_documentary_limits"] = source_documentary_limits
+    source_warnings.extend(source_parser_warnings(base.get("header") or {}))
     source_warnings.extend(
         datajud_conflict_warning(str(field))
         for field in base.get("_datajud_conflict_fields", [])
@@ -665,10 +699,11 @@ def _provider_payload(context: dict[str, Any]) -> tuple[dict[str, Any], list[Any
         raw_process.pop("representatives", None)
         header = raw_process.get("header")
         if isinstance(header, dict):
+            conflicts = summary_header_conflicts(context)
             raw_process["header"] = {
                 key: value
                 for key, value in header.items()
-                if key not in _RENDER_ONLY_HEADER_FIELDS
+                if key not in _RENDER_ONLY_HEADER_FIELDS and key not in conflicts
             }
         # Lexical annotations are not source evidence or instructions to the model.
         raw_steps = []
@@ -1221,14 +1256,137 @@ async def _load_publishable_summary(
     }
 
 
+def _local_extractive_payload(context: dict[str, Any]) -> dict[str, Any]:
+    if int(context.get("secrecy_level") or 0) > 0:
+        raise RuntimeError("local extractive output is disabled for secret proceedings")
+    steps = [step for step in context.get("steps", []) if isinstance(step, dict)]
+    if not steps:
+        raise RuntimeError("local extractive output requires source movements")
+    ordered = sorted(
+        steps,
+        key=lambda step: (
+            not bool(step.get("occurred_at")),
+            str(step.get("occurred_at") or ""),
+            int(step.get("step_number") or 0),
+        ),
+    )
+    timeline: list[str] = []
+    timeline_refs: list[str] = []
+    timeline_dates: list[str] = []
+    timeline_steps: list[dict[str, Any]] = []
+    for step in ordered:
+        text = str(step.get("text") or step.get("title") or "").strip()
+        if not text:
+            continue
+        occurred_at = str(step.get("occurred_at") or "")
+        date_label = ""
+        if occurred_at:
+            try:
+                parsed = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+            if parsed is not None:
+                date_label = parsed.astimezone(_SAO_PAULO).strftime("%d/%m/%Y")
+        if len(text) > 2000:
+            raise RuntimeError("local extractive movement exceeds summary item limit")
+        timeline.append(text)
+        timeline_refs.append(str(step.get("evidence_ref") or ""))
+        timeline_dates.append(date_label)
+        timeline_steps.append(step)
+    if not timeline:
+        raise RuntimeError("local extractive output has no renderable movement text")
+
+    process_ref = str(context.get("_process_evidence_ref") or "")
+    if not process_ref:
+        raise RuntimeError("local extractive output is missing process provenance")
+    warnings = list(dict.fromkeys(str(item) for item in context.get("source_warnings", []) if str(item).strip()))
+    local_scope_warning = (
+        "Execução local extrativa sem provedor; o campo Estado atual reproduz apenas "
+        "o último movimento disponível e não confirma a situação atual do processo."
+    )
+    if local_scope_warning not in warnings:
+        warnings.append(local_scope_warning)
+    if len(warnings) > 12:
+        raise RuntimeError("local extractive output exceeds the attention item limit")
+    context["source_warnings"] = warnings
+    context["_local_timeline_dates"] = timeline_dates
+
+    step_count = int(context.get("step_count") or len(steps))
+    payload = parse_structured_summary(
+        json.dumps(
+            {
+                "synthesis": (
+                    f"Contexto do processo: O processo possui {step_count} movimentos. "
+                    f"Andamento processual: {timeline[-1]}"
+                ),
+                "timeline": timeline,
+                "current_status": str(timeline_steps[-1].get("text") or timeline_steps[-1].get("title") or "").strip(),
+                "attention": warnings,
+                "decisions": [],
+                "deadlines": [],
+                "related_processes": [],
+                "attachments": [],
+                "claims": [],
+            },
+            ensure_ascii=False,
+        )
+    )
+    claims = [
+        {
+            "claim_id": "synthesis",
+            "text": payload["synthesis"],
+            "evidence_refs": list(dict.fromkeys([process_ref, timeline_refs[-1]])),
+        },
+        {
+            "claim_id": "current_status",
+            "text": payload["current_status"],
+            "evidence_refs": [timeline_refs[-1]],
+        },
+    ]
+    claims.extend(
+        {
+            "claim_id": f"timeline:{index}",
+            "text": item,
+            "evidence_refs": [timeline_refs[index]],
+        }
+        for index, item in enumerate(payload["timeline"])
+    )
+    claims.extend(
+        {
+            "claim_id": f"attention:{index}",
+            "text": item,
+            "evidence_refs": [process_ref],
+        }
+        for index, item in enumerate(payload["attention"])
+    )
+    payload["claims"] = claims
+    context["_parsed_summary"] = payload
+    context["_structured_summary"] = structured_summary_document(payload, context)
+    return payload
+
+
 async def generate_summary(
-    pool: asyncpg.Pool,
-    process_id: UUID,
-    version_id: UUID,
+    pool: asyncpg.Pool | None = None,
+    process_id: UUID | None = None,
+    version_id: UUID | None = None,
     *,
     tenant_id: UUID | None = None,
+    local_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    existing = await _load_publishable_summary(pool, process_id, version_id)
+    local_mode = local_context is not None
+    if local_mode:
+        if os.environ.get("RAGVIA_LOCAL_SUMMARY_RUNNER") != "1":
+            raise RuntimeError("local summary runner is not enabled")
+        if pool is not None or process_id is not None or version_id is not None or tenant_id is not None:
+            raise RuntimeError("local summary runner cannot use a database or tenant")
+        context = local_context
+        if not isinstance(context, dict):
+            raise RuntimeError("local summary context is invalid")
+        existing = None
+    else:
+        if pool is None or process_id is None or version_id is None:
+            raise RuntimeError("process pool, process_id and version_id are required")
+        existing = await _load_publishable_summary(pool, process_id, version_id)
     if existing is not None:
         return {
             "validation": existing["validation"],
@@ -1242,7 +1400,9 @@ async def generate_summary(
         }
 
     started = perf_counter()
-    context = await _load_context(pool, process_id, version_id, tenant_id=tenant_id)
+    if not local_mode:
+        assert pool is not None and process_id is not None and version_id is not None
+        context = await _load_context(pool, process_id, version_id, tenant_id=tenant_id)
 
     model = MODEL
     prompt_version = PROMPT_VERSION
@@ -1264,6 +1424,12 @@ async def generate_summary(
         )
         model = RESTRICTED_MODEL
         prompt_version = RESTRICTED_PROMPT_VERSION
+    elif local_mode:
+        payload = _local_extractive_payload(context)
+        text = render_structured_summary(payload, context)
+        result = _validate_provider_summary(text, context)
+        model = "rpy-local-extractive"
+        prompt_version = "local-extractive-v1"
     else:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
@@ -1311,32 +1477,36 @@ async def generate_summary(
 
     generation_ms = max(0, round((perf_counter() - started) * 1000))
     validation = {"passed": result.passed, "errors": result.errors}
-    async with pool.acquire() as conn:
-        persisted = await _persist_summary(
-            conn,
-            process_id=process_id,
-            version_id=version_id,
-            text=text,
-            validation=validation,
-            model=model,
-            prompt_version=prompt_version,
-            generation_ms=generation_ms,
-            usage=usage,
-            cache_hit=cache_hit,
-            cost_usd=cost_usd,
-            selected_sources=list(context.get("_selected_sources", [])),
-            attachment_sources=list(context.get("_attachment_sources", [])),
-            glossary_sources=list(context.get("_glossary_sources", [])),
-            unicode_security_flags=list(context.get("_unicode_security_flags", [])),
-            structured_output=(
-                dict(context["_structured_summary"])
-                if isinstance(context.get("_structured_summary"), dict)
-                else None
-            ),
-            claims=claims,
-            evidence_sources=evidence_sources,
-            claim_verification=claim_verification,
-        )
+    if local_mode:
+        persisted = False
+    else:
+        assert pool is not None and process_id is not None and version_id is not None
+        async with pool.acquire() as conn:
+            persisted = await _persist_summary(
+                conn,
+                process_id=process_id,
+                version_id=version_id,
+                text=text,
+                validation=validation,
+                model=model,
+                prompt_version=prompt_version,
+                generation_ms=generation_ms,
+                usage=usage,
+                cache_hit=cache_hit,
+                cost_usd=cost_usd,
+                selected_sources=list(context.get("_selected_sources", [])),
+                attachment_sources=list(context.get("_attachment_sources", [])),
+                glossary_sources=list(context.get("_glossary_sources", [])),
+                unicode_security_flags=list(context.get("_unicode_security_flags", [])),
+                structured_output=(
+                    dict(context["_structured_summary"])
+                    if isinstance(context.get("_structured_summary"), dict)
+                    else None
+                ),
+                claims=claims,
+                evidence_sources=evidence_sources,
+                claim_verification=claim_verification,
+            )
     return {
         "validation": validation,
         "model": model,
@@ -1346,6 +1516,7 @@ async def generate_summary(
         "cost_usd": cost_usd,
         "persisted": persisted,
         "reused": False,
+        **({"markdown": text, "structured_output": context.get("_structured_summary")} if local_mode else {}),
     }
 
 

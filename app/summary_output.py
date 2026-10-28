@@ -109,6 +109,23 @@ _MAX_ITEMS = {
 }
 
 
+def summary_header_conflicts(context: dict[str, Any]) -> frozenset[str]:
+    header = context.get("header") if isinstance(context.get("header"), dict) else {}
+    source_parser = header.get("source_parser")
+    indicators = source_parser.get("indicators") if isinstance(source_parser, dict) else []
+    rules = {
+        str(item.get("rule"))
+        for item in indicators
+        if isinstance(item, dict) and item.get("kind") == "heuristic"
+    }
+    suppressed: set[str] = set()
+    if "area_conflict" in rules:
+        suppressed.add("area")
+    if "county_court_conflict" in rules:
+        suppressed.add("county")
+    return frozenset(suppressed)
+
+
 def _inline(value: Any) -> str:
     return _SPACE_RE.sub(" ", str(value or "")).strip()
 
@@ -282,6 +299,7 @@ def _append_list(lines: list[str], title: str, items: list[str]) -> None:
 
 def structured_summary_process(context: dict[str, Any]) -> dict[str, Any]:
     header = context.get("header") if isinstance(context.get("header"), dict) else {}
+    conflicts = summary_header_conflicts(context)
     parties = context.get("parties")
     normalized_parties = (
         [
@@ -323,7 +341,7 @@ def structured_summary_process(context: dict[str, Any]) -> dict[str, Any]:
         "header": {
             key: header.get(key)
             for key, _ in _HEADER_FIELDS
-            if header.get(key) is not None
+            if header.get(key) is not None and key not in conflicts
         },
         "parties": normalized_parties,
         "representatives": normalized_representatives,
@@ -390,7 +408,10 @@ def render_structured_summary(payload: dict[str, Any], context: dict[str, Any]) 
         lines.append(f"- Tribunal: {court}")
 
     header = context.get("header") if isinstance(context.get("header"), dict) else {}
+    conflicts = summary_header_conflicts(context)
     for key, label in _HEADER_FIELDS:
+        if key in conflicts:
+            continue
         rendered = _inline(header.get(key))
         if rendered:
             lines.append(f"- {label}: {rendered}")
@@ -460,7 +481,14 @@ def render_structured_summary(payload: dict[str, Any], context: dict[str, Any]) 
 
     lines.extend(["", "## Movimentações"])
     if payload["timeline"]:
-        lines.extend(f"- {item}" for item in payload["timeline"])
+        local_dates = context.get("_local_timeline_dates")
+        for index, item in enumerate(payload["timeline"]):
+            date_label = (
+                str(local_dates[index]).strip()
+                if isinstance(local_dates, list) and index < len(local_dates)
+                else ""
+            )
+            lines.append(f"- {date_label} — {item}" if date_label else f"- {item}")
     else:
         lines.append("Nenhuma movimentação relevante selecionada.")
     lines.extend(["", f"Estado atual: {payload['current_status']}"])

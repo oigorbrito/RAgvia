@@ -469,6 +469,8 @@ def _normalize_step_text(value: Any) -> str:
     text = str(value or "").replace("\u00a0", " ")
     text = _LEADING_STEP_NUMBER_RE.sub("", text, count=1)
     text = _ELETRONICA_REFER_RE.sub("ELETRÔNICA REFER", text)
+    text = re.sub(r"\b(AUDI[ÊE]NCIA)(REFER\.)", r"\1 \2", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(ABERTURA)(DI[ÁA]RIO)\b", r"\1 \2", text, flags=re.IGNORECASE)
     text = _GLUE_BOUNDARY_RE.sub(" ", text)
     text = _WHITESPACE_RE.sub(" ", text).strip()
     return _redact_source_text(text)

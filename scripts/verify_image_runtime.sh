@@ -37,6 +37,16 @@ missing = [str(path) for path in required if not path.is_file()]
 if missing:
     raise SystemExit(f"frontend assets missing from image: {', '.join(missing)}")
 
+local_tools = [
+    Path("/app/scripts/run_local_iasummary.py"),
+    Path("/app/scripts/serve_local_iasummary_preview.py"),
+]
+packaged_local_tools = [str(path) for path in local_tools if path.exists()]
+if packaged_local_tools:
+    raise SystemExit(
+        f"host-only local summary tools must not ship in runtime images: {', '.join(packaged_local_tools)}"
+    )
+
 if os.getuid() == 0:
     raise SystemExit("image runtime user must not be root")
 

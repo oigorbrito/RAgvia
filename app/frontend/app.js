@@ -655,12 +655,18 @@ function renderProcess(data) {
   copyButton.hidden = !currentSummary;
   summaryEyebrow.hidden = !currentSummary;
   const demoSummary = data.summary?.model === 'local-demo-no-provider';
-  summaryEyebrow.textContent = demoSummary ? 'SÍNTESE DE DEMONSTRAÇÃO' : 'SÍNTESE GERADA POR IA';
+  const localExtractive = data.summary?.model === 'extrativo_local';
+  summaryEyebrow.textContent = localExtractive
+    ? 'RESULTADO EXTRATIVO LOCAL · NÃO PUBLICADO'
+    : demoSummary ? 'SÍNTESE DE DEMONSTRAÇÃO' : 'SÍNTESE GERADA POR IA';
 
   if (currentSummary) {
     renderMarkdown(currentSummary, body);
     const created = formatDate(data.summary?.created_at);
-    provenance.textContent = demoSummary ? (created ? `Resumo sintético local publicado em ${created}. Nenhum provedor externo foi utilizado.` : 'Resumo sintético local. Nenhum provedor externo foi utilizado.') : (created ? `Resumo gerado por IA e publicado em ${created}.` : 'Resumo gerado por IA para a versão atual.');
+    provenance.textContent = localExtractive
+      ? (data.summary?.provenance || 'Método extrativo_local. Claude não utilizado; não publicado no iaSummary oficial.')
+      : demoSummary ? (created ? `Resumo sintético local publicado em ${created}. Nenhum provedor externo foi utilizado.` : 'Resumo sintético local. Nenhum provedor externo foi utilizado.')
+        : (created ? `Resumo gerado por IA e publicado em ${created}.` : 'Resumo gerado por IA para a versão atual.');
   } else {
     clear(body);
     const p = document.createElement('p');
@@ -670,6 +676,125 @@ function renderProcess(data) {
     provenance.textContent = data.summary_status === 'processing' ? 'Status: preparação em andamento.' : data.summary_status === 'unavailable' ? 'Status: resumo indisponível.' : 'Status: sem resumo publicado.';
   }
   result.hidden = false;
+}
+
+function renderLocalPreviewEvidence(preview) {
+  const root = document.querySelector('#local-preview-evidence');
+  clear(root);
+  root.hidden = false;
+
+  const appendLine = (label, value) => {
+    const paragraph = document.createElement('p');
+    const emphasis = document.createElement('strong');
+    emphasis.textContent = `${label}: `;
+    paragraph.append(emphasis, document.createTextNode(String(value ?? '')));
+    root.appendChild(paragraph);
+  };
+
+  appendLine('Arquivo de origem (captura Judit)', preview.capture.file_name);
+  appendLine('Data registrada na captura', preview.capture.captured_at);
+  appendLine('SHA-256 da captura', preview.capture.sha256);
+  appendLine('Método', 'extrativo_local; nenhum Claude/provedor externo foi chamado');
+  appendLine('Markdown exibido — SHA-256', preview.markdown_sha256);
+  appendLine(
+    'Validação determinística',
+    `${preview.validation.passed ? 'aprovada' : 'reprovada'}; ${preview.validation.movement_count}/${preview.validation.selected_movement_count} movimentos selecionados; ${preview.validation.claim_count} claims (${preview.validation.timeline_claim_count} de cronologia); referências completas=${preview.validation.evidence_complete}; erros=${preview.validation.errors_count}`,
+  );
+  appendLine('Publicação/persistência oficial', 'não realizada; sem processo/tenant vinculado e sem registro oficial de iaSummary');
+  appendLine('Limite da validação', preview.validation.limitation);
+
+  const details = document.createElement('details');
+  details.open = false;
+  const summary = document.createElement('summary');
+  summary.textContent = 'Mapa de evidências locais (IDs temporários, não persistidos)';
+  details.appendChild(summary);
+
+  const movementHeading = document.createElement('h5');
+  movementHeading.textContent = 'Movimentos de origem';
+  details.appendChild(movementHeading);
+  const movementList = document.createElement('ol');
+  for (const item of preview.evidence.movement_sources) {
+    const row = document.createElement('li');
+    row.textContent = `${item.source_ref} → ${item.evidence_ref} · SHA-256 do texto ${item.source_text_sha256}`;
+    movementList.appendChild(row);
+  }
+  details.appendChild(movementList);
+
+  const claimsHeading = document.createElement('h5');
+  claimsHeading.textContent = 'Claims e referências';
+  details.appendChild(claimsHeading);
+  const claimList = document.createElement('ul');
+  for (const item of preview.evidence.claim_evidence_refs) {
+    const row = document.createElement('li');
+    row.textContent = `${item.claim_id} → ${item.evidence_refs.join(', ')}`;
+    claimList.appendChild(row);
+  }
+  details.appendChild(claimList);
+  root.appendChild(details);
+}
+
+function renderLocalPreview(preview) {
+  if (
+    preview?.mode !== 'extrativo_local'
+    || !validCnj(preview.process?.code)
+    || typeof preview.markdown !== 'string'
+    || !preview.markdown.trim()
+    || !/^[a-f0-9]{64}$/.test(preview.markdown_sha256 || '')
+    || preview.generation?.model !== 'rpy-local-extractive'
+    || preview.generation?.anthropic_called !== false
+    || preview.generation?.persisted !== false
+    || preview.published !== false
+    || preview.validation?.passed !== true
+    || preview.validation?.evidence_complete !== true
+  ) {
+    throw new Error('Artefato de homologação local inválido ou sem validação');
+  }
+
+  document.title = 'Homologação local · RAGVIA';
+  document.querySelector('#app-shell').classList.add('local-preview-mode');
+  document.querySelector('#client-reference').hidden = true;
+  document.querySelector('#workspace-eyebrow').textContent = 'HOMOLOGAÇÃO LOCAL · NÃO PUBLICADO';
+  document.querySelector('#page-title').textContent = 'Resumo extrativo local';
+  document.querySelector('#workspace-lede').textContent = 'Visualização restrita da captura histórica validada. Não representa aquisição Judit, vínculo tenant-processo nem publicação oficial.';
+  document.querySelector('#footer-brand').textContent = 'RAGVIA · homologação local';
+
+  form.hidden = true;
+  authPanel.hidden = true;
+  statusBox.hidden = true;
+  confirmModal.hidden = true;
+  historyTrigger.hidden = true;
+  accessTrigger.hidden = true;
+  historyPanel.hidden = true;
+  requestButton.hidden = true;
+  openExistingButton.hidden = true;
+  requestRefreshButton.hidden = true;
+  retryButton.hidden = true;
+  refreshFromResultButton.hidden = true;
+  newSearchButton.hidden = true;
+  apiConnectivity.hidden = true;
+  document.querySelector('#document-nav').hidden = true;
+  document.querySelector('#case-data-section').hidden = true;
+  document.querySelector('#movements-section').hidden = true;
+
+  renderProcess({
+    code: preview.process.code,
+    class_name: preview.process.class_name,
+    court: preview.process.court,
+    updated_at: preview.capture.captured_at,
+    summary_status: 'local_preview',
+    summary: {
+      markdown: preview.markdown,
+      model: 'extrativo_local',
+      provenance: 'Método extrativo_local · Claude não utilizado · resultado local, não persistido nem publicado como iaSummary/juditSummary.',
+    },
+    parties: [],
+    subjects: [],
+    header: {},
+    recent_steps: [],
+  });
+  document.querySelector('#result-context').textContent = 'Captura histórica local; não associada a tenant ou processo cadastrado.';
+  document.querySelector('#result-updated-label').textContent = 'Data da captura';
+  renderLocalPreviewEvidence(preview);
 }
 
 function showProcess(data, { scroll = true, followSummary = true } = {}) {
@@ -1557,5 +1682,9 @@ bindProviderTooltip(juditInfoButton, juditInfoWrap, juditTooltip);
 bindProviderTooltip(datajudInfoButton, datajudInfoWrap, datajudTooltip);
 
 window.addEventListener('pagehide', stopPolling);
-updateAccessState();
-fetchCapabilities();
+if (window.RAGVIA_LOCAL_PREVIEW) {
+  renderLocalPreview(window.RAGVIA_LOCAL_PREVIEW);
+} else {
+  updateAccessState();
+  fetchCapabilities();
+}
