@@ -1444,7 +1444,11 @@ async def generate_summary(
             # An authorized one-shot permits only the initial provider message.
             # Preserve the failed validation result instead of attempting an
             # additional provider call that the financial ledger must reject.
-            if not result.passed and not provider_one_shot_mode_enabled():
+            correction_permitted = (
+                getattr(client, "validation_regeneration_allowed", False) is True
+                and not provider_one_shot_mode_enabled()
+            )
+            if not result.passed and correction_permitted:
                 text = await _generate(client, context, result.errors)
                 result = _validate_provider_summary(text, context)
         finally:

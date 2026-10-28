@@ -221,7 +221,16 @@ async def test_tracking_application_info_enqueues_finalizer_for_payload_request_
         )
 
 
-async def _seed_process(pool, *, tenant, code, cached=False, job_status=None):
+async def _seed_process(
+    pool,
+    *,
+    tenant,
+    code,
+    cached=False,
+    job_status=None,
+    validation_failed=False,
+    repair_job=False,
+):
     process_id = uuid4()
     version_id = uuid4()
     now = datetime.now(timezone.utc)
@@ -270,7 +279,24 @@ async def _seed_process(pool, *, tenant, code, cached=False, job_status=None):
                     {"process_id": str(process_id), "version_id": str(version_id)}
                 ),
                 job_status,
-                f"summary:{version_id}",
+                (
+                    f"summary-repair:{version_id}:{uuid4()}"
+                    if repair_job
+                    else f"summary:{version_id}"
+                ),
+            )
+        if validation_failed:
+            await conn.execute(
+                """
+                INSERT INTO process_summaries (
+                    process_id, version_id, markdown, validation, model,
+                    prompt_version, generation_ms
+                ) VALUES ($1, $2, 'invalid synthetic summary',
+                          '{"passed":false,"errors":["synthetic failure"]}'::jsonb,
+                          'claude-sonnet-4-6', 'test', 1)
+                """,
+                process_id,
+                version_id,
             )
     return process_id, version_id
 
@@ -435,22 +461,32 @@ async def test_process_read_hides_public_history_after_process_becomes_restricte
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("cached", "job_status", "expected"),
+    ("cached", "job_status", "validation_failed", "repair_job", "expected"),
     [
-        (True, None, "not_generated"),
-        (False, "processing", "processing"),
-        (False, "dead", "unavailable"),
-        (False, None, "not_generated"),
+        (True, None, False, False, "not_generated"),
+        (False, "processing", False, False, "processing"),
+        (False, "dead", False, False, "unavailable"),
+        (False, None, False, False, "not_generated"),
+        (False, "completed", True, False, "validation_failed"),
+        (False, "processing", True, True, "processing"),
     ],
 )
 async def test_summary_status_hides_job_internals(
-    api_client, monkeypatch, cached, job_status, expected
+    api_client, monkeypatch, cached, job_status, validation_failed, repair_job, expected
 ) -> None:
     client, pool = api_client
     tenant = uuid4()
     suffix = str(uuid4().int)[-4:]
     code = f"0000000-00.0000.0.00.{suffix}"
-    await _seed_process(pool, tenant=tenant, code=code, cached=cached, job_status=job_status)
+    await _seed_process(
+        pool,
+        tenant=tenant,
+        code=code,
+        cached=cached,
+        job_status=job_status,
+        validation_failed=validation_failed,
+        repair_job=repair_job,
+    )
     monkeypatch.setenv("RPY_BEARER_TOKENS", json.dumps({"token": str(tenant)}))
     response = await client.get(
         f"/processes/{code}", headers={"Authorization": "Bearer token"}
@@ -458,6 +494,8 @@ async def test_summary_status_hides_job_internals(
     assert response.status_code == 200
     body = response.json()
     assert body["summary_status"] == expected
+    if validation_failed:
+        assert body["summary"] is None and body["iaSummary"] is None
     assert "error_log" not in body and "attempts" not in body and "job" not in body
 
 

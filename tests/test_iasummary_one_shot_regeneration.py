@@ -24,11 +24,25 @@ class _Pool:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("one_shot", "expected_calls", "expected_validation"),
-    [(True, 1, False), (False, 2, True)],
+    (
+        "one_shot",
+        "regeneration_allowed",
+        "expected_calls",
+        "expected_validation",
+    ),
+    [
+        (True, False, 1, False),
+        (True, True, 1, False),
+        (False, False, 1, False),
+        (False, True, 2, True),
+    ],
 )
 async def test_iasummary_retry_obeys_one_shot_budget(
-    monkeypatch, one_shot, expected_calls, expected_validation
+    monkeypatch,
+    one_shot,
+    regeneration_allowed,
+    expected_calls,
+    expected_validation,
 ):
     """A failed first summary cannot cause an unauthorized second provider call."""
     monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", str(one_shot).lower())
@@ -60,7 +74,7 @@ async def test_iasummary_retry_obeys_one_shot_budget(
 
     async def fake_persist(_conn, **kwargs):
         assert kwargs["validation"]["passed"] is expected_validation
-        assert kwargs["text"] == ("invalid" if one_shot else "corrected")
+        assert kwargs["text"] == ("corrected" if expected_calls == 2 else "invalid")
         return True
 
     async def close():
@@ -73,7 +87,10 @@ async def test_iasummary_retry_obeys_one_shot_budget(
     monkeypatch.setattr(rag, "_persist_summary", fake_persist)
     monkeypatch.setattr(
         rag, "anthropic_client",
-        lambda *_args, **_kwargs: SimpleNamespace(close=close),
+        lambda *_args, **_kwargs: SimpleNamespace(
+            validation_regeneration_allowed=regeneration_allowed,
+            close=close,
+        ),
     )
 
     result = await rag.generate_summary(

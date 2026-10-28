@@ -156,7 +156,7 @@ function readyPayload(overrides = {}) {
     court: "TJRS",
     updated_at: "2026-09-18T12:00:00Z",
     summary_status: "available",
-    summary: { markdown: "Resumo pronto", created_at: "2026-09-18T12:00:00Z" },
+    summary: { markdown: "Resumo pronto", created_at: "2026-09-18T12:00:00Z", model: "claude-sonnet-4-6" },
     parties: [],
     subjects: [],
     header: {},
@@ -379,8 +379,8 @@ await scenario("successful lookup renders public data, focuses result and uses b
   assert.equal(ui.requests[1].options.headers.Accept, "application/json");
   assert.doesNotMatch(ui.requests[1].url, /test-token/);
   assert.ok(ui.elements["summary-body"].renderedText.includes("Resumo pronto"));
-  assert.equal(ui.elements["summary-eyebrow"].textContent, "SÍNTESE GERADA POR IA");
-  assert.ok(ui.elements["summary-provenance"].textContent.includes("gerado por IA"));
+  assert.equal(ui.elements["summary-eyebrow"].textContent, "iaSummary OFICIAL · CLAUDE");
+  assert.ok(ui.elements["summary-provenance"].textContent.includes("RAGVIA com Claude"));
   assert.ok(ui.elements["movements-list"].renderedText.includes("Movimento público"));
   assert.equal(ui.elements["result"].hidden, false);
   assert.equal(ui.elements["result-code"].focused, true);
@@ -534,10 +534,52 @@ await scenario("provider-free demo summary is labeled as synthetic instead of AI
   await ui.search();
   await ui.click("open-existing-history");
 
-  assert.equal(ui.elements["summary-eyebrow"].textContent, "SÍNTESE DE DEMONSTRAÇÃO");
+  assert.equal(ui.elements["summary-eyebrow"].textContent, "DEMONSTRAÇÃO SINTÉTICA · NÃO OFICIAL");
   assert.ok(ui.elements["summary-provenance"].textContent.includes("Resumo sintético local"));
   assert.ok(ui.elements["summary-provenance"].textContent.includes("Nenhum provedor externo"));
   assert.doesNotMatch(ui.elements["summary-provenance"].textContent, /gerado por IA/i);
+});
+
+await scenario("secret deterministic summary is not mislabeled as Claude output", async () => {
+  const ui = createHarness([
+    jsonResponse(200, { classification: "read_existing", process_exists: true }),
+    jsonResponse(200, readyPayload({
+      summary: {
+        markdown: "Resumo restrito determinístico",
+        created_at: "2026-09-18T12:00:00Z",
+        model: "local-deterministic",
+      },
+    })),
+  ]);
+
+  await ui.search();
+  await ui.click("open-existing-history");
+
+  assert.equal(ui.elements["summary-eyebrow"].textContent, "RESUMO DETERMINÍSTICO RESTRITO · SEM CLAUDE");
+  assert.ok(ui.elements["summary-provenance"].textContent.includes("sem Claude"));
+  assert.doesNotMatch(ui.elements["summary-provenance"].textContent, /gerado pelo RAGVIA com Claude/i);
+});
+
+await scenario("validation failure is distinct from generation failure and is never rendered", async () => {
+  const ui = createHarness([
+    jsonResponse(200, { classification: "read_existing", process_exists: true }),
+    jsonResponse(200, readyPayload({ summary_status: "processing", summary: null })),
+    jsonResponse(200, readyPayload({ summary_status: "validation_failed", summary: null })),
+  ]);
+
+  await ui.search();
+  await ui.click("open-existing-history");
+  assert.ok(ui.elements["summary-body"].renderedText.includes("sendo preparado"));
+  assert.equal(ui.hasTimer(), true);
+
+  await ui.tick();
+
+  assert.ok(ui.elements["summary-body"].renderedText.includes("validação factual reprovou"));
+  assert.ok(ui.elements["summary-provenance"].textContent.includes("validação factual reprovada"));
+  assert.equal(ui.elements["summary-eyebrow"].hidden, true);
+  assert.equal(ui.elements["copy-summary"].hidden, true);
+  assert.equal(ui.hasTimer(), false);
+  assert.ok(ui.elements["status-title"].textContent.includes("Validação reprovada"));
 });
 
 await scenario("processing summary remains readable and transitions to published summary", async () => {

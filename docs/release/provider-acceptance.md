@@ -6,11 +6,11 @@ It does not grant legal authority, approve data processing, or replace provider 
 
 ## Current contract snapshot
 
-Externally revalidated on 2026-09-18 against official provider documentation:
+The table preserves a historical 2026-09-18 provider snapshot. For Anthropic paid-generation eligibility, the later repository decision in [RAGVIA-02B](ragvia-02b-preacceptance.md) supersedes the older routing row below; neither document proves account access or an enforceable external spend cap.
 
-| Boundary | Rpy contract | Official source checked |
+| Boundary | Rpy contract | Source or decision record |
 |---|---|---|
-| Anthropic generation | `claude-sonnet-5` for <=100 movements; `claude-opus-5` for >100 | https://docs.anthropic.com/en/docs/about-claude/model-deprecations |
+| Anthropic generation | Historical routing defaults: `claude-sonnet-5` / `claude-opus-5`; current private paid permit accepts only explicit `claude-sonnet-4-6` per RAGVIA-02B | RAGVIA-02B source ledger; account access remains pending |
 | OpenAI legacy embeddings | `text-embedding-3-small`, explicitly requested at 1536 dimensions | https://platform.openai.com/docs/models |
 | Cohere embeddings | `embed-v4.0`, float embeddings, explicit `output_dimension=1024` | https://docs.cohere.com/docs/cohere-embed |
 | Cohere reranking | `rerank-v4.0-pro`, Rerank v2 | https://docs.cohere.com/docs/rerank |
@@ -408,22 +408,22 @@ modelo permitido e reserva PostgreSQL antes da rede. Scripts live sem escopo
 (inclusive o adversarial agendado) também ficam bloqueados; não usar flag de
 teste ou bypass para rearmá-los. Precisam de autorização/escopo próprios.
 
-Use one explicitly authorized, non-secret process. For the bounded RAGVIA-02A
-preparation and the reserved real-run procedure, see
-[Claude legal delivery](ragvia-02a-claude-delivery.md). `ANTHROPIC_MODEL` is an
-optional worker-only exact-ID override; when unset, the volume routing below
-remains unchanged. A configured ID is not evidence of live compatibility or
-authorization to incur cost.
+Use only the explicit, non-secret acceptance scope and model permitted by
+[RAGVIA-02B](ragvia-02b-preacceptance.md). The `claude-sonnet-5` / `claude-opus-5`
+volume-routing defaults remain for compatibility tests; they are not currently
+paid-authorized. The private permit accepts exact `ANTHROPIC_MODEL=claude-sonnet-4-6`,
+which overrides volume routing at every movement count. No live call is authorized
+by this runbook alone.
 
 Acceptance must prove:
 
-- <=100 persisted movements selects `claude-sonnet-5`;
-- >100 selects `claude-opus-5` when that scenario is intentionally exercised;
+- default routing remains Sonnet 5 at <=100 movements and Opus 5 above 100, without treating these test defaults as provider eligibility;
+- the explicitly approved Sonnet 4.6 override reaches the request for both short and long contexts, and other IDs fail closed before network I/O;
 - the request uses the configured 4,000-token output ceiling;
 - the request uses Anthropic Structured Outputs with the closed Rpy JSON Schema and no model tools;
 - the application, not the model, renders process identity, parties and Markdown headings;
 - generated output passes the post-generation validator before publication;
-- one correction attempt behaves as documented when the first output is invalid;
+- zero corrections are made for one-shot or zero-regeneration permits; exactly one is possible only with a non-one-shot permit authorizing it, and a first invalid result is persisted but never published;
 - usage/cache telemetry is persisted without provider secrets;
 - a secret-process control case does not call Anthropic at all;
 - the live prompt-injection suite passes for the exact candidate prompt/model pair.

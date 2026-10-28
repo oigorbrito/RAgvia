@@ -69,42 +69,24 @@ real já autorizada, usar GET autenticado `/processes/<CNJ>` e gravar somente
 e `iaSummary` for string. Não converter JSON estruturado em Markdown por conta
 própria. Guardar o JSON completo somente em artefato privado, se autorizado.
 
-## Identificação e limites do futuro teste Claude
+## Modelo e limites do futuro teste Claude
 
-O modelo planejado é `ANTHROPIC_MODEL=claude-sonnet-5`, ID que já integra o
-contrato desta base. **Disponibilidade, acesso da conta e compatibilidade real
-com Structured Outputs não foram verificados nesta etapa.** Antes da autorização,
-confirmar o ID exato provisionado e registrar a referência não sensível dessa
-confirmação. Se for necessário outro ID, configurá-lo explicitamente e executar
-os contratos/adversarial aplicáveis; não assumir equivalência entre modelos.
-Não usar `claude-acceptance-fixture` numa chamada real.
+A proposta de modelo e o perfil operacional descritos no primeiro bloco 02A
+foram **substituídos** pela decisão posterior registrada em
+[RAGVIA-02B](ragvia-02b-preacceptance.md). Não use o antigo perfil Sonnet 5
+para autorizar uma chamada. Os defaults de roteamento Sonnet 5/Opus 5 permanecem
+no código para compatibilidade, mas o permit pago atual só aceita o ID explícito
+`claude-sonnet-4-6`, independentemente da quantidade de movimentos.
 
-Perfil proposto, a ser aprovado e aplicado somente ao worker isolado:
-
-```text
-ANTHROPIC_MODEL=claude-sonnet-5
-ANTHROPIC_TIMEOUT_SECONDS=45
-PROVIDER_MAX_ATTEMPTS=1
-WORKER_TASK_TIMEOUT_SECONDS=120
-```
-
-- Cliente existente `anthropic.AsyncAnthropic`, criado exclusivamente por
-  `app.providers.anthropic_client`; retries do SDK desabilitados.
-- `max_tokens=4000` por resposta; schema fechado, sem tools, sem chat livre.
-- Prompt dinâmico limitado por `PROVIDER_PROMPT_MAX_CHARS` (default 120000
-  caracteres, **não tokens**), além dos limites de movimentos já existentes.
-- Uma regeneração por reprovação: no perfil acima, até duas chamadas por job.
-- A fila normalmente permite três execuções: sem limitar o job, até seis
-  chamadas nesse perfil. Para a aceitação controlada abaixo, usar **um job com
-  `max_attempts=1`**, sem reenqueue/force automático; no máximo duas chamadas.
-- Isso limita tentativas/saída, **não implementa um teto monetário**. Antes da
-  execução é obrigatório aprovar valor, moeda, tabela vigente do ID exato,
-  consumo de entrada/cache/saída e limite de gasto da conta. Se não houver
-  controle de orçamento adequado, manter BLOCKED. Timeout não garante ausência
-  de cobrança; falhas podem consumir tokens sem telemetria de sucesso.
-- `process_summaries` já persiste `model`, `prompt_version`, `usage`, `cache_hit`,
-  `generation_ms`, `cost_usd`. Custo pode continuar nulo: reconciliar com billing,
-  não interpretar ausência de campo como custo zero.
+O uso real continua pendente de aprovação privada do caso, evidência da conta e
+limite externo efetivo. A validação permite zero ou uma correção conforme o
+`max_regenerations` do permit; modo one-shot sempre permite zero. Falha factual
+é persistida como não validada e não publicada. Retries do SDK permanecem
+zero; a fila não renova autorização nem reserva financeira. Consulte o checklist
+RAGVIA-02B antes de qualquer futura execução paga. Nenhuma chamada Claude real
+foi feita neste bloco. `process_summaries` persiste `model`, `prompt_version`,
+`usage`, `cache_hit`, `generation_ms` e `cost_usd`; custo ausente não significa
+custo zero e deve ser reconciliado com billing autorizado.
 
 ## Procedimento real reservado — NÃO executado
 

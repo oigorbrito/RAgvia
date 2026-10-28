@@ -640,7 +640,8 @@ function renderSteps(steps) {
 
 function summaryEmptyMessage(status) {
   if (status === 'processing') return 'O resumo desta versão está sendo preparado. Esta página verificará automaticamente quando ele for publicado.';
-  if (status === 'unavailable') return 'Não foi possível publicar um resumo para esta versão. Os dados processuais e as movimentações disponíveis continuam abaixo.';
+  if (status === 'validation_failed') return 'A validação factual reprovou o resumo. O resultado não foi publicado; os dados processuais e as movimentações disponíveis continuam abaixo.';
+  if (status === 'unavailable') return 'A geração do resumo falhou e nenhum resultado foi publicado. Os dados processuais e as movimentações disponíveis continuam abaixo.';
   return 'Esta versão do processo está disponível sem resumo publicado. Os dados processuais e as movimentações disponíveis continuam abaixo.';
 }
 
@@ -665,26 +666,39 @@ function renderProcess(data) {
     : typeof data.iaSummary === 'string' ? data.iaSummary : '';
   copyButton.hidden = !currentSummary;
   summaryEyebrow.hidden = !currentSummary;
-  const demoSummary = data.summary?.model === 'local-demo-no-provider';
-  const localExtractive = data.summary?.model === 'extrativo_local';
+  const summaryModel = typeof data.summary?.model === 'string' ? data.summary.model : '';
+  const demoSummary = summaryModel === 'local-demo-no-provider';
+  const localExtractive = ['extrativo_local', 'rpy-local-extractive'].includes(summaryModel);
+  const deterministicRestricted = summaryModel === 'local-deterministic';
+  const claudeSummary = ['claude-sonnet-4-6', 'claude-sonnet-5', 'claude-opus-5'].includes(summaryModel);
   summaryEyebrow.textContent = localExtractive
     ? 'RESULTADO EXTRATIVO LOCAL · NÃO PUBLICADO'
-    : demoSummary ? 'SÍNTESE DE DEMONSTRAÇÃO' : 'SÍNTESE GERADA POR IA';
+    : demoSummary ? 'DEMONSTRAÇÃO SINTÉTICA · NÃO OFICIAL'
+      : deterministicRestricted ? 'RESUMO DETERMINÍSTICO RESTRITO · SEM CLAUDE'
+        : claudeSummary ? 'iaSummary OFICIAL · CLAUDE' : 'RESUMO PROCESSUAL PUBLICADO';
 
   if (currentSummary) {
     renderMarkdown(currentSummary, body);
     const created = formatDate(data.summary?.created_at);
     provenance.textContent = localExtractive
-      ? (data.summary?.provenance || 'Método extrativo_local. Claude não utilizado; não publicado no iaSummary oficial.')
-      : demoSummary ? (created ? `Resumo sintético local publicado em ${created}. Nenhum provedor externo foi utilizado.` : 'Resumo sintético local. Nenhum provedor externo foi utilizado.')
-        : (created ? `Resumo gerado por IA e publicado em ${created}.` : 'Resumo gerado por IA para a versão atual.');
+      ? (data.summary?.provenance || 'Método extrativo local. Claude não utilizado; não publicado no iaSummary oficial.')
+      : demoSummary ? (created ? `Resumo sintético local de demonstração em ${created}. Nenhum provedor externo foi utilizado.` : 'Resumo sintético local de demonstração. Nenhum provedor externo foi utilizado.')
+        : deterministicRestricted ? (created ? `Resumo determinístico local para processo sob sigilo, sem Claude; registrado em ${created}.` : 'Resumo determinístico local para processo sob sigilo, sem Claude.')
+          : claudeSummary ? (created ? `iaSummary oficial gerado pelo RAGVIA com Claude (${summaryModel}) e publicado em ${created}.` : `iaSummary oficial gerado pelo RAGVIA com Claude (${summaryModel}).`)
+            : (created ? `Resumo processual publicado para a versão atual em ${created}.` : 'Resumo processual publicado para a versão atual.');
   } else {
     clear(body);
     const p = document.createElement('p');
     p.className = 'summary-empty';
     p.textContent = summaryEmptyMessage(data.summary_status);
     body.appendChild(p);
-    provenance.textContent = data.summary_status === 'processing' ? 'Status: preparação em andamento.' : data.summary_status === 'unavailable' ? 'Status: resumo indisponível.' : 'Status: sem resumo publicado.';
+    provenance.textContent = data.summary_status === 'processing'
+      ? 'Status: preparação em andamento.'
+      : data.summary_status === 'validation_failed'
+        ? 'Status: validação factual reprovada; resumo não publicado.'
+        : data.summary_status === 'unavailable'
+          ? 'Status: falha na geração; resumo não publicado.'
+          : 'Status: sem resumo publicado.';
   }
   result.hidden = false;
 }
@@ -1021,7 +1035,15 @@ async function checkSummary(code, token) {
     renderProcess(data);
     if (data.summary || data.summary_status!=='processing') {
       stopPolling();
-      setStatus(data.summary ? 'Resumo publicado' : 'Preparação do resumo encerrada', data.summary ? 'O resumo desta versão foi atualizado automaticamente.' : 'O estado do resumo mudou. A página foi atualizada.');
+      if (data.summary) {
+        setStatus('Resumo publicado', 'O resumo desta versão foi atualizado automaticamente.');
+      } else if (data.summary_status === 'validation_failed') {
+        setStatus('Validação reprovada', 'O resultado não foi publicado. Consulte novamente após uma nova geração autorizada.');
+      } else if (data.summary_status === 'unavailable') {
+        setStatus('Falha na geração', 'Nenhum resumo foi publicado. Os dados processuais permanecem disponíveis.');
+      } else {
+        setStatus('Preparação do resumo encerrada', 'O estado do resumo mudou. A página foi atualizada.');
+      }
       return;
     }
   } catch {

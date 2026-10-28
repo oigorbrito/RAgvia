@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -18,13 +19,20 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("validation_regeneration_allowed", "expected_calls"),
+    [(False, 1), (True, 2)],
+)
 async def test_second_invalid_generation_is_persisted_as_failed_validation(
     monkeypatch: pytest.MonkeyPatch,
+    validation_regeneration_allowed: bool,
+    expected_calls: int,
 ) -> None:
     assert TEST_DATABASE_URL is not None
     await migrate(TEST_DATABASE_URL)
     pool = await create_pool(TEST_DATABASE_URL, min_size=1, max_size=3)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "false")
 
     process_id = uuid4()
     version_id = uuid4()
@@ -36,7 +44,13 @@ async def test_second_invalid_generation_is_persisted_as_failed_validation(
         return f"Processo {code}. Recomendo que a parte tome providências."
 
     monkeypatch.setattr(rag, "_generate", always_invalid)
-    monkeypatch.setattr(rag, "anthropic_client", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        rag,
+        "anthropic_client",
+        lambda *args, **kwargs: SimpleNamespace(
+            validation_regeneration_allowed=validation_regeneration_allowed
+        ),
+    )
 
     try:
         async with pool.acquire() as conn:
@@ -80,10 +94,13 @@ async def test_second_invalid_generation_is_persisted_as_failed_validation(
 
         result = await rag.generate_summary(pool, process_id, version_id)
 
-        assert len(calls) == 2
+        assert len(calls) == expected_calls
         assert calls[0] is None
-        assert calls[1]
-        assert any("prognostic" in error for error in calls[1])
+        if validation_regeneration_allowed:
+            assert calls[1]
+            assert any("prognostic" in error for error in calls[1])
+        else:
+            assert len(calls) == 1
         assert result["validation"]["passed"] is False
         assert any("prognostic" in error for error in result["validation"]["errors"])
 
