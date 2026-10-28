@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
@@ -117,7 +118,13 @@ Nenhuma divergência objetiva identificada.
 """
 
     monkeypatch.setattr(rag, "_generate", fake_generate)
-    monkeypatch.setattr(rag, "anthropic_client", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        rag,
+        "anthropic_client",
+        lambda *args, **kwargs: SimpleNamespace(
+            validation_regeneration_allowed=True
+        ),
+    )
 
     transport = httpx.ASGITransport(app=app)
     try:
