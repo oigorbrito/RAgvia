@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import threading
+import urllib.error
+import urllib.request
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+
+from scripts.serve_local_iasummary_preview import (
+    MARKDOWN_NAME,
+    REPORT_NAME,
+    LocalPreviewServer,
+    build_preview_payload,
+)
+
+
+def _synthetic_artifacts(tmp_path: Path) -> tuple[Path, Path, dict]:
+    output_dir = tmp_path / "private-output"
+    output_dir.mkdir()
+    capture_path = tmp_path / "synthetic-capture.json"
+    steps = [
+        {"date": f"2026-09-{index + 1:02d}T12:00:00Z", "movement": f"synthetic movement {index + 1}"}
+        for index in range(13)
+    ]
+    capture = {
+        "page_data": [
+            {
+                "response_type": "lawsuit",
+                "created_at": "2026-09-02T18:51:00.225Z",
+                "response_data": {
+                    "code": "0000000-00.2026.8.21.0001",
+                    "tribunal_acronym": "TJRS",
+                    "secrecy_level": 0,
+                    "steps": steps,
+                },
+            },
+            {"response_type": "summary", "response_data": {"data": "reference excluded"}},
+        ]
+    }
+    capture_bytes = json.dumps(capture, ensure_ascii=False).encode("utf-8")
+    capture_path.write_bytes(capture_bytes)
+    movement_sources = [
+        {
+            "source_ref": f"steps/{index}",
+            "evidence_ref": f"m-{index}",
+            "source_text_sha256": hashlib.sha256(f"synthetic movement {index + 1}".encode()).hexdigest(),
+        }
+        for index in range(13)
+    ]
+    claim_refs = [
+        {"claim_id": "synthesis", "evidence_refs": ["p-local", "m-12"]},
+        {"claim_id": "current_status", "evidence_refs": ["m-12"]},
+        *[
+            {"claim_id": f"timeline:{index}", "evidence_refs": [f"m-{index}"]}
+            for index in range(13)
+        ],
+        *[
+            {"claim_id": f"attention:{index}", "evidence_refs": ["p-local"]}
+            for index in range(6)
+        ],
+    ]
+    report = {
+        "source": {
+            "sha256": hashlib.sha256(capture_bytes).hexdigest(),
+            "summary_reference_excluded_from_generation": True,
+            "movement_count": 13,
+            "secrecy_level": 0,
+            "normalized_classifications": [
+                {"name": "Synthetic class", "suspect": False}
+            ],
+        },
+        "generation": {
+            "model": "rpy-local-extractive",
+            "mode": "local_extractive_no_provider",
+            "anthropic_called": False,
+            "persisted": False,
+        },
+        "retrieval": {"selected_movement_count": 13},
+        "validation": {
+            "passed": True,
+            "errors": [],
+            "claim_count": 21,
+            "timeline_claim_count": 13,
+            "all_movements_have_structured_evidence_refs": True,
+        },
+        "provenance": {
+            "movement_sources": movement_sources,
+            "claim_evidence_refs": claim_refs,
+        },
+    }
+    (output_dir / REPORT_NAME).write_text(json.dumps(report), encoding="utf-8")
+    (output_dir / MARKDOWN_NAME).write_text(
+        "# Local report\n\n## Documento gerado\n\n"
+        "# Resumo do processo\n\n## Andamento\n- Synthetic only.\n\n"
+        "## Validação factual e proveniência\n- fixture\n",
+        encoding="utf-8",
+    )
+    return capture_path, output_dir, report
+
+
+def test_preview_reads_existing_validated_lawsuit_and_hashes_only_display_markdown(tmp_path: Path) -> None:
+    capture_path, output_dir, _report = _synthetic_artifacts(tmp_path)
+
+    payload = build_preview_payload(capture_path, output_dir)
+
+    assert payload["mode"] == "extrativo_local"
+    assert payload["published"] is False
+    assert payload["process"]["code"] == "0000000-00.2026.8.21.0001"
+    assert payload["capture"]["file_name"] == capture_path.name
+    assert payload["validation"]["movement_count"] == 13
+    assert payload["validation"]["selected_movement_count"] == 13
+    assert payload["validation"]["claim_count"] == 21
+    assert payload["validation"]["timeline_claim_count"] == 13
+    assert payload["validation"]["evidence_complete"] is True
+    assert payload["generation"]["anthropic_called"] is False
+    assert payload["generation"]["persisted"] is False
+    assert payload["markdown"] == "# Resumo do processo\n\n## Andamento\n- Synthetic only."
+    assert payload["markdown_sha256"] == hashlib.sha256(payload["markdown"].encode()).hexdigest()
+
+
+def test_preview_fails_closed_if_capture_no_longer_matches_validation_report(tmp_path: Path) -> None:
+    capture_path, output_dir, _report = _synthetic_artifacts(tmp_path)
+    capture_path.write_text('{"changed": true}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="capture hash does not match"):
+        build_preview_payload(capture_path, output_dir)
+
+
+def test_preview_server_is_loopback_bound_and_requires_local_bearer_session(tmp_path: Path) -> None:
+    capture_path, output_dir, _report = _synthetic_artifacts(tmp_path)
+    payload = build_preview_payload(capture_path, output_dir)
+    token = uuid4().hex
+    server = LocalPreviewServer(token, payload, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_port}"
+    try:
+        assert server.server_address[0] == "127.0.0.1"
+        with pytest.raises(urllib.error.HTTPError) as unauthorized:
+            urllib.request.urlopen(f"{origin}/__local_preview_payload", timeout=5)
+        assert unauthorized.value.code == 401
+
+        denied = urllib.request.Request(
+            f"{origin}/__local_preview_payload",
+            headers={"Authorization": f"Bearer {token}", "Origin": "http://untrusted.invalid"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as untrusted_origin:
+            urllib.request.urlopen(denied, timeout=5)
+        assert untrusted_origin.value.code == 403
+
+        authorized = urllib.request.Request(
+            f"{origin}/__local_preview_payload",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        with urllib.request.urlopen(authorized, timeout=5) as response:
+            returned = json.loads(response.read().decode("utf-8"))
+        assert returned["mode"] == "extrativo_local"
+        assert returned["published"] is False
+
+        index = urllib.request.urlopen(f"{origin}/", timeout=5).read().decode("utf-8")
+        assert 'src="__local_preview_bootstrap.js" defer' in index
+        assert 'src="app.js" defer' not in index
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()

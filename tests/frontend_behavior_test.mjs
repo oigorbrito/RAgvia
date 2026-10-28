@@ -16,9 +16,10 @@ const ids = [
   "toggle-token","access-trigger","access-label","auth-panel","status","status-title",
   "status-detail","retry-search","request-process","result","search-submit",
   "copy-summary","new-search","action-feedback","result-code","result-class",
-  "result-court","result-updated","result-context","parties-list","subjects-list",
-  "header-data","movements-list","summary-body","summary-provenance","summary-eyebrow",
-  "summary-title","case-data-title","movements-title",
+  "result-court","result-updated","result-updated-label","result-context","parties-list","subjects-list",
+  "header-data","movements-list","summary-body","summary-provenance","local-preview-evidence","summary-eyebrow",
+  "summary-title","case-data-title","movements-title","workspace-eyebrow","page-title","workspace-lede",
+  "footer-brand","client-reference","document-nav","case-data-section","movements-section","app-shell",
   "history-trigger","history-panel","history-title","refresh-history","close-history",
   "history-status","history-list","open-existing-history","request-refresh",
   "confirm-modal","confirm-modal-title","confirm-modal-desc","confirm-refresh-submit",
@@ -60,7 +61,7 @@ class ClassList {
 class Element {
   constructor(id) {
     this.id = id;
-    this.hidden = ["history-panel", "confirm-modal", "judit-tooltip", "datajud-tooltip"].includes(id);
+    this.hidden = ["history-panel", "confirm-modal", "judit-tooltip", "datajud-tooltip", "local-preview-evidence"].includes(id);
     this.disabled = id === "source-datajud";
     this.value = "";
     this.textContent = "";
@@ -163,7 +164,7 @@ function readyPayload(overrides = {}) {
   };
 }
 
-function createHarness(fetchResponses, { apiBase = "same-origin", hasExplicitCapabilities = false, now = FIXED_NOW } = {}) {
+function createHarness(fetchResponses, { apiBase = "same-origin", hasExplicitCapabilities = false, now = FIXED_NOW, localPreview = null } = {}) {
   const elements = Object.fromEntries(ids.map(id => [id, new Element(id)]));
   const requests = [];
   const capabilitiesRequests = [];
@@ -226,6 +227,7 @@ function createHarness(fetchResponses, { apiBase = "same-origin", hasExplicitCap
     },
     window: {
       RPY_PUBLIC_CONFIG: { apiBase },
+      RAGVIA_LOCAL_PREVIEW: localPreview,
       crypto: { randomUUID: () => "7ddcc476-3c58-4c90-864a-0eacac9fd8b3" },
       location: { origin: "http://localhost" },
       matchMedia: () => ({ matches: false }),
@@ -435,6 +437,52 @@ await scenario("structured iaSummary JSON is not interpreted as Markdown", async
   assert.equal(ui.elements["summary-eyebrow"].hidden, true);
   assert.ok(ui.elements["summary-body"].renderedText.includes("sem resumo publicado"));
   assert.doesNotMatch(ui.elements["summary-body"].renderedText, /JSON deve permanecer estruturado|schema_version/);
+});
+
+await scenario("real-result local preview is labelled unpublished and makes no API calls", async () => {
+  const syntheticPreviewFixture = {
+    mode: "extrativo_local",
+    published: false,
+    capture: {
+      file_name: "synthetic-capture.json",
+      sha256: "a".repeat(64),
+      captured_at: "2026-09-02T18:51:00.225Z",
+    },
+    process: { code: VALID_CODE, class_name: "Classe sintética", court: "TJRS" },
+    markdown: "# Resumo do processo\n\n## Andamento\n- Movimento sintético.",
+    markdown_sha256: "b".repeat(64),
+    generation: { model: "rpy-local-extractive", anthropic_called: false, persisted: false },
+    validation: {
+      passed: true,
+      errors_count: 0,
+      movement_count: 13,
+      selected_movement_count: 13,
+      claim_count: 21,
+      timeline_claim_count: 13,
+      evidence_complete: true,
+      limitation: "Validação sintética de consistência; sem revisão jurídica.",
+    },
+    evidence: {
+      movement_sources: [{ source_ref: "steps/0", evidence_ref: "m-local", source_text_sha256: "c".repeat(64) }],
+      claim_evidence_refs: [{ claim_id: "timeline:0", evidence_refs: ["m-local"] }],
+    },
+  };
+  const ui = createHarness([], { localPreview: syntheticPreviewFixture });
+
+  assert.equal(ui.requests.length, 0);
+  assert.equal(ui.capabilitiesRequests.length, 0);
+  assert.equal(ui.elements["result-code"].textContent, VALID_CODE);
+  assert.equal(ui.elements["summary-eyebrow"].textContent, "RESULTADO EXTRATIVO LOCAL · NÃO PUBLICADO");
+  assert.ok(ui.elements["summary-body"].renderedText.includes("Movimento sintético."));
+  assert.ok(ui.elements["summary-provenance"].textContent.includes("Claude não utilizado"));
+  assert.ok(ui.elements["local-preview-evidence"].renderedText.includes("synthetic-capture.json"));
+  assert.ok(ui.elements["local-preview-evidence"].renderedText.includes("21 claims"));
+  assert.equal(ui.elements["search-form"].hidden, true);
+  assert.equal(ui.elements["refresh-from-result"].hidden, true);
+  assert.equal(ui.elements["document-nav"].hidden, true);
+  assert.equal(ui.elements["access-trigger"].hidden, true);
+  assert.ok(ui.elements["app-shell"].classList.contains("local-preview-mode"));
+  assert.equal(ui.elements["result-updated-label"].textContent, "Data da captura");
 });
 
 await scenario("provider-free demo summary is labeled as synthetic instead of AI-generated", async () => {
