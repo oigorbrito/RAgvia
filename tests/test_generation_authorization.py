@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -94,6 +95,25 @@ def test_incomplete_or_insufficient_approval_never_constructs_sdk(monkeypatch, t
     monkeypatch.setattr(providers.anthropic, "AsyncAnthropic", forbidden_sdk)
     with pytest.raises(PermanentTaskError, match="preauthorization"):
         providers.anthropic_client("synthetic-placeholder", authorization_scope=SCOPE)
+
+
+@pytest.mark.parametrize(("max_regenerations", "expected"), [(0, False), (1, True)])
+def test_provider_facade_exposes_only_approved_validation_regeneration(
+    monkeypatch, tmp_path, max_regenerations, expected
+):
+    configure_approval(monkeypatch, tmp_path, max_regenerations=max_regenerations)
+    monkeypatch.setattr(
+        providers.anthropic,
+        "AsyncAnthropic",
+        lambda **_kwargs: SimpleNamespace(
+            messages=SimpleNamespace(create=None),
+            close=lambda: None,
+        ),
+    )
+
+    client = providers.anthropic_client("synthetic-placeholder", authorization_scope=SCOPE)
+
+    assert client.validation_regeneration_allowed is expected
 
 
 def test_approval_estimate_covers_full_context_cache_and_correction(monkeypatch, tmp_path):

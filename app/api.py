@@ -113,13 +113,21 @@ def _json_value(value, *, fallback):
     return value
 
 
-def _summary_status(summary, job_status: str | None, cached_response: bool) -> str:
+def _summary_status(
+    summary,
+    job_status: str | None,
+    cached_response: bool,
+    validation_failed: bool = False,
+) -> str:
     if summary is not None:
         return "available"
     if cached_response:
         return "not_generated"
     if job_status in {"pending", "processing"}:
         return "processing"
+    # A rejected validation is durable; a dead later repair job does not erase it.
+    if validation_failed:
+        return "validation_failed"
     if job_status == "dead":
         return "unavailable"
     return "not_generated"
@@ -586,6 +594,7 @@ async def get_process_summary(code: str, request: Request) -> dict:
                     summary = None
         steps = []
         summary_job_status = None
+        summary_validation_failed = False
         cached_response = False
         if process["current_version_id"] is not None:
             if not is_restricted:
@@ -610,10 +619,28 @@ async def get_process_summary(code: str, request: Request) -> dict:
             summary_job_status = await conn.fetchval(
                 """
                 SELECT status::text FROM jobs
-                WHERE task_name = 'generate_process_summary' AND idempotency_key = $1
+                WHERE task_name = 'generate_process_summary'
+                  AND (
+                      idempotency_key = $1
+                      OR idempotency_key LIKE $2
+                  )
                 ORDER BY created_at DESC LIMIT 1
                 """,
                 f"summary:{process['current_version_id']}",
+                f"summary-repair:{process['current_version_id']}:%",
+            )
+            summary_validation_failed = bool(
+                await conn.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM process_summaries
+                        WHERE process_id = $1 AND version_id = $2
+                          AND validation->>'passed' = 'false'
+                    )
+                    """,
+                    process["id"],
+                    process["current_version_id"],
+                )
             )
 
     summary_data = dict(summary) if summary else None
@@ -670,7 +697,12 @@ async def get_process_summary(code: str, request: Request) -> dict:
         "subjects": subjects if isinstance(subjects, list) else [],
         "header": header if isinstance(header, dict) else {},
         "updated_at": process["updated_at"],
-        "summary_status": _summary_status(summary_data, summary_job_status, cached_response),
+        "summary_status": _summary_status(
+            summary_data,
+            summary_job_status,
+            cached_response,
+            validation_failed=summary_validation_failed,
+        ),
         "summary": summary_data,
         "iaSummary": ia_summary,
         "juditSummary": judit_summary,

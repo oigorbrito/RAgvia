@@ -107,7 +107,13 @@ def anthropic_client(
         return await client.messages.create(**request)
 
     # Only expose the bounded Messages operation, not raw SDK HTTP/tools methods.
-    return SimpleNamespace(messages=SimpleNamespace(create=create), close=client.close)
+    # The generation layer also needs this authorization-derived capability so it
+    # does not request a correction message that the private permit did not allow.
+    return SimpleNamespace(
+        messages=SimpleNamespace(create=create),
+        validation_regeneration_allowed=permit.max_messages > 1,
+        close=client.close,
+    )
 
 
 def openai_client(api_key: str) -> openai.AsyncOpenAI:

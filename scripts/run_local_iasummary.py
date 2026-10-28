@@ -5,9 +5,7 @@ import asyncio
 import hashlib
 import json
 import os
-import re
 import sys
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,7 +22,7 @@ from app.provenance import selected_movement_sources
 from app.reranking import select_context_steps
 from app.retrieval import Step
 from app.tpu_glossary import resolve_process_tpu_definitions
-from app.validation import validar
+
 
 def _replacement_count(value: Any) -> int:
     if isinstance(value, str):
@@ -34,35 +32,6 @@ def _replacement_count(value: Any) -> int:
     if isinstance(value, list):
         return sum(_replacement_count(item) for item in value)
     return 0
-
-
-def _source_date(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        return value
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-def _normalize_for_comparison(value: str) -> str:
-    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
-
-
-def _reference_text(record: dict[str, Any] | None) -> str:
-    if not isinstance(record, dict):
-        return ""
-    response_data = record.get("response_data")
-    if not isinstance(response_data, dict):
-        return ""
-    data = response_data.get("data")
-    if isinstance(data, str):
-        return data
-    if isinstance(data, list):
-        return "\n\n".join(item for item in data if isinstance(item, str))
-    return ""
 
 
 async def _build_lawsuit_context(
@@ -177,90 +146,6 @@ async def _build_lawsuit_context(
     return context, raw_steps
 
 
-def _compare_reference(
-    reference_record: dict[str, Any] | None,
-    *,
-    context: dict[str, Any],
-    raw_steps: list[Step],
-) -> dict[str, Any]:
-    reference = _reference_text(reference_record)
-    if not reference:
-        return {"available": False, "reason": "summary reference has no text data"}
-
-    source_text = rag._provider_source_text(context)
-    distribution_date = context.get("header", {}).get("distribution_date")
-    additional_dates: list[str] = []
-    if isinstance(distribution_date, str):
-        parsed = _source_date(distribution_date)
-        if parsed is not None:
-            additional_dates.append(parsed.date().isoformat())
-    reference_validation = validar(
-        text=reference,
-        code=str(context["code"]),
-        parties=list(context.get("parties") or []),
-        expected_step_count=int(context.get("step_count") or 0),
-        source_text=source_text,
-        additional_source_dates=additional_dates,
-    )
-    normalized_reference = _normalize_for_comparison(reference)
-    exact_movement_matches = [
-        step.step_number
-        for step in raw_steps
-        if step.text
-        and _normalize_for_comparison(step.text) in normalized_reference
-    ]
-    source_movement_dates = sorted(
-        {
-            step.occurred_at.date().isoformat()
-            for step in raw_steps
-            if isinstance(step.occurred_at, datetime)
-        }
-    )
-    reference_date_tokens = sorted(
-        set(re.findall(r"(?<!\d)(?:\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})(?!\d)", reference))
-    )
-    metadata_fields = {
-        "class_name": context.get("class_name"),
-        "court": context.get("court"),
-        "subjects": [
-            item.get("name") for item in context.get("subjects", [])
-            if isinstance(item, dict) and item.get("name")
-        ],
-        "parties": [
-            item.get("name") for item in context.get("parties", [])
-            if isinstance(item, dict) and item.get("name")
-        ],
-    }
-    metadata_presence = {
-        field: (
-            _normalize_for_comparison(value) in normalized_reference
-            if isinstance(value, str) and value
-            else [
-                item for item in value
-                if isinstance(item, str)
-                and _normalize_for_comparison(item) in normalized_reference
-            ]
-            if isinstance(value, list)
-            else None
-        )
-        for field, value in metadata_fields.items()
-    }
-    return {
-        "available": True,
-        "text_chars": len(reference),
-        "reference_validation_passed": not reference_validation.errors,
-        "reference_validation_errors": reference_validation.errors,
-        "exact_movement_text_matches": exact_movement_matches,
-        "exact_movement_text_match_count": len(exact_movement_matches),
-        "source_movement_dates": source_movement_dates,
-        "date_tokens_in_reference": reference_date_tokens,
-        "metadata_presence_lexical_only": metadata_presence,
-        "scope_limit": (
-            "The application validator is a deterministic consistency gate, not a complete legal entailment or semantic coverage review."
-        ),
-    }
-
-
 def _write_artifacts(
     output_dir: Path,
     *,
@@ -279,7 +164,7 @@ def _write_artifacts(
         f"- **Validação do RAGVIA:** {'aprovada' if report['validation']['passed'] else 'reprovada'}.",
         f"- **Fonte:** `{report['source']['file_name']}`; SHA-256 `{report['source']['sha256']}`.",
         f"- **Entrada para geração:** somente `response_type: lawsuit` ({report['source']['movement_count']} movimentos).",
-        "- **Referência Judit:** carregada somente após a geração para comparação; excluída do contexto gerador.",
+        "- **Limite de dados:** a geração e a validação consomem somente a resposta `response_type: lawsuit`; uma resposta `summary` não é usada nem comparada.",
         "",
         "## Documento gerado",
         "",
@@ -293,12 +178,7 @@ def _write_artifacts(
         f"- Saída citada por claims estruturadas: {report['validation']['claim_count']} claims.",
         f"- Erros do validador: {len(report['validation']['errors'])}.",
         "",
-        "## Comparação com o summary da captura",
-        "",
-        f"- Referência disponível: {report['comparison'].get('available', False)}.",
-        f"- Correspondências literais de movimentos: {report['comparison'].get('exact_movement_text_match_count', 0)}.",
-        f"- Validador determinístico da referência passou: {report['comparison'].get('reference_validation_passed', 'n/a')}.",
-        "- As mensagens de validação e os limites da comparação estão no JSON ao lado; uma validação determinística não prova cobertura semântica completa.",
+        "- A validação determinística comprova estrutura e referências; não prova entailment semântico nem substitui revisão jurídica.",
     ]
     markdown_path.write_text("\n".join(report_markdown).rstrip() + "\n", encoding="utf-8")
     report_path.write_text(
@@ -348,11 +228,6 @@ async def _run(args: argparse.Namespace) -> int:
     os.environ["RAGVIA_LOCAL_SUMMARY_RUNNER"] = "1"
     result = await rag.generate_summary(local_context=context)
 
-    reference_record = next(
-        (item for item in page_data if isinstance(item, dict) and item.get("response_type") == "summary"),
-        None,
-    ) if isinstance(page_data, list) else None
-    comparison = _compare_reference(reference_record, context=context, raw_steps=raw_steps)
     structured = result.get("structured_output")
     claims = (
         structured.get("summary", {}).get("claims", [])
@@ -382,13 +257,15 @@ async def _run(args: argparse.Namespace) -> int:
     report = {
         "source": {
             "file_name": input_path.name,
+            "origin": "existing_local_capture_file",
+            "acquisition_performed": False,
+            "tenant_process_association": None,
+            "official_process_summary_persisted": False,
+            "summary_reference_used_for_generation": False,
+            "summary_response_consumed": False,
             "sha256": source_digest,
             "lawsuit_sha256": lawsuit_digest,
             "lawsuit_count": len(lawsuits),
-            "summary_reference_count": sum(
-                1 for item in (page_data if isinstance(page_data, list) else [])
-                if isinstance(item, dict) and item.get("response_type") == "summary"
-            ),
             "movement_count": len(raw_steps),
             "party_count": len(context.get("parties", [])),
             "representative_count": len(context.get("representatives", [])),
@@ -452,7 +329,6 @@ async def _run(args: argparse.Namespace) -> int:
                 if isinstance(item, dict)
             ],
         },
-        "comparison": comparison,
     }
     markdown_path, report_path = _write_artifacts(
         args.output_dir, result=result, report=report
@@ -466,8 +342,6 @@ async def _run(args: argparse.Namespace) -> int:
                 "errors": report["validation"]["errors"],
                 "generation": report["generation"],
                 "source_sha256": source_digest,
-                "reference_validation_passed": comparison.get("reference_validation_passed"),
-                "reference_validation_errors": comparison.get("reference_validation_errors", []),
             },
             ensure_ascii=False,
             indent=2,

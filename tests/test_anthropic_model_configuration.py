@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.generation_authorization import PROPOSED_MODEL
 from app.providers import anthropic_model
 from app.rag import OPUS_MODEL, SONNET_MODEL, _generation_model
 from tests.test_anthropic_contract import _Client, _context
@@ -14,6 +15,15 @@ from app.rag import _generate
 def test_unconfigured_model_preserves_volume_routing(monkeypatch, step_count, expected):
     monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
     assert _generation_model({"step_count": step_count}) == expected
+
+
+@pytest.mark.parametrize("step_count", [0, 100, 101, 1000])
+def test_paid_preacceptance_model_override_wins_over_legacy_volume_defaults(
+    monkeypatch, step_count
+):
+    monkeypatch.setenv("ANTHROPIC_MODEL", PROPOSED_MODEL)
+
+    assert _generation_model({"step_count": step_count}) == PROPOSED_MODEL
 
 
 @pytest.mark.parametrize("value", [" ", " model ", "model\n", "x" * 129, "https://not-a-model"])

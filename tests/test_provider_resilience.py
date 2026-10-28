@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 
@@ -138,7 +139,11 @@ def test_provider_clients_disable_sdk_retries(monkeypatch) -> None:
         captured["openai"] = kwargs
         return object()
 
-    monkeypatch.setattr(providers, "load_generation_permit", lambda scope: object())
+    monkeypatch.setattr(
+        providers,
+        "load_generation_permit",
+        lambda scope: SimpleNamespace(max_messages=1),
+    )
     monkeypatch.setattr(providers.anthropic, "AsyncAnthropic", fake_anthropic)
     monkeypatch.setattr(providers.openai, "AsyncOpenAI", fake_openai)
     monkeypatch.setenv("ANTHROPIC_TIMEOUT_SECONDS", "7")

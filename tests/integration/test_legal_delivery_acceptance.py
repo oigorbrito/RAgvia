@@ -43,6 +43,10 @@ async def test_synthetic_legal_document_uses_canonical_structured_generation(mon
     monkeypatch.setenv("ANTHROPIC_MODEL", PROPOSED_MODEL)
     monkeypatch.setenv("PROVIDER_MAX_ATTEMPTS", "1")
     monkeypatch.setenv("DATAJUD_ENABLED", "false")
+    one_shot_run_id = "APR-SYNTHETIC-02B"
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true")
+    monkeypatch.setenv("PROVIDER_ONE_SHOT_RUN_ID", one_shot_run_id)
+    monkeypatch.setenv("JUDIT_MAX_PROVIDER_CALLS", "1")
     calls = []
 
     async def create(**request):
@@ -115,14 +119,45 @@ async def test_synthetic_legal_document_uses_canonical_structured_generation(mon
             assert await worker.process_one() is True
             async with pool.acquire() as conn:
                 process = await conn.fetchrow("SELECT id, current_version_id FROM processes WHERE code=$1", source["code"])
-                configure_approval(monkeypatch, tmp_path, (process["id"], process["current_version_id"], tenant_id))
+                configure_approval(
+                    monkeypatch,
+                    tmp_path,
+                    (process["id"], process["current_version_id"], tenant_id),
+                    max_regenerations=0,
+                )
+                monkeypatch.setenv("PROVIDER_ONE_SHOT_MODE", "true")
+                monkeypatch.setenv("PROVIDER_ONE_SHOT_RUN_ID", one_shot_run_id)
+                monkeypatch.setenv("JUDIT_MAX_PROVIDER_CALLS", "1")
                 monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+                request_row_id = await conn.fetchval(
+                    """
+                    SELECT id FROM tenant_judit_requests
+                    WHERE tenant_id = $1 AND process_code = $2 AND judit_request_id = $3
+                    """,
+                    tenant_id,
+                    source["code"],
+                    request_id,
+                )
+                assert request_row_id is not None
+                await conn.execute(
+                    """
+                    INSERT INTO judit_one_shot_call_reservations (run_id, tenant_request_id)
+                    VALUES ($1, $2)
+                    """,
+                    one_shot_run_id,
+                    request_row_id,
+                )
                 pending = await conn.fetch("SELECT id, task_name FROM jobs WHERE status='pending'")
                 assert len(pending) == 1 and pending[0]["task_name"] == "generate_process_summary"
                 await conn.execute("UPDATE jobs SET max_attempts=1 WHERE id=$1 AND status='pending'", pending[0]["id"])
             assert await worker.process_one() is True
             assert await worker.process_one() is False
             assert len(calls) == 1
+            async with pool.acquire() as conn:
+                assert await conn.fetchval(
+                    "SELECT messages_reserved FROM anthropic_generation_reservations WHERE approval_id=$1",
+                    one_shot_run_id,
+                ) == 1
             url = f"/processes/{source['code']}"
             denied = await client.get(url, headers={"Authorization": "Bearer synthetic-other"})
             assert denied.status_code in (403, 404)
@@ -137,6 +172,26 @@ async def test_synthetic_legal_document_uses_canonical_structured_generation(mon
         assert isinstance(body["iaSummary"], str)
         assert body["iaSummary"] == body["summary"]["markdown"]
         assert "10/04/2026" in body["iaSummary"]
+        assert body["juditSummary"]["response_type"] == "summary"
+        assert body["juditSummary"]["response_data"]["origin_id"] is None
+        assert body["juditSummary"]["response_data"]["origin"] == "response"
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as v1_client:
+            v1_jsx = await v1_client.get(
+                f"/v1/processos/{source['code']}/resumo?format=jsx",
+                headers={"Authorization": "Bearer synthetic-owner"},
+            )
+            assert v1_jsx.status_code == 200
+            assert v1_jsx.json()["iaSummary"] == body["iaSummary"]
+            v1_json = await v1_client.get(
+                f"/v1/processos/{source['code']}/resumo?format=json",
+                headers={"Authorization": "Bearer synthetic-owner"},
+            )
+            assert v1_json.status_code == 200
+            assert v1_json.json()["iaSummary"]["schema_version"] == 3
+            assert v1_json.json()["iaSummary"]["summary"]["claims"]
         async with pool.acquire() as conn:
             row = await conn.fetchrow("SELECT markdown, structured_output, model FROM process_summaries WHERE process_id=(SELECT id FROM processes WHERE code=$1)", source["code"])
             assert row["markdown"] == body["iaSummary"]
