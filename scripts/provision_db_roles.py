@@ -105,6 +105,9 @@ async def provision(database_url: str) -> None:
                     f"REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM {ident}"
                 )
 
+            await conn.execute(
+                "REVOKE UPDATE (idempotency_key) ON jobs FROM rpy_api"
+            )
             api = _quote_ident("rpy_api")
             await conn.execute(
                 f"GRANT SELECT ON {', '.join(_quote_ident(t) for t in API_READ_TABLES)} TO {api}"
@@ -114,6 +117,13 @@ async def provision(database_url: str) -> None:
             )
             await conn.execute(
                 "GRANT INSERT ON access_log, judit_deliveries, judit_request_completions, jobs, tenant_processes, tenant_judit_request_history TO "
+                f"{api}"
+            )
+            await conn.execute(
+                f"GRANT USAGE ON SEQUENCE access_log_id_seq TO {api}"
+            )
+            await conn.execute(
+                "GRANT UPDATE (idempotency_key) ON jobs TO "
                 f"{api}"
             )
 

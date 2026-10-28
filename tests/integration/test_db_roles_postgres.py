@@ -10,6 +10,7 @@ import pytest
 
 from app.claim_evidence import load_summary_claim_evidence
 from app.migrations import migrate
+from app.queue import get_idempotent_job
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "provision_db_roles.py"
 spec = importlib.util.spec_from_file_location("provision_db_roles", MODULE_PATH)
@@ -71,6 +72,15 @@ async def test_runtime_database_roles_are_least_privilege(monkeypatch: pytest.Mo
             "SELECT has_table_privilege('rpy_api', 'processes', 'SELECT')"
         )
         assert await admin.fetchval(
+            "SELECT has_column_privilege('rpy_api', 'jobs', 'idempotency_key', 'UPDATE')"
+        )
+        assert not await admin.fetchval(
+            "SELECT has_table_privilege('rpy_api', 'jobs', 'UPDATE')"
+        )
+        assert not await admin.fetchval(
+            "SELECT has_column_privilege('rpy_api', 'jobs', 'status', 'UPDATE')"
+        )
+        assert await admin.fetchval(
             "SELECT has_table_privilege('rpy_api', 'process_summary_attachment_sources', 'SELECT')"
         )
         assert await admin.fetchval(
@@ -84,6 +94,12 @@ async def test_runtime_database_roles_are_least_privilege(monkeypatch: pytest.Mo
         )
         assert await admin.fetchval(
             "SELECT has_table_privilege('rpy_api', 'access_log', 'INSERT')"
+        )
+        assert await admin.fetchval(
+            "SELECT has_sequence_privilege('rpy_api', 'public.access_log_id_seq', 'USAGE')"
+        )
+        assert not await admin.fetchval(
+            "SELECT has_sequence_privilege('rpy_api', 'public.access_log_id_seq', 'SELECT')"
         )
         assert await admin.fetchval(
             "SELECT has_table_privilege('rpy_api', 'public_summary_requests', 'SELECT,INSERT,UPDATE')"
@@ -256,6 +272,8 @@ async def test_runtime_database_roles_are_least_privilege(monkeypatch: pytest.Mo
     api = await asyncpg.connect(urls["API_DATABASE_URL"])
     try:
         assert await api.fetchval("SELECT count(*) FROM processes") is not None
+        assert await api.fetchval("SELECT nextval('public.access_log_id_seq')") > 0
+        assert await get_idempotent_job(api, f"role-read-{uuid4()}") is None
         assert await api.fetchval("SELECT count(*) FROM public_summary_requests") is not None
         assert await api.fetchval("SELECT count(*) FROM judit_trackings") is not None
         assert await api.fetchval("SELECT count(*) FROM process_attachment_status_counts") is not None
