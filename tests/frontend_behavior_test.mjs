@@ -25,6 +25,7 @@ const ids = [
   "confirm-modal","confirm-modal-title","confirm-modal-desc","confirm-refresh-submit",
   "confirm-refresh-cancel","refresh-from-result",
   "verify-token","auth-status","source-judit","source-datajud","datajud-status-hint",
+  "local-import-panel","local-import-form","local-capture-file","local-import-submit","local-import-status","movements-source-note",
   "judit-info","judit-info-wrap","judit-tooltip","datajud-info","datajud-info-wrap","datajud-tooltip",
   "api-connectivity","api-connectivity-label",
 ];
@@ -228,6 +229,7 @@ function createHarness(fetchResponses, { apiBase = "same-origin", hasExplicitCap
     window: {
       RPY_PUBLIC_CONFIG: { apiBase },
       RAGVIA_LOCAL_PREVIEW: localPreview,
+      RAGVIA_LOCAL_PREVIEW_TOKEN: "local-test-token",
       crypto: { randomUUID: () => "7ddcc476-3c58-4c90-864a-0eacac9fd8b3" },
       location: { origin: "http://localhost" },
       matchMedia: () => ({ matches: false }),
@@ -462,6 +464,21 @@ await scenario("real-result local preview is labelled unpublished and makes no A
       evidence_complete: true,
       limitation: "Validação sintética de consistência; sem revisão jurídica.",
     },
+    movements: Array.from({ length: 13 }, (_, index) => ({
+      source_ref: `steps/${index}`,
+      evidence_ref: `m-local-${index}`,
+      title: "Movimento sintético",
+      text: `Texto sintético ${index}`,
+      occurred_at: "2026-09-02T18:51:00.225Z",
+    })),
+    import_enabled: false,
+    storage: {
+      persisted: false,
+      official_process_summary_persisted: false,
+      official_api_published: false,
+      tenant_association_created: false,
+      reused: false,
+    },
     evidence: {
       movement_sources: [{ source_ref: "steps/0", evidence_ref: "m-local", source_text_sha256: "c".repeat(64) }],
       claim_evidence_refs: [{ claim_id: "timeline:0", evidence_refs: ["m-local"] }],
@@ -479,10 +496,27 @@ await scenario("real-result local preview is labelled unpublished and makes no A
   assert.ok(ui.elements["local-preview-evidence"].renderedText.includes("21 claims"));
   assert.equal(ui.elements["search-form"].hidden, true);
   assert.equal(ui.elements["refresh-from-result"].hidden, true);
-  assert.equal(ui.elements["document-nav"].hidden, true);
+  assert.equal(ui.elements["document-nav"].hidden, false);
+  assert.equal(ui.elements["movements-section"].hidden, false);
+  assert.equal(ui.elements["movements-list"].children.length, 13);
   assert.equal(ui.elements["access-trigger"].hidden, true);
   assert.ok(ui.elements["app-shell"].classList.contains("local-preview-mode"));
   assert.equal(ui.elements["result-updated-label"].textContent, "Data da captura");
+});
+
+await scenario("local import shell is isolated from public process APIs", async () => {
+  const ui = createHarness([], {
+    localPreview: { mode: "local_import", import_enabled: true, published: false },
+  });
+
+  assert.equal(ui.requests.length, 0);
+  assert.equal(ui.capabilitiesRequests.length, 0);
+  assert.equal(ui.elements["search-form"].hidden, true);
+  assert.equal(ui.elements["local-import-panel"].hidden, false);
+  assert.equal(ui.elements["result"].hidden, true);
+  assert.equal(ui.elements["case-data-section"].hidden, true);
+  assert.equal(ui.elements["movements-section"].hidden, true);
+  assert.ok(ui.elements["local-import-status"].textContent.includes("Nenhuma captura"));
 });
 
 await scenario("provider-free demo summary is labeled as synthetic instead of AI-generated", async () => {
