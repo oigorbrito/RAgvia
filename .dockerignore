@@ -11,3 +11,5 @@ dist-installer
 staging_evidence*
 tests
 .github
+scripts/run_local_iasummary.py
+scripts/serve_local_iasummary_preview.py
