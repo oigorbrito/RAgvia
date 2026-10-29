@@ -171,7 +171,6 @@ async def test_long_process_hybrid_retrieval_uses_bm25_pgvector_and_mandatory_st
         ranked = rank_steps(
             query=query,
             steps=steps,
-            lexical_scores=lexical_scores,
             vector_scores=vector_scores,
             limit=10,
         )
@@ -180,7 +179,6 @@ async def test_long_process_hybrid_retrieval_uses_bm25_pgvector_and_mandatory_st
 
         assert target_id in selected
         assert selected[target_id].bm25 == pytest.approx(1.0)
-        assert selected[target_id].lexical == selected[target_id].bm25
         assert selected[target_id].vector > 0.99
         assert milestone_id in selected
         assert selected[milestone_id].forced is True

@@ -36,19 +36,12 @@ async def reconcile_generation_result(
     payload: dict[str, Any],
     result: dict[str, Any] | None,
 ) -> None:
-    """Map a completed generation handler to validating + public terminal state."""
+    """Verify the persisted result before assigning the public terminal state."""
     try:
         process_id = UUID(str(payload["process_id"]))
         version_id = UUID(str(payload["version_id"]))
     except (KeyError, TypeError, ValueError):
         return
-
-    await transition_job_public_requests(
-        conn,
-        task_name="generate_process_summary",
-        payload=payload,
-        status="validating",
-    )
 
     row = await conn.fetchrow(
         """

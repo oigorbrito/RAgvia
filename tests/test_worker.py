@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+import app.public_lifecycle_worker as lifecycle_worker
 import app.worker as worker_module
 from app.tasks import PermanentTaskError
 from app.worker import Worker, WorkerSettings, _decode_payload
@@ -219,6 +220,36 @@ async def test_worker_redacts_secret_from_error_log_and_runtime_log(
         "attempts": row["attempts"], "permanent": False,
     }]:
         raise AssertionError("Redaction changed queue-failure identity or retry classification")
+
+
+@pytest.mark.asyncio
+async def test_generation_reconciliation_skips_unobservable_validating_state(monkeypatch) -> None:
+    job_statuses: list[str] = []
+    terminal_statuses: list[str] = []
+
+    class _Conn:
+        async def fetchrow(self, _query, *_args):
+            return None
+
+    async def transition_job(_conn, *, task_name, payload, status, error_code=None):
+        job_statuses.append(status)
+
+    async def transition_version(_conn, *, version_id, status, **_kwargs):
+        terminal_statuses.append(status)
+
+    monkeypatch.setattr(
+        lifecycle_worker, "transition_job_public_requests", transition_job
+    )
+    monkeypatch.setattr(
+        lifecycle_worker, "transition_requests_for_version", transition_version
+    )
+    await lifecycle_worker.reconcile_generation_result(
+        _Conn(),
+        payload={"process_id": str(uuid4()), "version_id": str(uuid4())},
+        result={"validation": {"passed": True}},
+    )
+    assert job_statuses == []  # nosec B101
+    assert terminal_statuses == ["validation_failed"]  # nosec B101
 
 
 @pytest.mark.asyncio

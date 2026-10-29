@@ -17,7 +17,6 @@ async def select_context_steps(
     *,
     query: str,
     steps: Sequence[Step],
-    lexical_scores: dict[UUID, float] | None = None,
     vector_scores: dict[UUID, float] | None = None,
     scorer: RerankerScorer | None = None,
 ) -> list[RankedStep]:
@@ -35,7 +34,6 @@ async def select_context_steps(
     candidates = rank_steps(
         query=query,
         steps=steps,
-        lexical_scores=lexical_scores,
         vector_scores=vector_scores,
         limit=candidate_limit,
     )

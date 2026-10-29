@@ -91,25 +91,19 @@ def test_vector_signal_contributes_half_of_base_score() -> None:
     assert by_id[semantic_hit.id].score > 0.5
 
 
-def test_postgres_lexical_scores_cannot_override_bm25_final_signal() -> None:
+def test_literal_bm25_is_the_only_lexical_ranking_input() -> None:
     steps = [_step(i, "movimento neutro") for i in range(1, 51)]
     bm25_hit = _step(20, "tutela decisão tutela decisão")
-    sql_rank_hit = _step(21, "conteúdo sem relação")
+    unrelated = _step(21, "conteúdo sem relação")
     steps[19] = bm25_hit
-    steps[20] = sql_rank_hit
+    steps[20] = unrelated
 
-    ranked = rank_steps(
-        query="tutela decisão",
-        steps=steps,
-        lexical_scores={sql_rank_hit.id: 999.0},
-        limit=10,
-    )
+    ranked = rank_steps(query="tutela decisão", steps=steps, limit=10)
     by_id = {item.step.id: item for item in ranked}
 
     assert bm25_hit.id in by_id
-    assert by_id[bm25_hit.id].lexical == by_id[bm25_hit.id].bm25
-    assert by_id[bm25_hit.id].lexical > 0.0
-    assert by_id.get(sql_rank_hit.id) is None or by_id[sql_rank_hit.id].lexical == 0.0
+    assert by_id[bm25_hit.id].bm25 > 0.0
+    assert by_id.get(unrelated.id) is None or by_id[unrelated.id].bm25 == 0.0
 
 
 def test_hybrid_base_score_uses_equal_bm25_and_vector_weights() -> None:
@@ -126,6 +120,6 @@ def test_hybrid_base_score_uses_equal_bm25_and_vector_weights() -> None:
     item = next(candidate for candidate in ranked if candidate.step.id == target.id)
     recency = 1.0 + 0.3 * (target.step_number / 50)
 
-    assert item.lexical == 1.0
+    assert item.bm25 == 1.0
     assert item.vector == 1.0
     assert item.score / recency == pytest.approx(1.0)

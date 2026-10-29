@@ -97,7 +97,7 @@ async def test_long_process_enabled_uses_configured_scorer(monkeypatch) -> None:
         return steps
 
     async def fake_select_context_steps(
-        *, query, steps, vector_scores, scorer, lexical_scores=None
+        *, query, steps, vector_scores, scorer
     ):
         calls["scorer"] = scorer
         calls["step_count"] = len(steps)
