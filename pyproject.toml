@@ -42,9 +42,6 @@ reranker = [
 embeddings = [
   "FlagEmbedding>=1.4.2,<1.5",
 ]
-observability = [
-  "langfuse>=4.7,<5",
-]
 
 [project.urls]
 Repository = "https://github.com/oigorbrito/rpy"

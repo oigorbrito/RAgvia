@@ -29,7 +29,6 @@ import app.api
 import app.worker
 import app.scheduler
 from app.migrations import resolve_migrations
-import langfuse
 
 frontend = Path(app.api.__file__).with_name("frontend")
 required = [frontend / "index.html", frontend / "app.css", frontend / "app.js"]

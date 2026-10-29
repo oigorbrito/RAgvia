@@ -19,7 +19,7 @@ COPY pyproject.toml ./
 COPY requirements ./requirements
 COPY app ./app
 RUN python -m pip install pip==26.2.1 setuptools==80.9.0 \
-    && python -m pip install --constraint requirements/constraints.txt '.[observability,ocr]' \
+    && python -m pip install --constraint requirements/constraints.txt '.[ocr]' \
     && rm -rf /usr/local/lib/python3.12/site-packages/pip \
               /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
               /usr/local/lib/python3.12/site-packages/setuptools \

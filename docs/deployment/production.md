@@ -44,7 +44,7 @@ Workers join `backend` plus a second internal network named `provider-gateway`. 
 
 This topology makes the network route itself a control: a compromised worker cannot bypass the proxy by opening a direct internet socket because neither of its networks has an external gateway. The proxy has no database connection and receives no provider/API credentials. It is a transport gateway, not an application credential broker.
 
-The minimum allowlist depends on activated features. Anthropic plus Judit request/tracking hosts are always required. The legacy OpenAI embedding path additionally requires `api.openai.com`. Cohere requires `api.cohere.com` only when external embedding or reranking is explicitly enabled. Judit attachment download additionally requires `lawsuits.production.judit.io`. Enabled DataJud and Langfuse require the exact hostnames from their configured HTTPS base URLs. `scripts/validate_deploy_env.py` checks these relationships before deployment.
+The minimum allowlist depends on activated features. Anthropic plus Judit request/tracking hosts are always required. The legacy OpenAI embedding path additionally requires `api.openai.com`. Cohere requires `api.cohere.com` only when external embedding or reranking is explicitly enabled. Judit attachment download additionally requires `lawsuits.production.judit.io`. Enabled DataJud requires the exact hostname from its configured HTTPS base URL. `scripts/validate_deploy_env.py` checks these relationships before deployment.
 
 Adding a new provider hostname is an explicit security change:
 
@@ -193,21 +193,6 @@ This gate is intentional. The current CNJ rules for the public DataJud API requi
 
 Secret processes are skipped before the DataJud transport call; enrichment failures do not invalidate an otherwise valid Judit version.
 
-## Optional Langfuse observability
-
-The production image includes the pinned Langfuse v4 SDK, but tracing remains disabled by default. Workers receive the optional observability settings; API, scheduler and migration services do not receive the Langfuse secret key.
-
-To enable tracing:
-
-- set `LANGFUSE_ENABLED=true`;
-- provide worker-only `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`;
-- set an HTTPS `LANGFUSE_BASE_URL`;
-- set `LANGFUSE_TRACING_ENVIRONMENT` (default `production`).
-
-Production preflight rejects enabled tracing with missing credentials, a non-HTTPS base URL or an invalid environment name. Both workers must use the same observability configuration. The central log-safety layer redacts `LANGFUSE_SECRET_KEY`.
-
-Langfuse remains fail-open: tracing failures do not decide whether a summary is generated, validated or published. PostgreSQL is the durable application/audit source of truth. Configure and verify the intended Langfuse retention policy separately; self-hosted event data is not automatically expired by default. See `docs/operations/langfuse.md`.
-
 ## Deploy sequence
 
 For the supported single-host Compose topology, the canonical operator entrypoint is:
@@ -262,7 +247,6 @@ The deploy-environment preflight rejects configuration that:
 - enables BGE reranking without an absolute `BGE_RERANKER_PATH`;
 - selects Cohere reranking without separate `ALLOW_EXTERNAL_RERANKER=true` authorization and `COHERE_API_KEY`;
 - enables DataJud without `DATAJUD_AUTHORIZED_USE=true`, `DATAJUD_API_KEY`, HTTPS base URL and a valid timeout;
-- enables Langfuse without credentials, an HTTPS base URL or a valid tracing environment;
 - omits a required provider hostname from `EGRESS_PROXY_ALLOWED_HOSTS`, or uses wildcard/IP-literal entries;
 - reuses a PostgreSQL login identity across migration/API/worker/scheduler/backup responsibilities;
 - points the role-specific URLs at different PostgreSQL databases;
@@ -282,7 +266,7 @@ The compose validator rejects changes that:
 - change the explicit API worker count;
 - alter the two-worker / one-scheduler topology;
 - remove required service-specific configuration;
-- allow the two workers to disagree on embedding, reranker, DataJud or Langfuse activation settings;
+- allow the two workers to disagree on embedding, reranker or DataJud activation settings;
 - distribute provider or HTTP-facing secrets to unrelated services.
 
 This contract is intentionally small. Platform-specific manifests (Kubernetes, ECS, Nomad, Fly.io, Render, etc.) should reproduce these invariants rather than introduce a second application architecture.

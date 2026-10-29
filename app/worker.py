@@ -32,7 +32,6 @@ from app.datajud_security import (
 )
 from app.json_utils import decode_json_object
 from app.judit import normalize_cnj
-from app.langfuse_tracing import SummaryTrace, start_summary_trace
 from app.log_safety import sanitize_error_message
 from app.public_lifecycle_worker import (
     mark_job_dead,
@@ -135,34 +134,6 @@ def _resolve_job_contract(row: asyncpg.Record) -> tuple[Any, dict[str, Any]]:
     return handler, payload
 
 
-async def _summary_trace_details(
-    conn: asyncpg.Connection, payload: dict[str, Any]
-) -> tuple[str | None, list[str]]:
-    try:
-        process_id = UUID(str(payload["process_id"]))
-        version_id = UUID(str(payload["version_id"]))
-    except (KeyError, TypeError, ValueError):
-        return None, []
-
-    rows = await conn.fetch(
-        """
-        SELECT ps.id AS summary_id, pss.step_id
-        FROM process_summaries ps
-        LEFT JOIN process_summary_sources pss
-          ON pss.summary_id = ps.id
-        WHERE ps.process_id = $1 AND ps.version_id = $2
-        ORDER BY pss.source_order NULLS LAST
-        """,
-        process_id,
-        version_id,
-    )
-    if not rows:
-        return None, []
-    summary_id = str(rows[0]["summary_id"])
-    source_ids = [str(row["step_id"]) for row in rows if row["step_id"] is not None]
-    return summary_id, source_ids
-
-
 class Worker:
     def __init__(self, pool: asyncpg.Pool, settings: WorkerSettings, worker_id: UUID | None = None):
         self.pool = pool
@@ -212,7 +183,6 @@ class Worker:
         task_name = str(row["task_name"])
         payload: dict[str, Any] = {}
         heartbeat_task: asyncio.Task[None] | None = None
-        summary_trace = SummaryTrace()
         try:
             handler, payload = _resolve_job_contract(row)
             if task_name == "lookup_datajud_metadata":
@@ -232,18 +202,10 @@ class Worker:
                             task_name=task_name,
                             payload=payload,
                         )
-                summary_trace = start_summary_trace(
-                    job_id=job_id,
-                    process_id=payload.get("process_id"),
-                    version_id=payload.get("version_id"),
-                    judit_request_id=payload.get("judit_request_id"),
-                )
             heartbeat_task = asyncio.create_task(self._heartbeat_loop(job_id))
             result = await asyncio.wait_for(
                 handler(payload), timeout=self.settings.task_timeout_seconds
             )
-            trace_result = dict(result or {})
-            trace_source_ids: list[str] = []
             async with self.pool.acquire() as conn:
                 async with _transaction(conn):
                     completed = await complete(
@@ -257,8 +219,6 @@ class Worker:
                             "job %s lost ownership before completion",
                             job_id,
                         )
-                        if task_name == "generate_process_summary":
-                            summary_trace.finish(error_type="LostJobOwnership")
                         return
                     if task_name == "generate_process_summary":
                         await reconcile_generation_result(
@@ -266,26 +226,9 @@ class Worker:
                             payload=payload,
                             result=result,
                         )
-                        summary_id, trace_source_ids = await _summary_trace_details(conn, payload)
-                        if summary_id is not None:
-                            trace_result["summary_id"] = summary_id
-            if task_name == "generate_process_summary":
-                validation = trace_result.get("validation")
-                validation_errors = (
-                    validation.get("errors")
-                    if isinstance(validation, dict) and isinstance(validation.get("errors"), list)
-                    else None
-                )
-                summary_trace.finish(
-                    result=trace_result,
-                    source_ids=trace_source_ids,
-                    validation_errors=validation_errors,
-                )
         except asyncio.CancelledError:
-            summary_trace.finish(error_type="CancelledError")
             raise
         except Exception as exc:
-            summary_trace.finish(error_type=type(exc).__name__)
             permanent = isinstance(exc, PermanentTaskError)
             safe_detail = sanitize_error_message(exc)
             logger.error(

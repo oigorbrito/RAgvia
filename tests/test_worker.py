@@ -221,14 +221,6 @@ async def test_worker_redacts_secret_from_error_log_and_runtime_log(
         raise AssertionError("Redaction changed queue-failure identity or retry classification")
 
 
-class _Trace:
-    def __init__(self) -> None:
-        self.finished: list[dict] = []
-
-    def finish(self, **kwargs) -> None:
-        self.finished.append(kwargs)
-
-
 @pytest.mark.asyncio
 async def test_summary_worker_lost_ownership_before_start_has_no_lifecycle_side_effect(
     monkeypatch,
@@ -267,7 +259,6 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     monkeypatch,
 ) -> None:
     called: list[str] = []
-    trace = _Trace()
 
     async def handler(payload):
         called.append("handler")
@@ -291,7 +282,6 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "complete", lost_complete)
     monkeypatch.setattr(worker_module, "reconcile_generation_result", reconcile)
-    monkeypatch.setattr(worker_module, "start_summary_trace", lambda **kwargs: trace)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
     row = {
@@ -304,13 +294,11 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     await worker._run_job(row)
 
     assert called == ["mark_started", "handler", "complete"]  # nosec B101
-    assert trace.finished == [{"error_type": "LostJobOwnership"}]  # nosec B101
 
 
 @pytest.mark.asyncio
 async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> None:
     called: list[str] = []
-    trace = _Trace()
 
     async def handler(payload):
         return {"validation": {"passed": True}}
@@ -328,16 +316,11 @@ async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> N
     async def reconcile(conn, *, payload, result):
         called.append("reconcile")
 
-    async def trace_details(conn, payload):
-        return None, []
-
     monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "heartbeat", owns_job)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "complete", complete_owned)
     monkeypatch.setattr(worker_module, "reconcile_generation_result", reconcile)
-    monkeypatch.setattr(worker_module, "_summary_trace_details", trace_details)
-    monkeypatch.setattr(worker_module, "start_summary_trace", lambda **kwargs: trace)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
     row = {
@@ -350,7 +333,6 @@ async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> N
     await worker._run_job(row)
 
     assert called == ["mark_started", "complete", "reconcile"]  # nosec B101
-    assert trace.finished and trace.finished[0].get("error_type") is None  # nosec B101
 
 
 @pytest.mark.asyncio

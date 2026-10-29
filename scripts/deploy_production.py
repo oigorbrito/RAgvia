@@ -33,7 +33,6 @@ _CONTROLLED_PREFIXES = (
     "OPENAI_",
     "JUDIT_",
     "DATAJUD_",
-    "LANGFUSE_",
     "EGRESS_",
     "EMBEDDING_",
     "BGE_",
