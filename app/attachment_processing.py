@@ -655,7 +655,6 @@ async def process_text_attachment_bytes(
 ) -> dict[str, object]:
     """Backward-compatible text-only entry point for the Phase 2 processing block."""
     if normalize_content_type(content_type) != "text/plain":
-        effective_limits = limits or attachment_processing_limits()
         digest = hashlib.sha256(data).hexdigest()
         attachment_id = await upsert_attachment_state(
             conn,
