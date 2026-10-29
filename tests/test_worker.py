@@ -9,6 +9,22 @@ from app.tasks import PermanentTaskError
 from app.worker import Worker, WorkerSettings, _decode_payload
 
 
+def test_task_dispatch_contains_all_registered_names_and_handlers() -> None:
+    expected = {
+        "healthcheck": worker_module.healthcheck,
+        "lookup_datajud_metadata": worker_module.lookup_datajud_metadata_task,
+        "process_judit_attachments": worker_module.process_judit_attachments_task,
+        "finalize_judit_request": worker_module.finalize_judit_request_task,
+        "create_judit_tracking": worker_module.create_judit_tracking_task,
+        "delete_judit_tracking": worker_module.delete_judit_tracking_task,
+        "refresh_judit_tracking": worker_module.refresh_judit_tracking_task,
+        "request_judit_process": worker_module.request_judit_process_task,
+        "generate_process_summary": worker_module.generate_process_summary_task,
+    }
+    assert worker_module._TASK_HANDLERS == expected
+    assert len(worker_module._TASK_HANDLERS) == 9
+
+
 def test_worker_settings_defaults(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/rpy")
     settings = WorkerSettings.from_env()
