@@ -15,7 +15,6 @@ from app.processes import finalize_version, preferred_judit_version
 from app.public_lifecycle import transition_requests_for_judit_request
 from app.queue import enqueue
 from app.summary_policy import is_restricted_local_summary
-from app.tasks import task
 
 
 async def _complete_from_current_summary(
@@ -86,7 +85,6 @@ async def _complete_from_current_summary(
     return True
 
 
-@task("finalize_judit_request")
 async def finalize_judit_request_task(payload: dict[str, Any]) -> dict[str, Any]:
     request_id = str(payload["request_id"])
     database_url = os.environ.get("DATABASE_URL")

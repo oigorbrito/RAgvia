@@ -71,7 +71,7 @@ from app.summary_policy import (
     restricted_public_header,
     restricted_summary_payload,
 )
-from app.tasks import PermanentTaskError, task
+from app.tasks import PermanentTaskError
 from app.tpu_glossary import (
     load_legal_knowledge,
     normalize_legal_term,
@@ -1528,7 +1528,6 @@ async def generate_summary(
     }
 
 
-@task("generate_process_summary")
 async def generate_process_summary_task(payload: dict[str, Any]) -> dict[str, Any]:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:

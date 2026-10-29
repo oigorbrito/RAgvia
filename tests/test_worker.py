@@ -9,6 +9,22 @@ from app.tasks import PermanentTaskError
 from app.worker import Worker, WorkerSettings, _decode_payload
 
 
+def test_task_dispatch_contains_all_registered_names_and_handlers() -> None:
+    expected = {
+        "healthcheck": worker_module.healthcheck,
+        "lookup_datajud_metadata": worker_module.lookup_datajud_metadata_task,
+        "process_judit_attachments": worker_module.process_judit_attachments_task,
+        "finalize_judit_request": worker_module.finalize_judit_request_task,
+        "create_judit_tracking": worker_module.create_judit_tracking_task,
+        "delete_judit_tracking": worker_module.delete_judit_tracking_task,
+        "refresh_judit_tracking": worker_module.refresh_judit_tracking_task,
+        "request_judit_process": worker_module.request_judit_process_task,
+        "generate_process_summary": worker_module.generate_process_summary_task,
+    }
+    assert worker_module._TASK_HANDLERS == expected
+    assert len(worker_module._TASK_HANDLERS) == 9
+
+
 def test_worker_settings_defaults(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/rpy")
     settings = WorkerSettings.from_env()
@@ -88,13 +104,13 @@ async def test_worker_task_timeout_remains_retryable(monkeypatch) -> None:
         failed.append((error, permanent))
         return True
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: hung_handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "healthcheck", hung_handler)
     monkeypatch.setattr(worker_module, "fail", fake_fail)
 
     worker = Worker(_Pool(), _settings(task_timeout_seconds=0.01), worker_id=uuid4())
     row = {
         "id": uuid4(),
-        "task_name": "hung-provider-call",
+        "task_name": "healthcheck",
         "payload": {},
         "attempts": 1,
     }
@@ -117,13 +133,13 @@ async def test_worker_marks_explicit_permanent_task_error(monkeypatch) -> None:
         failed.append((error, permanent))
         return True
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: permanent_handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "healthcheck", permanent_handler)
     monkeypatch.setattr(worker_module, "fail", fake_fail)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
     row = {
         "id": uuid4(),
-        "task_name": "permanent",
+        "task_name": "healthcheck",
         "payload": {},
         "attempts": 1,
     }
@@ -169,14 +185,14 @@ async def test_worker_redacts_secret_from_error_log_and_runtime_log(
         })
         return True
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: leaking_handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "healthcheck", leaking_handler)
     monkeypatch.setattr(worker_module, "fail", fake_fail)
     caplog.set_level(logging.ERROR, logger="app.worker")
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
     row = {
         "id": uuid4(),
-        "task_name": "leaking-provider",
+        "task_name": "healthcheck",
         "payload": {},
         "attempts": 1,
     }
@@ -229,7 +245,7 @@ async def test_summary_worker_lost_ownership_before_start_has_no_lifecycle_side_
     async def mark_started(conn, *, task_name, payload):
         called.append("mark_started")
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "heartbeat", not_owner)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
 
@@ -270,7 +286,7 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     async def reconcile(conn, *, payload, result):
         called.append("reconcile")
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "heartbeat", owns_job)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "complete", lost_complete)
@@ -315,7 +331,7 @@ async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> N
     async def trace_details(conn, payload):
         return None, []
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "heartbeat", owns_job)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "complete", complete_owned)
@@ -355,12 +371,12 @@ async def test_worker_redacts_nested_authorization_from_log_and_queue_failure(
         failed.append(error)
         return True
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: leaking_handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "healthcheck", leaking_handler)
     monkeypatch.setattr(worker_module, "fail", fake_fail)
     caplog.set_level(logging.ERROR, logger="app.worker")
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
-    row = {"id": uuid4(), "task_name": "nested-auth-error", "payload": {}, "attempts": 1}
+    row = {"id": uuid4(), "task_name": "healthcheck", "payload": {}, "attempts": 1}
     await worker._run_job(row)
 
     rendered_logs = "\n".join(record.getMessage() for record in caplog.records)
