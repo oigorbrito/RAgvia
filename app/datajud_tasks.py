@@ -3,11 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from app.datajud_client import datajud_config, lookup_datajud_metadata
-from app.tasks import PermanentTaskError, task
+from app.tasks import PermanentTaskError
 from app.judit import normalize_cnj
 
 
-@task("lookup_datajud_metadata")
 async def lookup_datajud_metadata_task(payload: dict[str, Any]) -> dict[str, Any]:
     tenant_id = payload.get("tenant_id")
     raw_code = payload.get("code")

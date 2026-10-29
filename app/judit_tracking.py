@@ -17,7 +17,7 @@ from app.judit_client import (
 )
 from app.process_requests import request_process
 from app.queue import enqueue
-from app.tasks import PermanentTaskError, task
+from app.tasks import PermanentTaskError
 
 DEFAULT_TRACKING_RECURRENCE_DAYS = 1
 DEFAULT_TRACKING_STALE_HOURS = 36
@@ -312,7 +312,6 @@ async def enqueue_stale_tracking_reconciliations(
     return created
 
 
-@task("create_judit_tracking")
 async def create_judit_tracking_task(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         tracking_id = UUID(str(payload["tracking_id"]))
@@ -363,7 +362,6 @@ async def create_judit_tracking_task(payload: dict[str, Any]) -> dict[str, Any]:
         await pool.close()
 
 
-@task("delete_judit_tracking")
 async def delete_judit_tracking_task(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         tracking_id = UUID(str(payload["tracking_id"]))
@@ -401,7 +399,6 @@ async def delete_judit_tracking_task(payload: dict[str, Any]) -> dict[str, Any]:
         await pool.close()
 
 
-@task("refresh_judit_tracking")
 async def refresh_judit_tracking_task(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         refresh_id = UUID(str(payload["refresh_id"]))

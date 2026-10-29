@@ -345,7 +345,7 @@ async def test_reclaimed_summary_worker_cannot_reconcile_late(
     async def record_reconcile(conn, *, payload, result):
         reconciled.append(dict(payload))
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "reconcile_generation_result", record_reconcile)
     monkeypatch.setattr(worker_module, "start_summary_trace", lambda **kwargs: _Trace())

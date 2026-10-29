@@ -13,13 +13,17 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-import app.judit_tasks  # noqa: F401 - imports task registrations
-import app.judit_attachments  # noqa: F401 - imports task registrations
-import app.process_requests  # noqa: F401 - imports task registrations
-import app.judit_tracking  # noqa: F401 - imports task registrations
-import app.datajud_tasks  # noqa: F401 - imports task registrations
-import app.rag  # noqa: F401 - imports task registrations
+from app.datajud_tasks import lookup_datajud_metadata_task
 from app.db import create_pool
+from app.judit_attachments import process_judit_attachments_task
+from app.judit_tasks import finalize_judit_request_task
+from app.judit_tracking import (
+    create_judit_tracking_task,
+    delete_judit_tracking_task,
+    refresh_judit_tracking_task,
+)
+from app.process_requests import request_judit_process_task
+from app.rag import generate_process_summary_task, provider_context_limits
 from app.datajud_security import (
     DataJudProcessKnownSecret,
     DataJudProcessNotAuthorized,
@@ -36,9 +40,20 @@ from app.public_lifecycle_worker import (
     reconcile_generation_result,
 )
 from app.queue import claim, complete, fail, heartbeat, reclaim_stale
-from app.tasks import PermanentTaskError, resolve_task
+from app.tasks import PermanentTaskError, healthcheck
 
 logger = logging.getLogger(__name__)
+_TASK_HANDLERS = {
+    "healthcheck": healthcheck,
+    "lookup_datajud_metadata": lookup_datajud_metadata_task,
+    "process_judit_attachments": process_judit_attachments_task,
+    "finalize_judit_request": finalize_judit_request_task,
+    "create_judit_tracking": create_judit_tracking_task,
+    "delete_judit_tracking": delete_judit_tracking_task,
+    "refresh_judit_tracking": refresh_judit_tracking_task,
+    "request_judit_process": request_judit_process_task,
+    "generate_process_summary": generate_process_summary_task,
+}
 
 
 @asynccontextmanager
@@ -106,7 +121,11 @@ def _decode_payload(value: Any) -> dict[str, Any]:
 
 def _resolve_job_contract(row: asyncpg.Record) -> tuple[Any, dict[str, Any]]:
     try:
-        handler = resolve_task(str(row["task_name"]))
+        task_name = str(row["task_name"])
+        try:
+            handler = _TASK_HANDLERS[task_name]
+        except KeyError:
+            raise LookupError(f"unknown task: {task_name}") from None
         payload = _decode_payload(row["payload"])
     except (KeyError, LookupError, TypeError, ValueError) as exc:
         detail = sanitize_error_message(exc)
@@ -373,7 +392,7 @@ async def _main() -> None:
     parser.add_argument("--concurrency", type=int)
     args = parser.parse_args()
     settings = WorkerSettings.from_env()
-    app.rag.provider_context_limits()
+    provider_context_limits()
     if args.concurrency is not None:
         settings.concurrency = args.concurrency
         settings.validate()

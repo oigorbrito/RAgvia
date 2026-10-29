@@ -16,7 +16,7 @@ from app.judit_client import (
     judit_attachments_enabled,
 )
 from app.queue import enqueue
-from app.tasks import PermanentTaskError, task
+from app.tasks import PermanentTaskError
 
 
 async def _enqueue_summary(
@@ -41,7 +41,6 @@ async def _enqueue_summary(
     return job is not None
 
 
-@task("process_judit_attachments")
 async def process_judit_attachments_task(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         process_id = UUID(str(payload["process_id"]))

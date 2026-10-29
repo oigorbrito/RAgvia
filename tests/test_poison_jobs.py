@@ -47,7 +47,7 @@ async def test_malformed_payload_dead_letters_without_starting_heartbeat(monkeyp
         nonlocal heartbeat_started
         heartbeat_started = True
 
-    monkeypatch.setattr(worker_module, "resolve_task", lambda name: handler)
+    monkeypatch.setitem(worker_module._TASK_HANDLERS, "healthcheck", handler)
     monkeypatch.setattr(worker_module, "fail", fake_fail)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
@@ -56,7 +56,7 @@ async def test_malformed_payload_dead_letters_without_starting_heartbeat(monkeyp
     await worker._run_job(
         {
             "id": uuid4(),
-            "task_name": "known-task",
+            "task_name": "healthcheck",
             "payload": '["not", "an", "object"]',
             "attempts": 1,
         }
@@ -73,14 +73,10 @@ async def test_malformed_payload_dead_letters_without_starting_heartbeat(monkeyp
 async def test_unknown_task_dead_letters_without_escaping_slot(monkeypatch) -> None:
     failed: list[tuple[str, bool]] = []
 
-    def unknown_task(name):
-        raise LookupError(f"unknown task: {name}")
-
     async def fake_fail(conn, job_id, worker_id, *, attempts, error, permanent=False):
         failed.append((error, permanent))
         return "dead"
 
-    monkeypatch.setattr(worker_module, "resolve_task", unknown_task)
     monkeypatch.setattr(worker_module, "fail", fake_fail)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())

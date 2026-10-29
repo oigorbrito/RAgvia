@@ -26,7 +26,7 @@ from app.public_lifecycle import (
     transition_summary_request,
 )
 from app.queue import enqueue
-from app.tasks import PermanentTaskError, task
+from app.tasks import PermanentTaskError
 
 
 @dataclass(frozen=True, slots=True)
@@ -453,7 +453,6 @@ async def _reconcile_tenant_access(
         )
 
 
-@task("request_judit_process")
 async def request_judit_process_task(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         tenant_request_id = UUID(str(payload["tenant_request_id"]))
