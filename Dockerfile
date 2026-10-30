@@ -1,4 +1,4 @@
-FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea AS dependencies
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -19,7 +19,22 @@ COPY pyproject.toml ./
 COPY requirements ./requirements
 COPY app ./app
 RUN python -m pip install pip==26.2.1 setuptools==80.9.0 \
-    && python -m pip install --constraint requirements/constraints.txt '.[ocr]' \
+    && python -m pip install --constraint requirements/constraints.txt '.[ocr]'
+
+FROM dependencies AS offline-smoke
+RUN python -m pip install --constraint requirements/constraints.txt '.[smoke]' \
+    && useradd --create-home --uid 10001 rpy \
+    && mkdir -p /app/scripts \
+    && chown -R rpy:rpy /app
+COPY data ./data
+COPY sql ./sql
+COPY scripts/smoke_offline.py /app/scripts/smoke_offline.py
+USER rpy
+
+FROM dependencies AS runtime
+RUN useradd --create-home --uid 10001 rpy \
+    && mkdir -p /app/scripts \
+    && chown -R rpy:rpy /app \
     && rm -rf /usr/local/lib/python3.12/site-packages/pip \
               /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
               /usr/local/lib/python3.12/site-packages/setuptools \
@@ -27,12 +42,9 @@ RUN python -m pip install pip==26.2.1 setuptools==80.9.0 \
               /usr/local/lib/python3.12/site-packages/_distutils_hack \
               /usr/local/lib/python3.12/site-packages/distutils-precedence.pth \
     && rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.12
-
 COPY data ./data
 COPY sql ./sql
-COPY scripts ./scripts
-
-RUN useradd --create-home --uid 10001 rpy && chown -R rpy:rpy /app
+COPY scripts/migrate.py scripts/provision_db_roles.py /app/scripts/
 USER rpy
 
 EXPOSE 8000

@@ -18,7 +18,7 @@ dependencies = [
   "anthropic>=1.11.0,<2",
   "openai>=3.24.0,<4",
   "pgvector>=0.4,<1",
-  "pypdf>=6.19,<7",
+  "pypdf>=6.21.2,<7",
   "tzdata>=2026.5; platform_system == 'Windows'",
 ]
 
@@ -30,11 +30,14 @@ dev = [
   "httpx>=0.28,<1",
   "ruff>=0.16,<0.17",
   "pypdfium2>=5.13,<6",
-  "Pillow>=12.3,<13",
+  "Pillow>=13.0,<14",
+]
+smoke = [
+  "httpx>=0.28,<1",
 ]
 ocr = [
   "pypdfium2>=5.13,<6",
-  "Pillow>=12.3,<13",
+  "Pillow>=13.0,<14",
 ]
 reranker = [
   "FlagEmbedding>=1.4.2,<1.5",

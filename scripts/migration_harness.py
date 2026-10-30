@@ -339,7 +339,11 @@ def deployment_invariant_violations() -> list[str]:
         errors.append("production application services must require RPY_IMAGE")
     if "@sha256:" not in compose_text:
         errors.append("production service images must include immutable digests")
-    if not re.search(r"^FROM\s+\S+@sha256:[0-9a-fA-F]{64}\s*$", docker_text, re.MULTILINE):
+    if not re.search(
+        r"^FROM\s+\S+@sha256:[0-9a-fA-F]{64}(?:\s+AS\s+[A-Za-z0-9_.-]+)?\s*$",
+        docker_text,
+        re.MULTILINE | re.IGNORECASE,
+    ):
         errors.append("Dockerfile base image must be pinned by sha256 digest")
     if "--constraint" not in docker_text:
         errors.append("Docker build must install Python dependencies under the constraints lock")

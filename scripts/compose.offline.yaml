@@ -1,3 +1,6 @@
 services:
   postgres:
     ports: !reset []
+  api:
+    build:
+      target: offline-smoke

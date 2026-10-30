@@ -23,6 +23,8 @@ Attestation proves provenance (repository/workflow/commit/build identity); it is
 
 Rollback is artifact selection, not reconstruction: set `RPY_IMAGE` back to a previously known-good digest and execute the normal deployment sequence. Database migrations still determine whether an application rollback is schema-compatible, so destructive migrations require their own explicit rollback plan.
 
+The default Docker target is `runtime`. It carries the application, data, SQL migrations and only the operational scripts used by deployment (`migrate.py` and `provision_db_roles.py`); offline-smoke, demo-seeding, benchmarking and host-preview tools are not part of that image. The provider-free offline release smoke uses the separate `offline-smoke` build target, which adds its `httpx` test dependency without changing production dependencies. The developer-only `demo-seed` Compose profile mounts source and scripts from the checkout; it is not part of `compose.production.yaml`.
+
 ## Topology
 
 The minimum supported topology is:
