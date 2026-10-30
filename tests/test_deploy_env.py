@@ -104,7 +104,6 @@ def test_one_shot_provider_environment_rejects_retry_and_external_side_paths() -
         "JUDIT_ATTACHMENTS_ENABLED": "true",
         "DATAJUD_ENABLED": "true",
         "RERANKER_ENABLED": "true",
-        "LANGFUSE_ENABLED": "true",
         "ALLOW_EXTERNAL_EMBEDDINGS": "true",
         "EMBEDDING_SPACE_RUNTIME_ENABLED": "false",
         "EMBEDDING_PROVIDER": "cohere",
@@ -522,48 +521,6 @@ def test_datajud_rejects_non_finite_timeout() -> None:
         )
 
 
-def _enable_langfuse(values: dict[str, str]) -> None:
-    values["LANGFUSE_ENABLED"] = "true"
-    values["EGRESS_PROXY_ALLOWED_HOSTS"] += ",langfuse.example.internal"
-    values["LANGFUSE_PUBLIC_KEY"] = "pk-lf-production"
-    values["LANGFUSE_SECRET_KEY"] = "sk-lf-production"
-    values["LANGFUSE_BASE_URL"] = "https://langfuse.example.internal"
-    values["LANGFUSE_TRACING_ENVIRONMENT"] = "production"
-
-
-def test_disabled_langfuse_requires_no_credentials() -> None:
-    values = _valid_values()
-    values["LANGFUSE_ENABLED"] = "false"
-    assert preflight.validate(values) == []
-
-
-def test_langfuse_requires_credentials_when_enabled() -> None:
-    values = _valid_values()
-    _enable_langfuse(values)
-    values.pop("LANGFUSE_SECRET_KEY")
-    assert (
-        "LANGFUSE_SECRET_KEY is required when Langfuse tracing is active"
-        in preflight.validate(values)
-    )
-
-
-def test_langfuse_requires_https_base_url() -> None:
-    values = _valid_values()
-    _enable_langfuse(values)
-    values["LANGFUSE_BASE_URL"] = "http://langfuse.internal"
-    assert "LANGFUSE_BASE_URL must use https in production" in preflight.validate(values)
-
-
-def test_langfuse_environment_must_match_sdk_contract() -> None:
-    values = _valid_values()
-    _enable_langfuse(values)
-    values["LANGFUSE_TRACING_ENVIRONMENT"] = "Langfuse Production"
-    assert any(
-        error.startswith("LANGFUSE_TRACING_ENVIRONMENT must be")
-        for error in preflight.validate(values)
-    )
-
-
 
 def test_deploy_preflight_rejects_non_finite_egress_timeout() -> None:
     for value in ("nan", "inf", "-inf"):
@@ -623,17 +580,3 @@ def test_local_bge_does_not_require_openai_egress() -> None:
         "api.anthropic.com,requests.prod.judit.io,tracking.production.judit.io"
     )
     assert preflight.validate(values) == []
-
-
-def test_enabled_langfuse_host_must_be_explicitly_allowlisted() -> None:
-    values = _valid_values()
-    _enable_langfuse(values)
-    values["EGRESS_PROXY_ALLOWED_HOSTS"] = (
-        "api.anthropic.com,api.openai.com,"
-        "requests.prod.judit.io,tracking.production.judit.io"
-    )
-    assert (
-        "EGRESS_PROXY_ALLOWED_HOSTS is missing required provider hosts: "
-        "langfuse.example.internal"
-        in preflight.validate(values)
-    )

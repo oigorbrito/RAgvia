@@ -13,3 +13,5 @@ tests
 .github
 scripts/run_local_iasummary.py
 scripts/serve_local_iasummary_preview.py
+app/adversarial_mutations.py
+app/local_demo.py

@@ -18,13 +18,7 @@ def _steps(count: int) -> list[Step]:
 @pytest.mark.asyncio
 async def test_without_scorer_preserves_existing_long_process_limit() -> None:
     steps = _steps(60)
-    lexical = {step.id: float(100 - step.step_number) for step in steps}
-
-    selected = await select_context_steps(
-        query="decisão",
-        steps=steps,
-        lexical_scores=lexical,
-    )
+    selected = await select_context_steps(query="decisão", steps=steps)
 
     assert len(selected) == LEGACY_OUTPUT_LIMIT == 20
 
@@ -32,7 +26,6 @@ async def test_without_scorer_preserves_existing_long_process_limit() -> None:
 @pytest.mark.asyncio
 async def test_configured_scorer_receives_top_50_and_reduces_to_15() -> None:
     steps = _steps(60)
-    lexical = {step.id: float(100 - step.step_number) for step in steps}
     observed: list[Step] = []
 
     async def scorer(query: str, candidates: list[Step]) -> dict:
@@ -43,7 +36,6 @@ async def test_configured_scorer_receives_top_50_and_reduces_to_15() -> None:
     selected = await select_context_steps(
         query="decisão",
         steps=steps,
-        lexical_scores=lexical,
         scorer=scorer,
     )
 

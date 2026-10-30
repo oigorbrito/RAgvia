@@ -29,7 +29,6 @@ import app.api
 import app.worker
 import app.scheduler
 from app.migrations import resolve_migrations
-import langfuse
 
 frontend = Path(app.api.__file__).with_name("frontend")
 required = [frontend / "index.html", frontend / "app.css", frontend / "app.js"]
@@ -40,12 +39,19 @@ if missing:
 local_tools = [
     Path("/app/scripts/run_local_iasummary.py"),
     Path("/app/scripts/serve_local_iasummary_preview.py"),
+    Path("/app/scripts/smoke_offline.py"),
+    Path("/app/scripts/seed_local_demo.py"),
+    Path("/app/scripts/benchmark_reranker.py"),
 ]
 packaged_local_tools = [str(path) for path in local_tools if path.exists()]
 if packaged_local_tools:
     raise SystemExit(
-        f"host-only local summary tools must not ship in runtime images: {', '.join(packaged_local_tools)}"
+        f"development, demo, and verification tools must not ship in runtime images: {', '.join(packaged_local_tools)}"
     )
+
+for module in ("app.local_demo", "app.adversarial_mutations"):
+    if importlib.util.find_spec(module) is not None:
+        raise SystemExit(f"non-runtime module must not ship in production image: {module}")
 
 if os.getuid() == 0:
     raise SystemExit("image runtime user must not be root")

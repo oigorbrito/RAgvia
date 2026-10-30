@@ -42,7 +42,6 @@ BGE_MODEL = "BAAI/bge-m3"
 COHERE_MODEL = "embed-v4.0"
 BGE_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 COHERE_RERANKER_MODEL = "rerank-v4.0-pro"
-LANGFUSE_ENVIRONMENT_RE = re.compile(r"^(?!langfuse)[a-z0-9_-]{1,40}$")
 EGRESS_HOST_RE = re.compile(r"^[a-z0-9.-]{1,253}$")
 PROVIDER_ONE_SHOT_RUN_ID_RE = re.compile(r"^[A-Z][A-Z0-9-]{5,95}$")
 _BASE_EGRESS_HOSTS = {
@@ -142,9 +141,6 @@ def _required_egress_hosts(values: dict[str, str]) -> set[str]:
             )
         )
 
-    if _bool_value(values, "LANGFUSE_ENABLED", False):
-        required.add(_url_hostname(str(values.get("LANGFUSE_BASE_URL") or ""), "LANGFUSE_BASE_URL"))
-
     return required
 
 
@@ -232,7 +228,6 @@ def _validate_one_shot_provider_policy(values: dict[str, str], errors: list[str]
         ("JUDIT_ATTACHMENTS_ENABLED", False),
         ("DATAJUD_ENABLED", False),
         ("RERANKER_ENABLED", False),
-        ("LANGFUSE_ENABLED", False),
         ("ALLOW_EXTERNAL_EMBEDDINGS", False),
     )
     for key, expected in blocked_options:
@@ -517,37 +512,6 @@ def _validate_browser_origins(values: dict[str, str], errors: list[str]) -> None
         errors.append(str(exc))
 
 
-def _validate_langfuse(values: dict[str, str], errors: list[str]) -> None:
-    try:
-        enabled = _bool_value(values, "LANGFUSE_ENABLED", False)
-    except ValueError as exc:
-        errors.append(str(exc))
-        return
-
-    if not enabled:
-        return
-
-    for key in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
-        value = str(values.get(key) or "").strip()
-        if not value:
-            errors.append(f"{key} is required when Langfuse tracing is active")
-        elif any(marker in value.lower() for marker in PLACEHOLDER_MARKERS):
-            errors.append(f"{key} still contains a placeholder value")
-
-    base_url = str(values.get("LANGFUSE_BASE_URL") or "").strip().rstrip("/")
-    if not base_url:
-        errors.append("LANGFUSE_BASE_URL is required when Langfuse tracing is active")
-    elif not base_url.startswith("https://"):
-        errors.append("LANGFUSE_BASE_URL must use https in production")
-
-    environment = str(values.get("LANGFUSE_TRACING_ENVIRONMENT") or "production").strip()
-    if not LANGFUSE_ENVIRONMENT_RE.fullmatch(environment):
-        errors.append(
-            "LANGFUSE_TRACING_ENVIRONMENT must be 1-40 lowercase letters, numbers, "
-            "hyphens or underscores and must not start with 'langfuse'"
-        )
-
-
 def validate(values: dict[str, str]) -> list[str]:
     errors: list[str] = []
     for key in REQUIRED_KEYS:
@@ -579,7 +543,6 @@ def validate(values: dict[str, str]) -> list[str]:
     _validate_judit_callback(values, errors)
     _validate_browser_origins(values, errors)
     _validate_datajud(values, errors)
-    _validate_langfuse(values, errors)
     _validate_positive_numeric(
         values,
         errors,

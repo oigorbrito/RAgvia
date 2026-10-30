@@ -26,7 +26,8 @@ services:
     restart: "no"
 
   api:
-    build: .
+    build:
+      context: .
     command: ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
     environment: &rpy-env
       DATABASE_URL: postgresql://rpy:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/rpy
@@ -128,6 +129,10 @@ services:
       JUDIT_API_KEY: ""
       ANTHROPIC_API_KEY: ""
       OPENAI_API_KEY: ""
+      PYTHONPATH: /app
+    volumes:
+      - ./app:/app/app:ro
+      - ./scripts:/app/scripts:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

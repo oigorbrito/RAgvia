@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+import app.public_lifecycle_worker as lifecycle_worker
 import app.worker as worker_module
 from app.tasks import PermanentTaskError
 from app.worker import Worker, WorkerSettings, _decode_payload
@@ -221,12 +222,34 @@ async def test_worker_redacts_secret_from_error_log_and_runtime_log(
         raise AssertionError("Redaction changed queue-failure identity or retry classification")
 
 
-class _Trace:
-    def __init__(self) -> None:
-        self.finished: list[dict] = []
+@pytest.mark.asyncio
+async def test_generation_reconciliation_skips_unobservable_validating_state(monkeypatch) -> None:
+    job_statuses: list[str] = []
+    terminal_statuses: list[str] = []
 
-    def finish(self, **kwargs) -> None:
-        self.finished.append(kwargs)
+    class _Conn:
+        async def fetchrow(self, _query, *_args):
+            return None
+
+    async def transition_job(_conn, *, task_name, payload, status, error_code=None):
+        job_statuses.append(status)
+
+    async def transition_version(_conn, *, version_id, status, **_kwargs):
+        terminal_statuses.append(status)
+
+    monkeypatch.setattr(
+        lifecycle_worker, "transition_job_public_requests", transition_job
+    )
+    monkeypatch.setattr(
+        lifecycle_worker, "transition_requests_for_version", transition_version
+    )
+    await lifecycle_worker.reconcile_generation_result(
+        _Conn(),
+        payload={"process_id": str(uuid4()), "version_id": str(uuid4())},
+        result={"validation": {"passed": True}},
+    )
+    assert job_statuses == []  # nosec B101
+    assert terminal_statuses == ["validation_failed"]  # nosec B101
 
 
 @pytest.mark.asyncio
@@ -267,7 +290,6 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     monkeypatch,
 ) -> None:
     called: list[str] = []
-    trace = _Trace()
 
     async def handler(payload):
         called.append("handler")
@@ -291,7 +313,6 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "complete", lost_complete)
     monkeypatch.setattr(worker_module, "reconcile_generation_result", reconcile)
-    monkeypatch.setattr(worker_module, "start_summary_trace", lambda **kwargs: trace)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
     row = {
@@ -304,13 +325,11 @@ async def test_summary_worker_lost_ownership_before_completion_skips_reconcile(
     await worker._run_job(row)
 
     assert called == ["mark_started", "handler", "complete"]  # nosec B101
-    assert trace.finished == [{"error_type": "LostJobOwnership"}]  # nosec B101
 
 
 @pytest.mark.asyncio
 async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> None:
     called: list[str] = []
-    trace = _Trace()
 
     async def handler(payload):
         return {"validation": {"passed": True}}
@@ -328,16 +347,11 @@ async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> N
     async def reconcile(conn, *, payload, result):
         called.append("reconcile")
 
-    async def trace_details(conn, payload):
-        return None, []
-
     monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "heartbeat", owns_job)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "complete", complete_owned)
     monkeypatch.setattr(worker_module, "reconcile_generation_result", reconcile)
-    monkeypatch.setattr(worker_module, "_summary_trace_details", trace_details)
-    monkeypatch.setattr(worker_module, "start_summary_trace", lambda **kwargs: trace)
 
     worker = Worker(_Pool(), _settings(), worker_id=uuid4())
     row = {
@@ -350,7 +364,6 @@ async def test_summary_worker_completes_fence_before_reconcile(monkeypatch) -> N
     await worker._run_job(row)
 
     assert called == ["mark_started", "complete", "reconcile"]  # nosec B101
-    assert trace.finished and trace.finished[0].get("error_type") is None  # nosec B101
 
 
 @pytest.mark.asyncio

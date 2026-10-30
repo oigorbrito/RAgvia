@@ -46,8 +46,8 @@ Required **environment secrets** for the default contract:
 - `RPY_BEARER_TOKENS`;
 - `RPY_OPS_TOKEN`.
 
-Optional secrets such as `COHERE_API_KEY`, `DATAJUD_API_KEY`, and Langfuse credentials are supplied
-only when the corresponding feature is explicitly enabled and authorized.
+Optional secrets such as `COHERE_API_KEY` and `DATAJUD_API_KEY` are supplied only when the
+corresponding feature is explicitly enabled and authorized.
 
 `JUDIT_CALLBACK_URL` is sensitive configuration because the callback token is embedded in its path.
 It must use the same origin as `STAGING_BASE_URL` and the exact

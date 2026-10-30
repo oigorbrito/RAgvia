@@ -177,7 +177,7 @@ def rag_invariant_violations() -> list[str]:
     if "LEXICAL_WEIGHT = 0.5" not in retrieval_text or "VECTOR_WEIGHT = 0.5" not in retrieval_text:
         errors.append("long retrieval must preserve 0.5 lexical / 0.5 vector weighting")
     expected_weighted_score = (
-        "LEXICAL_WEIGHT * lexical.get(step.id, 0.0) + "
+        "LEXICAL_WEIGHT * bm25.get(step.id, 0.0) + "
         "VECTOR_WEIGHT * vector.get(step.id, 0.0)"
     )
     if expected_weighted_score not in retrieval_compact:
@@ -188,8 +188,8 @@ def rag_invariant_violations() -> list[str]:
         errors.append("PostgreSQL lexical retrieval must use Portuguese text search")
     if "lexical_scores = await lexical_search(" in rag_text:
         errors.append("final RAG ranking must not use PostgreSQL ts_rank_cd lexical scores")
-    if "lexical = bm25" not in retrieval_text:
-        errors.append("long retrieval must use literal BM25 as the final lexical signal")
+    if "lexical_scores:" in retrieval_text or "lexical: float" in retrieval_text:
+        errors.append("final ranking must not expose duplicate lexical scores alongside BM25")
     if "len(steps) > 40" in rag_text and not embeddings.exists():
         errors.append("conditional vector retrieval requires app/embeddings.py")
     return errors
@@ -339,7 +339,11 @@ def deployment_invariant_violations() -> list[str]:
         errors.append("production application services must require RPY_IMAGE")
     if "@sha256:" not in compose_text:
         errors.append("production service images must include immutable digests")
-    if not re.search(r"^FROM\s+\S+@sha256:[0-9a-fA-F]{64}\s*$", docker_text, re.MULTILINE):
+    if not re.search(
+        r"^FROM\s+\S+@sha256:[0-9a-fA-F]{64}(?:\s+AS\s+[A-Za-z0-9_.-]+)?\s*$",
+        docker_text,
+        re.MULTILINE | re.IGNORECASE,
+    ):
         errors.append("Dockerfile base image must be pinned by sha256 digest")
     if "--constraint" not in docker_text:
         errors.append("Docker build must install Python dependencies under the constraints lock")

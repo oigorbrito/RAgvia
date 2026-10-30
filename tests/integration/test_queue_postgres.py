@@ -327,10 +327,6 @@ async def test_reclaimed_summary_worker_cannot_reconcile_late(
     release_handler = asyncio.Event()
     reconciled: list[dict] = []
 
-    class _Trace:
-        def finish(self, **kwargs) -> None:
-            return None
-
     async def handler(payload):
         handler_started.set()
         await release_handler.wait()
@@ -348,7 +344,6 @@ async def test_reclaimed_summary_worker_cannot_reconcile_late(
     monkeypatch.setitem(worker_module._TASK_HANDLERS, "generate_process_summary", handler)
     monkeypatch.setattr(worker_module, "mark_job_started", mark_started)
     monkeypatch.setattr(worker_module, "reconcile_generation_result", record_reconcile)
-    monkeypatch.setattr(worker_module, "start_summary_trace", lambda **kwargs: _Trace())
 
     try:
         async with pool.acquire() as conn:

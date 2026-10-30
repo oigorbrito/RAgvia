@@ -67,7 +67,6 @@ class Step:
 class RankedStep:
     step: Step
     bm25: float = 0.0
-    lexical: float = 0.0
     vector: float = 0.0
     score: float = 0.0
     forced: bool = False
@@ -134,7 +133,6 @@ def rank_steps(
     *,
     query: str,
     steps: Sequence[Step],
-    lexical_scores: dict[UUID, float] | None = None,
     vector_scores: dict[UUID, float] | None = None,
     limit: int = DEFAULT_RANK_LIMIT,
 ) -> list[RankedStep]:
@@ -145,17 +143,13 @@ def rank_steps(
         ]
 
     bm25 = _normalize(bm25_scores(query, steps))
-    # BM25 is the authoritative lexical signal. lexical_scores is retained as a
-    # compatibility/candidate-discovery input only and must never replace the
-    # final lexical score (for example with PostgreSQL ts_rank_cd).
-    lexical = bm25
     vector = _normalize(vector_scores or {})
     max_step = max(step.step_number for step in steps) or 1
 
     ranked: list[RankedStep] = []
     for step in steps:
         base_score = (
-            LEXICAL_WEIGHT * lexical.get(step.id, 0.0)
+            LEXICAL_WEIGHT * bm25.get(step.id, 0.0)
             + VECTOR_WEIGHT * vector.get(step.id, 0.0)
         )
         recency = 1.0 + RECENCY_BOOST_MAX * (step.step_number / max_step)
@@ -164,7 +158,6 @@ def rank_steps(
             RankedStep(
                 step=step,
                 bm25=bm25.get(step.id, 0.0),
-                lexical=lexical.get(step.id, 0.0),
                 vector=vector.get(step.id, 0.0),
                 score=base_score * recency,
                 forced=forced,
