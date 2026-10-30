@@ -25,7 +25,7 @@ The line measure is physical lines excluding blank and comment-only lines; docst
 
 ## Vulnerability findings
 
-The hosted PR #39 scans at the original published head reported 52 Python-audit rows: `certifi 2026.7.22` (`PYSEC-2026-4320`, duplicated across two advisory entries), `Pillow 12.3.0` (39 distinct advisories) and `pypdf 6.19.0` (11 CVEs). The corresponding fix versions in that report were `certifi 2026.10.18/2026.10.19`, `Pillow 13.0.0`, and pypdf versions through `6.21.2`. The 31 hosted Trivy HIGH/CRITICAL library findings were 28 for Pillow and 3 for pypdf; the hosted report had no Debian findings at that scan time. The project dependencies now require/pin pypdf `6.21.2`, Pillow `13.0.0`, and certifi `2026.10.19`.
+The hosted PR #39 scans at the original published head reported 52 Python-audit rows: `certifi 2026.7.22` (`PYSEC-2026-4320`, duplicated across two advisory entries), `Pillow 12.3.0` (39 distinct advisories) and `pypdf 6.19.0` (11 CVEs). The original hosted logs are preserved locally at `D:/temp/ragvia-pr39-python-audit-full.log` and `D:/temp/ragvia-pr39-trivy-full.log`. The corresponding fix versions in that report were `certifi 2026.10.18/2026.10.19`, `Pillow 13.0.0`, and pypdf versions through `6.21.2`. The 31 hosted Trivy HIGH/CRITICAL library findings were 28 for Pillow and 3 for pypdf; the hosted report had no Debian findings at that scan time. The project dependencies now require/pin pypdf `6.21.2`, Pillow `13.0.0`, and certifi `2026.10.19`.
 
 A local `pip-audit==2.10.1` run over the constrained `.[dev]` environment reported **no known vulnerabilities** in the resolved third-party packages. The private `rpy` distribution was skipped because it is not published on PyPI; this is not an audit of Rpy's source.
 
@@ -34,7 +34,7 @@ The built production image was scanned locally with Trivy `0.74.0`, vulnerabilit
 - Full HIGH/CRITICAL report (`--ignore-unfixed=false`): **71 Debian package-CVE hits**, 70 HIGH and 1 CRITICAL, across 28 unique CVE IDs; no Python package findings. All 71 had no `FixedVersion` in this Trivy database. Statuses were 69 `affected`, one `will_not_fix`, and one `fix_deferred`.
 - The repository's existing fixable-vulnerability gate (`--ignore-unfixed=true`) found **zero fixable HIGH/CRITICAL findings**. No scanner was disabled and no new suppression was added. This is not a claim that the image is vulnerability-free. The remaining critical finding is Debian `libxml2` CVE-2026-6653; the local report listed no fixed version. Other unique IDs were: `CVE-2025-69720`, `CVE-2026-12064`, `CVE-2026-16742`, `CVE-2026-36849`, `CVE-2026-52490`, `CVE-2026-54369`, `CVE-2026-73066`, `CVE-2026-74860`, `CVE-2026-76642`, `CVE-2026-78408`, `CVE-2026-78409`, `CVE-2026-78410`, `CVE-2026-8458`, `CVE-2026-86138`, `CVE-2026-86139`, `CVE-2026-86140`, `CVE-2026-86142`, `CVE-2026-86143`, `CVE-2026-86144`, `CVE-2026-88047`, `CVE-2026-88048`, `CVE-2026-88051`, `CVE-2026-88052`, `CVE-2026-88053`, `CVE-2026-88806`, `CVE-2026-88807`, and `CVE-2026-9538`.
 
-These are current scan observations, not an exploitability assessment. The code changes do not claim to fix the unfixed Debian findings; retain the full scan output for release review and repeat the scan on the exact hosted image/head.
+These are current scan observations, not an exploitability assessment. The code changes do not claim to fix the unfixed Debian findings. The full local Trivy JSON is preserved at `D:/temp/ragvia-block14-trivy-0.74.0.json` (SHA-256 `cbef5129fb486c9d6410cf34ff77c491eb1775e7d3146236467f49ac339fa697`). Repeat the scan on the exact hosted image/head before release.
 
 ## Local verification
 
@@ -47,6 +47,6 @@ Executed against the working tree before this evidence document was added; the d
 - `docker build --target runtime` and `docker build --target offline-smoke`: pass. `sh scripts/verify_image_runtime.sh rpy-block14-runtime:local`: pass; runtime scripts were exactly `migrate.py` and `provision_db_roles.py`; `app.local_demo` and `app.adversarial_mutations` were absent.
 - `bash scripts/smoke_offline.sh`: pass against disposable PostgreSQL 16; all 37 migrations applied, a valid summary was published, cross-tenant access returned 404, and the smoke reported `providers=0`.
 - Synthetic RAG, offline pipeline and offline generation baseline commands all passed. These are fixture/fake-provider contract evidence, not live-provider quality, clinical/legal efficacy, production latency, or cost evidence.
-- The developer `demo-seed` path passed with the synthetic bearer mapping from `.env.example`; no provider credentials were set.
+- The developer `demo-seed` path passed with an explicit valid synthetic bearer mapping; no provider credentials were set.
 
 No paid provider was called. The exact hosted checks for the new commit have not run at the time this document was written. PR #39 must remain Draft and stacked on PR #38 until hosted checks on the published SHA are inspected; neither PR is merged and `main` was not changed.
